@@ -281,12 +281,12 @@ SP=true : dispatch/combine 使用 EP group
 
 ### 代码定位
 
-1. [`vllm/vllm/config/parallel.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/config/parallel.py:126) — `ParallelConfig`：定义 DP、EP、All-to-All backend，以及自动启用 SP 的条件（126-195、642-668）。
-2. [`vllm/vllm/distributed/parallel_state.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/distributed/parallel_state.py:1760) — `initialize_model_parallel()`：创建 TP、DP、PCP、EP group，其中 EP group 规模为 `DP × PCP × TP`（1760-1896）。
-3. [`vllm/vllm/model_executor/layers/fused_moe/config.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/model_executor/layers/fused_moe/config.py:1188) — `FusedMoEParallelConfig.make()`：关闭 EP 时展开 MoE TP，开启 EP 时改为 `ep_size` 并令 MoE `tp_size=1`（1188-1235）。
-4. [`vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py:814) — `_forward_impl()`：执行 dispatch、Router、expert kernel 和 combine（814-833）；`_maybe_reduce_final_output()` 负责必要的 TP/EP 输出归约（431-453）。
-5. [`vllm/vllm/model_executor/layers/fused_moe/expert_map_manager.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/model_executor/layers/fused_moe/expert_map_manager.py:214) — `ExpertMapManager`：计算 global expert 到 local expert 的映射，并将非本 rank expert 映射为 `-1`（214-255、297-307、440-453）。
-6. [`vllm/vllm/distributed/device_communicators/all2all.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/distributed/device_communicators/all2all.py:42) — `AgRsAll2AllManager`：用 AllGatherV 做 dispatch、ReduceScatterV 做 combine（42-138）；其他 All-to-All backend 在同文件中实现。
+1. [`vllm/vllm/config/parallel.py`](../vllm/vllm/config/parallel.py#L126) — `ParallelConfig`：定义 DP、EP、All-to-All backend，以及自动启用 SP 的条件（126-195、642-668）。
+2. [`vllm/vllm/distributed/parallel_state.py`](../vllm/vllm/distributed/parallel_state.py#L1760) — `initialize_model_parallel()`：创建 TP、DP、PCP、EP group，其中 EP group 规模为 `DP × PCP × TP`（1760-1896）。
+3. [`vllm/vllm/model_executor/layers/fused_moe/config.py`](../vllm/vllm/model_executor/layers/fused_moe/config.py#L1188) — `FusedMoEParallelConfig.make()`：关闭 EP 时展开 MoE TP，开启 EP 时改为 `ep_size` 并令 MoE `tp_size=1`（1188-1235）。
+4. [`vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py`](../vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py#L814) — `_forward_impl()`：执行 dispatch、Router、expert kernel 和 combine（814-833）；`_maybe_reduce_final_output()` 负责必要的 TP/EP 输出归约（431-453）。
+5. [`vllm/vllm/model_executor/layers/fused_moe/expert_map_manager.py`](../vllm/vllm/model_executor/layers/fused_moe/expert_map_manager.py#L214) — `ExpertMapManager`：计算 global expert 到 local expert 的映射，并将非本 rank expert 映射为 `-1`（214-255、297-307、440-453）。
+6. [`vllm/vllm/distributed/device_communicators/all2all.py`](../vllm/vllm/distributed/device_communicators/all2all.py#L42) — `AgRsAll2AllManager`：用 AllGatherV 做 dispatch、ReduceScatterV 做 combine（42-138）；其他 All-to-All backend 在同文件中实现。
 
 验证范围：以上是当前 checkout 的静态源码分析，未在 Docker/NPU 上执行 E2E。
 
@@ -344,8 +344,8 @@ EP 维度：只负责 routed experts
 
 代码定位：
 
-1. [`qwen3_moe.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/model_executor/models/qwen3_moe.py:191) — 创建共享专家；`shared_expert_gate` 是复制的，shared MLP 设置 `reduce_results=False`。
-2. [`qwen3_moe.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/model_executor/models/qwen3_moe.py:104) — 共享 MLP 使用标准 `MergedColumnParallelLinear + RowParallelLinear`，因此内部仍有 TP。
-3. [`moe_runner.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py:525) — shared expert 与 routed expert 分开执行；shared expert 不进入 routed dispatch。
-4. [`shared_experts.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/model_executor/layers/fused_moe/runner/shared_experts.py:155) — 共享专家在当前 rank 的输入上执行，并可使用独立 CUDA stream 与 dispatch/combine 重叠。
-5. [`moe_runner.py`](/home/x50063850/vllm-ascend-workspace/vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py:411) — 根据 routed kernel 是否已经归约，决定对 shared output 或最终结果执行 TP AllReduce。
+1. [`qwen3_moe.py`](../vllm/vllm/model_executor/models/qwen3_moe.py#L191) — 创建共享专家；`shared_expert_gate` 是复制的，shared MLP 设置 `reduce_results=False`。
+2. [`qwen3_moe.py`](../vllm/vllm/model_executor/models/qwen3_moe.py#L104) — 共享 MLP 使用标准 `MergedColumnParallelLinear + RowParallelLinear`，因此内部仍有 TP。
+3. [`moe_runner.py`](../vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py#L525) — shared expert 与 routed expert 分开执行；shared expert 不进入 routed dispatch。
+4. [`shared_experts.py`](../vllm/vllm/model_executor/layers/fused_moe/runner/shared_experts.py#L155) — 共享专家在当前 rank 的输入上执行，并可使用独立 CUDA stream 与 dispatch/combine 重叠。
+5. [`moe_runner.py`](../vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py#L411) — 根据 routed kernel 是否已经归约，决定对 shared output 或最终结果执行 TP AllReduce。

@@ -26,7 +26,7 @@ torch.ops.vllm.xxx
 通过vllm direct 详见
 ```
 
-通信算子注册：[vllm-ascend/vllm_ascend/ops/register_custom_ops.py](..vllm-ascend/vllm_ascend/ops/register_custom_ops.py#L220)。
-模型算子注册：[utils.py](..vllm-ascend/vllm_ascend/utils.py#L638)
+通信算子注册：[vllm-ascend/vllm_ascend/ops/register_custom_ops.py](../vllm-ascend/vllm_ascend/ops/register_custom_ops.py#L220)。
+模型算子注册：[utils.py](../vllm-ascend/vllm_ascend/utils.py#L638)
 
 ```
