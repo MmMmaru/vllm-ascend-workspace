@@ -81,3 +81,5 @@
 - 新增 `docs/container_compile_flow.md`，记录换仓后在 `xrs_vllm_main` 中对齐 catlass、重建 CANN custom-op/C++ 扩展、验证实际加载路径、运行 `bench_sp_tpot.sh` 和执行两卡 SP E2E smoke 的完整流程与失败边界。
 - 为 `SequenceParallelismPass` 增加 SP 替换/TP 回退 warning：可执行且命中 pattern 时报告替换数量，未命中或 compile range 低于阈值时报告回退 TP。
 - 新增 `tests/ut/compilation/test_sequence_parallelism.py`，覆盖命中替换、零命中回退和 token 范围不满足时回退三种状态；Docker 定向测试结果为 `3 passed`。
+- 增加两卡 Qwen3-VL SP fallback 功能 E2E，并通过本地权重验证 TP fallback 输出与无 SP 基线一致；日志同时观察到 `(1, 2047)` 回退 TP 和 `(2048, 8192)` 替换 53 个 pattern。结果为 `1 passed`，日志为 `.log/e2e_sp_warning_fallback_0728.log`。
+- Docker 运行 `tests/ut/compilation`，结果为 `29 passed, 14 warnings`；新增源码和测试通过 `py_compile`。
