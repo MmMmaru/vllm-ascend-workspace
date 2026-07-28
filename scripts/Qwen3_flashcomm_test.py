@@ -1,0 +1,119 @@
+"""使用 FlashComm 对 Qwen3-30B-A3B 进行一次离线异步生成。"""
+
+# docker exec -w "$source_root" xrs_090 \
+#   /home/x50063850/project/vllm-ascend/.temp/server1-editable/bin/python \
+#   scripts/Qwen3_flashcomm_offline.py
+
+import asyncio
+import os
+import sys
+from importlib.metadata import PackageNotFoundError, distribution
+from pathlib import Path
+
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+
+
+def configure_environment() -> None:
+    """在导入 vLLM 前配置 FlashComm 离线生成的运行环境。"""
+    defaults = {
+        "VLLM_ASCEND_ENABLE_FLASHCOMM1": "1",
+        "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+        "ASCEND_RT_VISIBLE_DEVICES": "4,5,6,7",
+        "VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS": "86400",
+        # "VLLM_VERSION": "0.23.0",
+    }
+    for name, value in defaults.items():
+        os.environ.setdefault(name, value)
+
+    source_paths = [
+        str(WORKSPACE_ROOT / "vllm-ascend"),
+        str(WORKSPACE_ROOT / "vllm"),
+    ]
+    existing_pythonpath = os.environ.get("PYTHONPATH", "")
+    os.environ["PYTHONPATH"] = ":".join(
+        [*source_paths, *filter(None, existing_pythonpath.split(":"))]
+    )
+    for source_path in reversed(source_paths):
+        if source_path not in sys.path:
+            sys.path.insert(0, source_path)
+
+
+configure_environment()
+
+
+def configure_installed_ascend_extensions() -> None:
+    """追加容器已安装包路径，以复用源码树中不存在的 Ascend 原生扩展。"""
+    import vllm_ascend
+
+    try:
+        installed_package_path = Path(
+            distribution("vllm-ascend").locate_file("vllm_ascend")
+        )
+    except PackageNotFoundError as error:
+        raise RuntimeError("未找到已安装的 vllm-ascend 原生扩展") from error
+
+    if not list(installed_package_path.glob("vllm_ascend_C*.so")):
+        raise RuntimeError(f"缺少 vllm-ascend 原生扩展: {installed_package_path}")
+    if str(installed_package_path) not in vllm_ascend.__path__:
+        vllm_ascend.__path__.append(str(installed_package_path))
+
+
+
+configure_installed_ascend_extensions()
+
+from vllm import SamplingParams
+from vllm.engine.arg_utils import AsyncEngineArgs
+from vllm.v1.engine.async_llm import AsyncLLM
+
+MODEL_PATH = "/home/weights/Qwen/Qwen3-30B-A3B"
+PROMPT = "用一句话回答：FlashComm 离线生成已启动。"
+REQUEST_ID = "qwen3-flashcomm-offline"
+MAX_TOKENS = 32
+
+
+async def generate_once(
+    engine: AsyncLLM,
+    prompt: str,
+    request_id: str,
+) -> str:
+    """使用异步引擎生成一条请求，并返回完整的首个候选文本。"""
+    sampling_params = SamplingParams(
+        temperature=0.0,
+        max_tokens=MAX_TOKENS,
+    )
+    async for output in engine.generate(
+        request_id=request_id,
+        prompt=prompt,
+        sampling_params=sampling_params,
+    ):
+        if output.finished:
+            if not output.outputs:
+                raise RuntimeError("生成完成但未返回候选结果")
+            return output.outputs[0].text
+    raise RuntimeError("生成请求未返回完成结果")
+
+
+async def main() -> None:
+    """初始化四卡 FlashComm 异步引擎并打印一次离线生成结果。"""
+    engine_args = AsyncEngineArgs(
+        model=MODEL_PATH,
+        tensor_parallel_size=4,
+        enable_expert_parallel=True,
+        gpu_memory_utilization=0.9,
+        trust_remote_code=True,
+        enable_prefix_caching=False,
+        async_scheduling=False,
+        enforce_eager=True,
+    )
+    engine = AsyncLLM.from_engine_args(engine_args)
+    try:
+        generated_text = await generate_once(engine, PROMPT, REQUEST_ID)
+        print(f"Prompt: {PROMPT}")
+        print(f"Generated: {generated_text}")
+    finally:
+        engine.shutdown()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

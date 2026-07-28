@@ -1,5 +1,5 @@
 ---
-name: handoff_context
+name: handoff-context
 description: 在项目上下文交接时使用。用户说"了解项目/熟悉项目"时读取 CONTEXT.md 快速恢复上下文；用户说"理解项目/分析项目"或要求更新上下文时，阅读源码后按模板构建或增量更新 CONTEXT.md，供下一个 agent 接续工作。
 ---
 

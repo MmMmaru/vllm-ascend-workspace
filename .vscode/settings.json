@@ -1,0 +1,9 @@
+{
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/vllm",
+    "${workspaceFolder}/vllm-ascend"
+  ],
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.indexing": true,
+  "python.envFile": "${workspaceFolder}/.env"
+}

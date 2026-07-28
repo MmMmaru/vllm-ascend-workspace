@@ -1,4 +1,22 @@
+
 # Repository instructions
+
+## 开发前必读
+@.agents/AGENTS.md
+@CONFIG.md
+@vllm-ascend/.agents/skills
+@vllm-ascend/AGENTS.md
+@Contributing.md
+@CONTEXT.md
+在commit前运行pre-commit
+在commit的时候需要sing off
+
+## 开发环境
+**在docker容器中运行代码！**
+
+## 验证条件
+全量完成测试验证
+额外需要增加e2e功能测试，测试相关功能。
 
 Local `vllm` + `vllm-ascend` development scaffold. `vllm/` and `vllm-ascend/` are Git submodules.
 

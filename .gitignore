@@ -28,3 +28,5 @@ docs/superpowers/
 .cursor/*
 !.cursor/rules/
 !.cursor/skills/
+.temp/
+.log/
