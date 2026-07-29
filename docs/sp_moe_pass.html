@@ -21,7 +21,7 @@
          font-family: "JetBrains Mono", Consolas, monospace; color: #3730a3; }
   .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
   .legend span { padding: 3px 12px; border-radius: 12px; color: #fff; font-size: 13px; }
-  .flows { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .flows { display: flex; gap: 24px; align-items: stretch; flex-wrap: wrap; }
   .flow { flex: 1 1 380px; background: var(--card); border: 1px solid var(--line);
           border-radius: 10px; padding: 14px; }
   .flow h4 { margin: 0 0 10px; font-size: 15px; text-align: center; padding: 6px;
@@ -46,93 +46,160 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
   .tag { display: inline-block; background: #334155; color: #fff; font-size: 12px;
          border-radius: 4px; padding: 1px 8px; margin-right: 6px; }
+
+  /* ---------- 幻灯片模式 ---------- */
+  #progress { position: fixed; top: 0; left: 0; height: 4px; background: var(--gemm);
+              width: 0; z-index: 20; transition: width .2s; display: none; }
+  #nav { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+         display: none; gap: 10px; align-items: center; z-index: 20;
+         background: rgba(15,23,42,.85); border-radius: 24px; padding: 6px 14px; }
+  #nav button { background: #334155; color: #fff; border: none; border-radius: 16px;
+                padding: 5px 16px; font-size: 14px; cursor: pointer; }
+  #nav button:hover { background: #475569; }
+  #nav #counter { color: #e2e8f0; font-size: 13px; min-width: 56px; text-align: center; }
+  #modeToggle { position: fixed; top: 12px; right: 14px; z-index: 20;
+                background: #334155; color: #fff; border: none; border-radius: 16px;
+                padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  body.slide { overflow: hidden; padding: 0; }
+  body.slide #progress, body.slide #nav { display: flex; }
+  body.slide .slide { display: none; height: 100vh; padding: 48px 6vw 72px;
+                      flex-direction: column; justify-content: center; overflow: hidden auto; }
+  body.slide .slide.active { display: flex; }
+  body.slide h1 { font-size: 34px; }
+  body.slide h2 { font-size: 26px; margin: 0 0 8px; border-top: none; padding-top: 0; }
+  body.slide .sub { font-size: 15px; }
+  body.slide .card, body.slide table { font-size: 15px; }
+  body.slide .node { padding: 5px 10px; font-size: 12px; }
+  body.slide .node .op { font-size: 12px; }
+  body.slide .node .shape, body.slide .node .note { font-size: 11px; margin-top: 1px; }
+  body.slide .arrow { font-size: 13px; padding: 0; }
+  body.slide .flow h4 { font-size: 14px; padding: 4px; margin-bottom: 6px; }
+  .title-slide { text-align: left; }
+  .kbd { background: #e2e8f0; border-radius: 4px; padding: 1px 7px; font-size: 12px;
+         font-family: monospace; color: #334155; }
 </style>
 </head>
-<body>
+<body class="slide">
 
-<h1>SP Pass / MoE Pass FX 图替换图解</h1>
-<div class="sub">
-  模型：Qwen3-30B-A3B（hidden = <b>2048</b>，48 层，128 experts top-8，TP=2 时每 rank q = 16 heads × 128、kv = 2 heads × 128）。
-  记号：<code>T</code> = 单个 DP rank 上的总 token 数（如 16K 输入时 T ≈ 16384 × 并发），<code>T/2</code> = TP=2 分片后每 rank 的 token 数。
-  只保留关键算子，<code>getitem</code> / <code>view</code> / <code>detach</code> 已省略。
-</div>
-
-<div class="legend">
-  <span style="background:var(--comm)">通信算子</span>
-  <span style="background:var(--norm)">AddRMSNorm（含 residual）</span>
-  <span style="background:var(--gemm)">GEMM</span>
-  <span style="background:var(--attn)">Attention</span>
-  <span style="background:var(--moe)">fused MoE</span>
-  <span style="background:#fff;color:#334155;border:2px dashed var(--io)">层间输入/输出</span>
-  <span style="background:#fff;color:#94a3b8;border:2px dashed #cbd5e1">被 pass 消除的算子</span>
+<div id="progress"></div>
+<button id="modeToggle">📄 文档模式</button>
+<div id="nav">
+  <button id="prev">← 上一页</button>
+  <span id="counter">1 / 8</span>
+  <button id="next">下一页 →</button>
 </div>
 
-<h2>0. 两个 Pass 各自做什么</h2>
-<div class="card">
-  <p><span class="tag">SP pass</span><code>vllm_ascend/compilation/passes/sequence_parallelism.py</code>
-     —— 把 TP 的 <b>all_reduce + AddRMSNorm</b> 换成 <b>reduce_scatter + AddRMSNorm + all_gather</b>，
-     让 norm 在 <code>[T/2, 2048]</code> 分片上计算（也匹配 MoE 输出的 <code>maybe_all_reduce</code> 变体）。</p>
-  <p><span class="tag">MoE pass</span><code>vllm_ascend/compilation/passes/sequence_parallelism_moe.py</code>
-     —— 只在 <b>SP+EP MoE 模式</b>下生效，两个 pattern：</p>
-  <ul>
-    <li><b>Pattern ① AllGatherChunkNoOp</b>：<code>all_gather + sequence_parallel_chunk → identity</code>。
-        MoE 本来就吃 token 分片，先 gather 再切回原分片是纯往返，直接折叠。</li>
-    <li><b>Pattern ② MiddleLayerAllgatherAddRMSNorm</b>：<code>all_gather + slice + AddRMSNorm → AddRMSNorm + all_gather</code>。
-        把 MoE 输出后的 all_gather 挪到下一层 RMSNorm <b>之后</b>，norm 改在分片上算。</li>
-  </ul>
-  <p>生效条件：<code>compile_range.start ≥ sp_min_token_num</code>（MoE 模型默认 1，dense 默认 1000，benchmark 中常设 1024）。</p>
-</div>
+<!-- Slide 1: 标题 + 记号 -->
+<section class="slide title-slide">
+  <h1>SP Pass / MoE Pass FX 图替换图解</h1>
+  <div class="sub">
+    模型：Qwen3-30B-A3B（hidden = <b>2048</b>，48 层，128 experts top-8，TP=2 时每 rank q = 16 heads × 128、kv = 2 heads × 128）。<br>
+    记号：<code>T</code> = 单个 DP rank 上的总 token 数，<code>T/2</code> = TP=2 分片后每 rank 的 token 数。
+    只保留关键算子，<code>getitem</code> / <code>view</code> / <code>detach</code> 已省略。<br><br>
+    翻页：<span class="kbd">←</span> <span class="kbd">→</span> 或 <span class="kbd">空格</span>；右上角可切回文档模式。
+  </div>
+  <div class="legend">
+    <span style="background:var(--comm)">通信算子</span>
+    <span style="background:var(--norm)">AddRMSNorm（含 residual）</span>
+    <span style="background:var(--gemm)">GEMM</span>
+    <span style="background:var(--attn)">Attention</span>
+    <span style="background:var(--moe)">fused MoE</span>
+    <span style="background:#fff;color:#334155;border:2px dashed var(--io)">层间输入/输出</span>
+    <span style="background:#fff;color:#94a3b8;border:2px dashed #cbd5e1">被 pass 消除的算子</span>
+  </div>
+</section>
 
-<h2>1. SP + EP MoE 模式（DP=2, TP=2, EP=4）</h2>
-<div class="sub">fused MoE 输入/输出都是 <b>token 分片</b> <code>[T/2, 2048]</code>，内部 EP all2all（128 experts → 32/rank），输出后<b>不做</b> TP all-reduce。
-日志实测：SP pass 替换 48 处（每层 1 处，o_proj 后），MoE pass 替换 96 处（每层 2 处：pattern ① + ②）。</div>
-<div class="flows">
-  <div class="flow"><h4>Before（MoE pass 前）</h4><div id="c1b"></div></div>
-  <div class="flow"><h4>After（SP ×48 + MoE ×96）</h4><div id="c1a"></div></div>
-</div>
-<div class="card">
-  <b>变化要点：</b>
-  <ul>
-    <li>每层通信从 <b>2 次 all_gather + 1 次 reduce_scatter + 1 次 chunk 往返</b> 降到 <b>1 次 all_gather + 1 次 reduce_scatter</b>。</li>
-    <li>MoE 前的 <code>all_gather + sequence_parallel_chunk</code> 是恒等往返，被 pattern ① 折叠；gate GEMM 改在 <code>[T/2, 2048]</code> 分片上算。</li>
-    <li>MoE 输出的 all_gather 被 pattern ② 挪到下一层 norm 之后 —— 它仍然存在，因为 <b>attention 需要完整序列</b>（qkv GEMM 输入必须是 <code>[T, 2048]</code>），但 norm 本身在分片上完成。</li>
-  </ul>
-</div>
+<!-- Slide 2: 两个 pass -->
+<section class="slide">
+  <h2>0. 两个 Pass 各自做什么</h2>
+  <div class="card">
+    <p><span class="tag">SP pass</span><code>vllm_ascend/compilation/passes/sequence_parallelism.py</code>
+       —— 把 TP 的 <b>all_reduce + AddRMSNorm</b> 换成 <b>reduce_scatter + AddRMSNorm + all_gather</b>，
+       让 norm 在 <code>[T/2, 2048]</code> 分片上计算（也匹配 MoE 输出的 <code>maybe_all_reduce</code> 变体）。</p>
+    <p><span class="tag">MoE pass</span><code>vllm_ascend/compilation/passes/sequence_parallelism_moe.py</code>
+       —— 只在 <b>SP+EP MoE 模式</b>下生效，两个 pattern：</p>
+    <ul>
+      <li><b>Pattern ① AllGatherChunkNoOp</b>：<code>all_gather + sequence_parallel_chunk → identity</code>。
+          MoE 本来就吃 token 分片，先 gather 再切回原分片是纯往返，直接折叠。</li>
+      <li><b>Pattern ② MiddleLayerAllgatherAddRMSNorm</b>：<code>all_gather + slice + AddRMSNorm → AddRMSNorm + all_gather</code>。
+          把 MoE 输出后的 all_gather 挪到下一层 RMSNorm <b>之后</b>，norm 改在分片上算。</li>
+    </ul>
+    <p>生效条件：<code>compile_range.start ≥ sp_min_token_num</code>（MoE 模型默认 1，dense 默认 1000，benchmark 中常设 1024）。</p>
+  </div>
+</section>
 
-<h2>2. TP 模式（DP=1, TP=2, EP=2，MoE 非 SP）</h2>
-<div class="sub">fused MoE 输入/输出都是<b>完整 tensor</b> <code>[T, 2048]</code>，内部 EP all2all（64 experts/rank）+ 最终 TP all_reduce。
-只有 SP pass 生效：每层替换 2 处（o_proj 后、MoE 输出后），48 层共 <b>96</b> 处。MoE pass 不生效。</div>
-<div class="flows">
-  <div class="flow"><h4>Before</h4><div id="c2b"></div></div>
-  <div class="flow"><h4>After（SP ×96）</h4><div id="c2a"></div></div>
-</div>
-<div class="card">
-  <b>变化要点：</b>
-  <ul>
-    <li>两处 <code>all_reduce</code>（o_proj 后、MoE 后的 <code>maybe_all_reduce</code>）都被拆成 <code>reduce_scatter + all_gather</code>，中间的 AddRMSNorm 在 <code>[T/2, 2048]</code> 分片上算。</li>
-    <li>MoE 入口前必须 all_gather 回 <code>[T, 2048]</code>，因为该模式下 fused MoE 要求完整 tensor（内部自己做 all2all + 最终 all_reduce）。</li>
-  </ul>
-</div>
+<!-- Slide 3: 情况 1 图 -->
+<section class="slide">
+  <h2>1. SP + EP MoE 模式（DP=2, TP=2, EP=4）</h2>
+  <div class="sub">fused MoE 输入/输出都是 <b>token 分片</b> <code>[T/2, 2048]</code>，内部 EP all2all（128 experts → 32/rank），输出后<b>不做</b> TP all-reduce。
+  日志实测：SP pass 替换 48 处（每层 1 处，o_proj 后），MoE pass 替换 96 处（每层 2 处：pattern ① + ②）。</div>
+  <div class="flows">
+    <div class="flow"><h4>Before（MoE pass 前）</h4><div id="c1b"></div></div>
+    <div class="flow"><h4>After（SP ×48 + MoE ×96）</h4><div id="c1a"></div></div>
+  </div>
+</section>
 
-<h2>3. TP 模式，EP off（TP=2）</h2>
-<div class="sub">外部数据流与情况 2 的 After <b>完全相同</b>（SP pass ×96）；区别只在 fused MoE 内部：无 all2all，expert 按 TP 切分（moe_intermediate 768 → 384/rank），
-外部的 all_gather / reduce_scatter 实际上充当了 expert 的 dispatch / combine。</div>
-<div class="flows">
-  <div class="flow"><h4>After（SP ×96，同情况 2）</h4><div id="c3a"></div></div>
-</div>
+<!-- Slide 4: 情况 1 要点 -->
+<section class="slide">
+  <h2>1. SP + EP MoE：变化要点</h2>
+  <div class="card">
+    <ul>
+      <li>每层通信从 <b>2 次 all_gather + 1 次 reduce_scatter + 1 次 chunk 往返</b> 降到 <b>1 次 all_gather + 1 次 reduce_scatter</b>。</li>
+      <li>MoE 前的 <code>all_gather + sequence_parallel_chunk</code> 是恒等往返，被 pattern ① 折叠；gate GEMM 改在 <code>[T/2, 2048]</code> 分片上算。</li>
+      <li>MoE 输出的 all_gather 被 pattern ② 挪到下一层 norm 之后 —— 它仍然存在，因为 <b>attention 需要完整序列</b>（qkv GEMM 输入必须是 <code>[T, 2048]</code>），但 norm 本身在分片上完成。</li>
+      <li>正确通信流：<code>sequence_parallel_chunk → EP all-gather → 按 local sizes unpad → MoE → 按 local sizes zero-pad → EP reduce-scatter → TP all-gather</code>（MoE 内部，DP 不均衡时不能把等长 buffer 当连续 token）。</li>
+    </ul>
+  </div>
+</section>
 
-<h2>4. 三种模式对比总结</h2>
-<table>
-  <tr><th>模式</th><th>配置</th><th>fused MoE 输入</th><th>MoE 内部通信</th><th>fused MoE 输出</th><th>pass 替换数（48 层）</th><th>替换后每层外部通信</th></tr>
-  <tr><td><b>SP + EP MoE</b></td><td>DP2 / TP2 / EP4</td><td><code>[T/2, 2048]</code> 分片</td><td>EP all2all，无最终 all_reduce</td><td><code>[T/2, 2048]</code> 分片</td><td>SP ×48 + MoE ×96</td><td>1 all_gather + 1 reduce_scatter</td></tr>
-  <tr><td><b>TP（EP on）</b></td><td>DP1 / TP2 / EP2</td><td><code>[T, 2048]</code> 完整</td><td>EP all2all + 最终 TP all_reduce</td><td><code>[T, 2048]</code> 完整</td><td>SP ×96</td><td>2 all_gather + 2 reduce_scatter</td></tr>
-  <tr><td><b>TP（EP off）</b></td><td>TP2</td><td><code>[T, 2048]</code> 完整</td><td>无 all2all；expert 按 TP 切分</td><td><code>[T, 2048]</code> 完整</td><td>SP ×96</td><td>2 all_gather + 2 reduce_scatter</td></tr>
-</table>
-<div class="card">
-  <b>一句话理解：</b>SP+EP MoE 模式下 MoE 输出<b>天然就是分片</b>，任何「gather 完整 tensor」的动作都是浪费，
-  MoE pass 的全部工作就是把这两处浪费消掉；而 TP 模式下 MoE 要完整 tensor，SP pass 只能在 norm 前后做
-  reduce_scatter / all_gather 配对，通信次数降不下来。上游 vLLM 的做法是 all_gather 后 slice 成分片输入，效果类似但多一次 gather。
-</div>
+<!-- Slide 5: 情况 2 图 -->
+<section class="slide">
+  <h2>2. TP 模式（DP=1, TP=2, EP=2，MoE 非 SP）</h2>
+  <div class="sub">fused MoE 输入/输出都是<b>完整 tensor</b> <code>[T, 2048]</code>，内部 EP all2all（64 experts/rank）+ 最终 TP all_reduce。
+  只有 SP pass 生效：每层替换 2 处（o_proj 后、MoE 输出后），48 层共 <b>96</b> 处。MoE pass 不生效。</div>
+  <div class="flows">
+    <div class="flow"><h4>Before</h4><div id="c2b"></div></div>
+    <div class="flow"><h4>After（SP ×96）</h4><div id="c2a"></div></div>
+  </div>
+</section>
+
+<!-- Slide 6: 情况 2 要点 -->
+<section class="slide">
+  <h2>2. TP 模式：变化要点</h2>
+  <div class="card">
+    <ul>
+      <li>两处 <code>all_reduce</code>（o_proj 后、MoE 后的 <code>maybe_all_reduce</code>）都被拆成 <code>reduce_scatter + all_gather</code>，中间的 AddRMSNorm 在 <code>[T/2, 2048]</code> 分片上算。</li>
+      <li>MoE 入口前必须 all_gather 回 <code>[T, 2048]</code>，因为该模式下 fused MoE 要求完整 tensor（内部自己做 all2all + 最终 all_reduce）。</li>
+      <li>通信次数没有减少（all_reduce ↔ reduce_scatter + all_gather 等价），收益来自 <b>norm 计算量减半</b>和通信/计算重叠机会。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Slide 7: 情况 3 -->
+<section class="slide">
+  <h2>3. TP 模式，EP off（TP=2）</h2>
+  <div class="sub">外部数据流与情况 2 的 After <b>完全相同</b>（SP pass ×96）；区别只在 fused MoE 内部：无 all2all，expert 按 TP 切分（moe_intermediate 768 → 384/rank），
+  外部的 all_gather / reduce_scatter 实际上充当了 expert 的 dispatch / combine。</div>
+  <div class="flows">
+    <div class="flow"><h4>After（SP ×96，同情况 2）</h4><div id="c3a"></div></div>
+  </div>
+</section>
+
+<!-- Slide 8: 总结 -->
+<section class="slide">
+  <h2>4. 三种模式对比总结</h2>
+  <table>
+    <tr><th>模式</th><th>配置</th><th>fused MoE 输入</th><th>MoE 内部通信</th><th>fused MoE 输出</th><th>pass 替换数（48 层）</th><th>替换后每层外部通信</th></tr>
+    <tr><td><b>SP + EP MoE</b></td><td>DP2 / TP2 / EP4</td><td><code>[T/2, 2048]</code> 分片</td><td>EP all2all，无最终 all_reduce</td><td><code>[T/2, 2048]</code> 分片</td><td>SP ×48 + MoE ×96</td><td>1 all_gather + 1 reduce_scatter</td></tr>
+    <tr><td><b>TP（EP on）</b></td><td>DP1 / TP2 / EP2</td><td><code>[T, 2048]</code> 完整</td><td>EP all2all + 最终 TP all_reduce</td><td><code>[T, 2048]</code> 完整</td><td>SP ×96</td><td>2 all_gather + 2 reduce_scatter</td></tr>
+    <tr><td><b>TP（EP off）</b></td><td>TP2</td><td><code>[T, 2048]</code> 完整</td><td>无 all2all；expert 按 TP 切分</td><td><code>[T, 2048]</code> 完整</td><td>SP ×96</td><td>2 all_gather + 2 reduce_scatter</td></tr>
+  </table>
+  <div class="card">
+    <b>一句话理解：</b>SP+EP MoE 模式下 MoE 输出<b>天然就是分片</b>，任何「gather 完整 tensor」的动作都是浪费，
+    MoE pass 的全部工作就是把这两处浪费消掉；而 TP 模式下 MoE 要完整 tensor，SP pass 只能在 norm 前后做
+    reduce_scatter / all_gather 配对，通信次数降不下来。上游 vLLM 的做法是 all_gather 后 slice 成分片输入，效果类似但多一次 gather。
+  </div>
+</section>
 
 <script>
 // kind: comm | norm | gemm | attn | moe | io | removed
@@ -222,6 +289,43 @@ flow('c3a', [
   { kind:'moe', op:'moe_forward', shape:'in [T, 2048] → out [T, 2048]', note:'无 all2all；expert 按 TP 切分（intermediate 768 → 384/rank）' },
   { kind:'io', op:'到下一层（完整 tensor）', shape:'[T, 2048]' },
 ]);
+
+/* ---------- 幻灯片控制 ---------- */
+const slides = [...document.querySelectorAll('.slide')];
+let cur = 0;
+const counter = document.getElementById('counter');
+const progress = document.getElementById('progress');
+const toggleBtn = document.getElementById('modeToggle');
+
+function show(i) {
+  cur = Math.max(0, Math.min(slides.length - 1, i));
+  slides.forEach((s, j) => s.classList.toggle('active', j === cur));
+  counter.textContent = `${cur + 1} / ${slides.length}`;
+  progress.style.width = `${(cur + 1) / slides.length * 100}%`;
+  history.replaceState(null, '', `#${cur + 1}`);
+}
+
+function setMode(slideMode) {
+  document.body.classList.toggle('slide', slideMode);
+  toggleBtn.textContent = slideMode ? '📄 文档模式' : '▶ 幻灯片模式';
+  if (slideMode) show(cur);
+}
+
+document.getElementById('prev').onclick = () => show(cur - 1);
+document.getElementById('next').onclick = () => show(cur + 1);
+toggleBtn.onclick = () => setMode(!document.body.classList.contains('slide'));
+
+document.addEventListener('keydown', e => {
+  if (!document.body.classList.contains('slide')) return;
+  if (['ArrowRight', ' ', 'PageDown'].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+  if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+  if (e.key === 'Home') show(0);
+  if (e.key === 'End') show(slides.length - 1);
+});
+
+// 支持 #页码 直接定位；默认幻灯片模式打开
+const start = parseInt(location.hash.slice(1), 10);
+show(isNaN(start) ? 0 : start - 1);
 </script>
 </body>
 </html>
