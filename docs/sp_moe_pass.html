@@ -11,26 +11,28 @@
     --bg: #f8fafc; --card: #ffffff; --line: #e2e8f0;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 24px; background: var(--bg); color: #1e293b;
+  body { margin: 0; padding: 32px; background: var(--bg); color: #1e293b;
          font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; line-height: 1.6; }
-  h1 { font-size: 24px; margin: 0 0 4px; }
-  h2 { font-size: 20px; margin: 36px 0 4px; padding-top: 16px; border-top: 3px solid #334155; }
-  h3 { font-size: 16px; margin: 20px 0 8px; }
-  .sub { color: #64748b; font-size: 14px; margin-bottom: 12px; }
-  code { background: #eef2ff; padding: 1px 6px; border-radius: 4px; font-size: 13px;
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 21px; margin: 0 0 6px; }
+  .sub { color: #64748b; font-size: 15px; margin-bottom: 14px; }
+  code { background: #eef2ff; padding: 1px 6px; border-radius: 4px; font-size: 0.88em;
          font-family: "JetBrains Mono", Consolas, monospace; color: #3730a3; }
   .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
-  .legend span { padding: 3px 12px; border-radius: 12px; color: #fff; font-size: 13px; }
-  .flows { display: flex; gap: 24px; align-items: stretch; flex-wrap: wrap; }
-  .flow { flex: 1 1 380px; background: var(--card); border: 1px solid var(--line);
-          border-radius: 10px; padding: 14px; }
-  .flow h4 { margin: 0 0 10px; font-size: 15px; text-align: center; padding: 6px;
-             border-radius: 6px; background: #f1f5f9; }
-  .flow h4 .cnt { color: var(--comm); font-weight: 700; }
-  .node { border-radius: 8px; padding: 8px 12px; margin: 0 auto; color: #fff; font-size: 13px; }
-  .node .op { font-weight: 700; font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px; }
-  .node .shape { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; opacity: .95; margin-top: 2px; }
-  .node .note { font-size: 12px; opacity: .9; margin-top: 2px; }
+  .legend span { padding: 4px 14px; border-radius: 12px; color: #fff; font-size: 14px; }
+  .legend .lg-io, .legend .lg-rm { background: #fff !important; }
+  .legend .lg-io { color: #334155; border: 2px dashed var(--io); }
+  .legend .lg-rm { color: #94a3b8; border: 2px dashed #cbd5e1; }
+
+  .flows { display: flex; gap: 28px; align-items: stretch; justify-content: center; flex-wrap: wrap; }
+  .flow { flex: 1 1 420px; max-width: 560px; background: var(--card); border: 1px solid var(--line);
+          border-radius: 12px; padding: 16px 20px; }
+  .flow h4 { margin: 0 0 12px; font-size: 16px; text-align: center; padding: 7px;
+             border-radius: 8px; background: #f1f5f9; }
+  .node { border-radius: 9px; padding: 7px 14px; color: #fff; }
+  .node .op { font-weight: 700; font-family: "JetBrains Mono", Consolas, monospace; font-size: 14px; }
+  .node .shape { font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; opacity: .95; margin-top: 1px; }
+  .node .note { font-size: 12.5px; opacity: .92; margin-top: 1px; }
   .comm { background: var(--comm); } .norm { background: var(--norm); }
   .gemm { background: var(--gemm); } .attn { background: var(--attn); }
   .moe  { background: var(--moe); }
@@ -38,44 +40,53 @@
   .io .op { color: #334155; }
   .removed { background: #fff; color: #94a3b8; border: 2px dashed #cbd5e1; }
   .removed .op { color: #94a3b8; text-decoration: line-through; }
-  .arrow { text-align: center; color: #94a3b8; font-size: 16px; line-height: 1.2; padding: 1px 0; }
-  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; background: var(--card); }
-  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  .arrow { text-align: center; color: #94a3b8; font-size: 14px; line-height: 1.15; }
+
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 15px; background: var(--card); }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
   th { background: #f1f5f9; }
-  ul { margin: 6px 0; padding-left: 22px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
-  .tag { display: inline-block; background: #334155; color: #fff; font-size: 12px;
-         border-radius: 4px; padding: 1px 8px; margin-right: 6px; }
+  ul { margin: 6px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 22px; margin: 14px 0; }
+  .tag { display: inline-block; background: #334155; color: #fff; font-size: 13px;
+         border-radius: 5px; padding: 2px 9px; margin-right: 6px; }
+  .points { font-size: 14.5px; max-width: 1160px; margin: 16px auto 0; }
+  .points b { color: #0f172a; }
+
+  /* 第 1 页：设置 -> 模式 映射 */
+  .map { display: flex; flex-direction: column; gap: 14px; max-width: 1240px; margin: 0 auto; }
+  .maprow { display: grid; grid-template-columns: 300px 330px 1fr; gap: 0; align-items: stretch; }
+  .maprow > div { padding: 12px 16px; border-radius: 10px; font-size: 14px; }
+  .cfg { background: #eff6ff; border: 1px solid #bfdbfe; }
+  .derive { background: #f8fafc; border: 1px dashed #94a3b8; margin: 0 14px; position: relative; font-size: 13.5px; color: #475569; }
+  .mode { background: #fff; border: 1px solid var(--line); border-left: 6px solid var(--moe); }
+  .mode.t2 { border-left-color: var(--gemm); }
+  .mode.t3 { border-left-color: var(--norm); }
+  .maprow .mt { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+  .cfg .mt { color: #1d4ed8; }
+  .maparrow { align-self: center; color: #94a3b8; font-size: 18px; text-align: center; }
 
   /* ---------- 幻灯片模式 ---------- */
   #progress { position: fixed; top: 0; left: 0; height: 4px; background: var(--gemm);
               width: 0; z-index: 20; transition: width .2s; display: none; }
-  #nav { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
-         display: none; gap: 10px; align-items: center; z-index: 20;
-         background: rgba(15,23,42,.85); border-radius: 24px; padding: 6px 14px; }
-  #nav button { background: #334155; color: #fff; border: none; border-radius: 16px;
-                padding: 5px 16px; font-size: 14px; cursor: pointer; }
+  #nav { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+         display: none; gap: 12px; align-items: center; z-index: 20;
+         background: rgba(15,23,42,.88); border-radius: 26px; padding: 7px 16px; }
+  #nav button { background: #334155; color: #fff; border: none; border-radius: 18px;
+                padding: 6px 18px; font-size: 15px; cursor: pointer; }
   #nav button:hover { background: #475569; }
-  #nav #counter { color: #e2e8f0; font-size: 13px; min-width: 56px; text-align: center; }
-  #modeToggle { position: fixed; top: 12px; right: 14px; z-index: 20;
-                background: #334155; color: #fff; border: none; border-radius: 16px;
-                padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  #nav #counter { color: #e2e8f0; font-size: 14px; min-width: 60px; text-align: center; }
+  #modeToggle { position: fixed; top: 14px; right: 16px; z-index: 20;
+                background: #334155; color: #fff; border: none; border-radius: 18px;
+                padding: 7px 16px; font-size: 14px; cursor: pointer; }
   body.slide { overflow: hidden; padding: 0; }
   body.slide #progress, body.slide #nav { display: flex; }
-  body.slide .slide { display: none; height: 100vh; padding: 48px 6vw 72px;
+  body.slide .slide { display: none; height: 100vh; padding: 5vh 9vw 80px;
                       flex-direction: column; justify-content: center; overflow: hidden auto; }
   body.slide .slide.active { display: flex; }
-  body.slide h1 { font-size: 34px; }
-  body.slide h2 { font-size: 26px; margin: 0 0 8px; border-top: none; padding-top: 0; }
-  body.slide .sub { font-size: 15px; }
-  body.slide .card, body.slide table { font-size: 15px; }
-  body.slide .node { padding: 5px 10px; font-size: 12px; }
-  body.slide .node .op { font-size: 12px; }
-  body.slide .node .shape, body.slide .node .note { font-size: 11px; margin-top: 1px; }
-  body.slide .arrow { font-size: 13px; padding: 0; }
-  body.slide .flow h4 { font-size: 14px; padding: 4px; margin-bottom: 6px; }
-  .title-slide { text-align: left; }
-  .kbd { background: #e2e8f0; border-radius: 4px; padding: 1px 7px; font-size: 12px;
+  body.slide h1 { font-size: 32px; }
+  body.slide h2 { font-size: 24px; }
+  .kbd { background: #e2e8f0; border-radius: 4px; padding: 1px 8px; font-size: 13px;
          font-family: monospace; color: #334155; }
 </style>
 </head>
@@ -85,109 +96,100 @@
 <button id="modeToggle">📄 文档模式</button>
 <div id="nav">
   <button id="prev">← 上一页</button>
-  <span id="counter">1 / 8</span>
+  <span id="counter">1 / 5</span>
   <button id="next">下一页 →</button>
 </div>
 
-<!-- Slide 1: 标题 + 记号 -->
-<section class="slide title-slide">
-  <h1>SP Pass / MoE Pass FX 图替换图解</h1>
+<!-- Slide 1: 模式介绍 + 用户设置如何映射到 MoE 模式 -->
+<section class="slide">
+  <h1>SP Pass / MoE Pass：用户设置如何决定 fused MoE 的模式</h1>
   <div class="sub">
-    模型：Qwen3-30B-A3B（hidden = <b>2048</b>，48 层，128 experts top-8，TP=2 时每 rank q = 16 heads × 128、kv = 2 heads × 128）。<br>
-    记号：<code>T</code> = 单个 DP rank 上的总 token 数，<code>T/2</code> = TP=2 分片后每 rank 的 token 数。
-    只保留关键算子，<code>getitem</code> / <code>view</code> / <code>detach</code> 已省略。<br><br>
-    翻页：<span class="kbd">←</span> <span class="kbd">→</span> 或 <span class="kbd">空格</span>；右上角可切回文档模式。
+    模型：Qwen3-30B-A3B（hidden = <b>2048</b>，48 层，128 experts top-8，TP=2 时每 rank q = 16 heads × 128、kv = 2 heads × 128）。
+    <code>T</code> = 单 DP rank 总 token 数，<code>T/2</code> = TP=2 分片。翻页：<span class="kbd">←</span> <span class="kbd">→</span> / <span class="kbd">空格</span>
   </div>
-  <div class="legend">
-    <span style="background:var(--comm)">通信算子</span>
-    <span style="background:var(--norm)">AddRMSNorm（含 residual）</span>
-    <span style="background:var(--gemm)">GEMM</span>
-    <span style="background:var(--attn)">Attention</span>
-    <span style="background:var(--moe)">fused MoE</span>
-    <span style="background:#fff;color:#334155;border:2px dashed var(--io)">层间输入/输出</span>
-    <span style="background:#fff;color:#94a3b8;border:2px dashed #cbd5e1">被 pass 消除的算子</span>
+  <div class="map">
+    <div class="maprow">
+      <div class="cfg"><div class="mt">DP=2, TP=2, enable_ep ✓</div>
+        另需 <code>pass_config.enable_sp</code> 且非 eager（enable_sp_by_pass）</div>
+      <div class="derive">EP size = DP × TP = <b>4</b>（内部推导，用户只设 enable_ep）<br>
+        <code>use_sequence_parallel_moe</code> ⟸ DP&gt;1 &amp;&amp; TP&gt;1 &amp;&amp; enableEP</div>
+      <div class="mode"><div class="mt">① SP + EP MoE 模式</div>
+        fused MoE 进出都是 <b>token 分片</b> <code>[T/2, 2048]</code>；内部 EP all2all（32 experts/rank），<b>不做</b>最终 TP all_reduce<br>
+        生效 pass：<b>SP pass ×48</b> + <b>MoE pass ×96</b>（每 48 层 × 2）</div>
+    </div>
+    <div class="maprow">
+      <div class="cfg"><div class="mt">DP=1, TP=2, enable_ep ✓</div></div>
+      <div class="derive">EP size = 1 × 2 = <b>2</b><br>
+        DP=1 ⇒ 不满足 SP MoE 条件，MoE 非 SP</div>
+      <div class="mode t2"><div class="mt">② TP 模式（EP on）</div>
+        fused MoE 进出都是<b>完整 tensor</b> <code>[T, 2048]</code>；内部 EP all2all（64 experts/rank）+ 最终 TP all_reduce<br>
+        生效 pass：<b>SP pass ×96</b>（每层 2 处：o_proj 后、MoE 后）</div>
+    </div>
+    <div class="maprow">
+      <div class="cfg"><div class="mt">TP=2, enable_ep ✗</div></div>
+      <div class="derive">无 EP group；expert 权重按 TP 切分<br>（intermediate 768 → 384/rank）</div>
+      <div class="mode t3"><div class="mt">③ TP 模式（EP off）</div>
+        fused MoE 进出都是<b>完整 tensor</b> <code>[T, 2048]</code>；内部<b>无 all2all</b>，外部 all_gather / reduce_scatter 充当 dispatch / combine<br>
+        生效 pass：<b>SP pass ×96</b>（同 ②）</div>
+    </div>
+  </div>
+  <div class="card" style="max-width:1240px;margin:16px auto 0;">
+    <span class="tag">SP pass</span><code>all_reduce + AddRMSNorm → reduce_scatter + AddRMSNorm + all_gather</code>（norm 挪到分片上算）&emsp;
+    <span class="tag">MoE pass</span>① <code>all_gather + sp_chunk → identity</code>；② <code>all_gather + slice + norm → norm + all_gather</code>
+    &nbsp;·&nbsp; 生效条件：<code>compile_range.start ≥ sp_min_token_num</code>（MoE 模型默认 1）
   </div>
 </section>
 
-<!-- Slide 2: 两个 pass -->
+<!-- Slide 2: 情况 1 -->
 <section class="slide">
-  <h2>0. 两个 Pass 各自做什么</h2>
-  <div class="card">
-    <p><span class="tag">SP pass</span><code>vllm_ascend/compilation/passes/sequence_parallelism.py</code>
-       —— 把 TP 的 <b>all_reduce + AddRMSNorm</b> 换成 <b>reduce_scatter + AddRMSNorm + all_gather</b>，
-       让 norm 在 <code>[T/2, 2048]</code> 分片上计算（也匹配 MoE 输出的 <code>maybe_all_reduce</code> 变体）。</p>
-    <p><span class="tag">MoE pass</span><code>vllm_ascend/compilation/passes/sequence_parallelism_moe.py</code>
-       —— 只在 <b>SP+EP MoE 模式</b>下生效，两个 pattern：</p>
-    <ul>
-      <li><b>Pattern ① AllGatherChunkNoOp</b>：<code>all_gather + sequence_parallel_chunk → identity</code>。
-          MoE 本来就吃 token 分片，先 gather 再切回原分片是纯往返，直接折叠。</li>
-      <li><b>Pattern ② MiddleLayerAllgatherAddRMSNorm</b>：<code>all_gather + slice + AddRMSNorm → AddRMSNorm + all_gather</code>。
-          把 MoE 输出后的 all_gather 挪到下一层 RMSNorm <b>之后</b>，norm 改在分片上算。</li>
-    </ul>
-    <p>生效条件：<code>compile_range.start ≥ sp_min_token_num</code>（MoE 模型默认 1，dense 默认 1000，benchmark 中常设 1024）。</p>
-  </div>
-</section>
-
-<!-- Slide 3: 情况 1 图 -->
-<section class="slide">
-  <h2>1. SP + EP MoE 模式（DP=2, TP=2, EP=4）</h2>
-  <div class="sub">fused MoE 输入/输出都是 <b>token 分片</b> <code>[T/2, 2048]</code>，内部 EP all2all（128 experts → 32/rank），输出后<b>不做</b> TP all-reduce。
-  日志实测：SP pass 替换 48 处（每层 1 处，o_proj 后），MoE pass 替换 96 处（每层 2 处：pattern ① + ②）。</div>
+  <h2>① SP + EP MoE 模式（DP=2, TP=2, EP=4）</h2>
+  <div class="sub">Before 为 pass 前原始 FX 图；After = SP pass ×48 + MoE pass ×96 之后。fused MoE 分片进、分片出。</div>
   <div class="flows">
-    <div class="flow"><h4>Before（MoE pass 前）</h4><div id="c1b"></div></div>
+    <div class="flow"><h4>Before（原始图）</h4><div id="c1b"></div></div>
     <div class="flow"><h4>After（SP ×48 + MoE ×96）</h4><div id="c1a"></div></div>
   </div>
-</section>
-
-<!-- Slide 4: 情况 1 要点 -->
-<section class="slide">
-  <h2>1. SP + EP MoE：变化要点</h2>
-  <div class="card">
+  <div class="card points">
     <ul>
-      <li>每层通信从 <b>2 次 all_gather + 1 次 reduce_scatter + 1 次 chunk 往返</b> 降到 <b>1 次 all_gather + 1 次 reduce_scatter</b>。</li>
-      <li>MoE 前的 <code>all_gather + sequence_parallel_chunk</code> 是恒等往返，被 pattern ① 折叠；gate GEMM 改在 <code>[T/2, 2048]</code> 分片上算。</li>
-      <li>MoE 输出的 all_gather 被 pattern ② 挪到下一层 norm 之后 —— 它仍然存在，因为 <b>attention 需要完整序列</b>（qkv GEMM 输入必须是 <code>[T, 2048]</code>），但 norm 本身在分片上完成。</li>
-      <li>正确通信流：<code>sequence_parallel_chunk → EP all-gather → 按 local sizes unpad → MoE → 按 local sizes zero-pad → EP reduce-scatter → TP all-gather</code>（MoE 内部，DP 不均衡时不能把等长 buffer 当连续 token）。</li>
+      <li>每层通信：<b>1 all_reduce + 1 all_gather</b> → <b>1 reduce_scatter + 1 all_gather</b>；两处 norm 从 <code>[T, 2048]</code> 降到 <code>[T/2, 2048]</code>，<code>sequence_parallel_chunk</code> 消失。</li>
+      <li>中间过程：SP pass 先在 MoE 前制造出 <code>all_gather + sp_chunk</code> 恒等往返，MoE pass pattern ① 将其折叠；pattern ② 把 MoE 输出后的 all_gather 挪到下一层 norm <b>之后</b>（gather 仍保留，因为 attention 需要完整序列）。</li>
     </ul>
   </div>
 </section>
 
-<!-- Slide 5: 情况 2 图 -->
+<!-- Slide 3: 情况 2 -->
 <section class="slide">
-  <h2>2. TP 模式（DP=1, TP=2, EP=2，MoE 非 SP）</h2>
-  <div class="sub">fused MoE 输入/输出都是<b>完整 tensor</b> <code>[T, 2048]</code>，内部 EP all2all（64 experts/rank）+ 最终 TP all_reduce。
-  只有 SP pass 生效：每层替换 2 处（o_proj 后、MoE 输出后），48 层共 <b>96</b> 处。MoE pass 不生效。</div>
+  <h2>② TP 模式（DP=1, TP=2, EP=2，MoE 非 SP）</h2>
+  <div class="sub">只有 SP pass 生效：每层替换 2 处（o_proj 后、MoE 输出后），48 层共 96 处。fused MoE 完整 tensor 进、完整 tensor 出。</div>
   <div class="flows">
-    <div class="flow"><h4>Before</h4><div id="c2b"></div></div>
+    <div class="flow"><h4>Before（原始图）</h4><div id="c2b"></div></div>
     <div class="flow"><h4>After（SP ×96）</h4><div id="c2a"></div></div>
   </div>
-</section>
-
-<!-- Slide 6: 情况 2 要点 -->
-<section class="slide">
-  <h2>2. TP 模式：变化要点</h2>
-  <div class="card">
+  <div class="card points">
     <ul>
-      <li>两处 <code>all_reduce</code>（o_proj 后、MoE 后的 <code>maybe_all_reduce</code>）都被拆成 <code>reduce_scatter + all_gather</code>，中间的 AddRMSNorm 在 <code>[T/2, 2048]</code> 分片上算。</li>
-      <li>MoE 入口前必须 all_gather 回 <code>[T, 2048]</code>，因为该模式下 fused MoE 要求完整 tensor（内部自己做 all2all + 最终 all_reduce）。</li>
-      <li>通信次数没有减少（all_reduce ↔ reduce_scatter + all_gather 等价），收益来自 <b>norm 计算量减半</b>和通信/计算重叠机会。</li>
+      <li>两处 <code>all_reduce</code>（o_proj 后、MoE 后的 <code>maybe_all_reduce</code>）都被拆成 <code>reduce_scatter + all_gather</code>，中间 norm 在 <code>[T/2, 2048]</code> 分片上算。</li>
+      <li>MoE 入口前必须 all_gather 回 <code>[T, 2048]</code>：该模式 fused MoE 要求完整 tensor。通信量不减（all_reduce ≈ RS+AG），收益在 norm 计算减半与通信/计算重叠。</li>
     </ul>
   </div>
 </section>
 
-<!-- Slide 7: 情况 3 -->
+<!-- Slide 4: 情况 3 -->
 <section class="slide">
-  <h2>3. TP 模式，EP off（TP=2）</h2>
-  <div class="sub">外部数据流与情况 2 的 After <b>完全相同</b>（SP pass ×96）；区别只在 fused MoE 内部：无 all2all，expert 按 TP 切分（moe_intermediate 768 → 384/rank），
-  外部的 all_gather / reduce_scatter 实际上充当了 expert 的 dispatch / combine。</div>
+  <h2>③ TP 模式，EP off（TP=2）</h2>
+  <div class="sub">外部数据流与情况 ② After 完全相同（SP pass ×96）；区别只在 fused MoE 内部。</div>
   <div class="flows">
-    <div class="flow"><h4>After（SP ×96，同情况 2）</h4><div id="c3a"></div></div>
+    <div class="flow"><h4>After（SP ×96，同情况 ②）</h4><div id="c3a"></div></div>
+  </div>
+  <div class="card points">
+    <ul>
+      <li>MoE 内部无 all2all：expert 权重按 TP 切分（moe_intermediate 768 → 384/rank），输入输出均为 <code>[T, 2048]</code> 完整 tensor。</li>
+      <li>MoE 前的 all_gather 实际充当 expert <b>dispatch</b>，MoE 后的 reduce_scatter + all_gather 充当 <b>combine</b>。</li>
+    </ul>
   </div>
 </section>
 
-<!-- Slide 8: 总结 -->
+<!-- Slide 5: 总结 -->
 <section class="slide">
-  <h2>4. 三种模式对比总结</h2>
+  <h2>三种模式对比总结</h2>
   <table>
     <tr><th>模式</th><th>配置</th><th>fused MoE 输入</th><th>MoE 内部通信</th><th>fused MoE 输出</th><th>pass 替换数（48 层）</th><th>替换后每层外部通信</th></tr>
     <tr><td><b>SP + EP MoE</b></td><td>DP2 / TP2 / EP4</td><td><code>[T/2, 2048]</code> 分片</td><td>EP all2all，无最终 all_reduce</td><td><code>[T/2, 2048]</code> 分片</td><td>SP ×48 + MoE ×96</td><td>1 all_gather + 1 reduce_scatter</td></tr>
@@ -198,6 +200,15 @@
     <b>一句话理解：</b>SP+EP MoE 模式下 MoE 输出<b>天然就是分片</b>，任何「gather 完整 tensor」的动作都是浪费，
     MoE pass 的全部工作就是把这两处浪费消掉；而 TP 模式下 MoE 要完整 tensor，SP pass 只能在 norm 前后做
     reduce_scatter / all_gather 配对，通信次数降不下来。上游 vLLM 的做法是 all_gather 后 slice 成分片输入，效果类似但多一次 gather。
+  </div>
+  <div class="legend">
+    <span style="background:var(--comm)">通信算子</span>
+    <span style="background:var(--norm)">AddRMSNorm（含 residual）</span>
+    <span style="background:var(--gemm)">GEMM</span>
+    <span style="background:var(--attn)">Attention</span>
+    <span style="background:var(--moe)">fused MoE</span>
+    <span class="lg-io">层间输入/输出</span>
+    <span class="lg-rm">被 pass 消除的算子</span>
   </div>
 </section>
 
@@ -213,39 +224,36 @@ function flow(el, steps) {
   document.getElementById(el).innerHTML = html;
 }
 
-const NORM_FULL = { kind:'norm', op:'maybe_chunk_residual + npu_add_rms_norm_bias', shape:'[T, 2048]' };
+const NORM_FULL  = { kind:'norm', op:'maybe_chunk_residual + npu_add_rms_norm_bias', shape:'[T, 2048]' };
 const NORM_SHARD = { kind:'norm', op:'maybe_chunk_residual + npu_add_rms_norm_bias', shape:'[T/2, 2048]' };
-const QKV = { kind:'gemm', op:'unquantized_gemm (qkv_proj)', shape:'[T, 2048] × [2048, 2560] → [T, 2560]' };
+const QKV  = { kind:'gemm', op:'unquantized_gemm (qkv_proj)', shape:'[T, 2048] × [2048, 2560] → [T, 2560]' };
 const ATTN = { kind:'attn', op:'qkv_rmsnorm_rope + unified_attention', shape:'q [T, 16, 128] / kv [T, 2, 128] → [T, 2048]' };
 const OPROJ = { kind:'gemm', op:'unquantized_gemm (o_proj)', shape:'[T, 2048] × [2048, 2048] → [T, 2048]' };
 
-/* ---- 情况 1: SP+EP MoE (DP2/TP2/EP4) ---- */
+/* ---- 情况 1: SP+EP MoE (DP2/TP2/EP4)，before 按更新后的 FX 日志 ---- */
 flow('c1b', [
   { kind:'io', op:'上一层 MoE 输出（token 分片）', shape:'[T/2, 2048]' },
-  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'MoE 输出被无条件 gather（冗余）' },
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'MoE 输出被 gather 成完整 tensor' },
   NORM_FULL,
   QKV, ATTN, OPROJ,
-  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]' },
-  NORM_SHARD,
-  { kind:'comm', op:'all_gather + sequence_parallel_chunk', shape:'[T/2, 2048] → [T, 2048] → [T/2, 2048]', note:'恒等往返：gather 后立刻切回原分片（冗余）' },
+  { kind:'comm', op:'all_reduce (TP)', shape:'[T, 2048]', note:'o_proj 行并行求和' },
+  NORM_FULL,
+  { kind:'comm', op:'sequence_parallel_chunk', shape:'[T, 2048] → [T/2, 2048]', note:'切回本 rank 分片喂给 MoE' },
   { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T/2, 2048] × [2048, 128] → [T/2, 128]' },
   { kind:'moe', op:'moe_forward', shape:'in [T/2, 2048] → out [T/2, 2048]', note:'内部 EP all2all（32 experts/rank），无 TP all_reduce' },
-  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'交给下一层 slice + norm（冗余）' },
-  { kind:'io', op:'到下一层', shape:'[T, 2048]' },
 ]);
 
 flow('c1a', [
   { kind:'io', op:'上一层 MoE 输出（token 分片）', shape:'[T/2, 2048]' },
   { kind:'removed', op:'all_gather + slice（MoE 输出后）', note:'pattern ②：gather 挪到 norm 之后' },
   NORM_SHARD,
-  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'pattern ② 挪到此处，供 attention 用完整序列' },
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'pattern ② 挪到此处，供 attention 完整序列' },
   QKV, ATTN, OPROJ,
-  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]', note:'SP pass：o_proj 后的 all_reduce 已拆分' },
+  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]', note:'SP pass：o_proj 后 all_reduce 已拆分' },
   NORM_SHARD,
-  { kind:'removed', op:'all_gather + sequence_parallel_chunk', note:'pattern ①：恒等往返折叠为 identity' },
+  { kind:'removed', op:'all_gather + sequence_parallel_chunk', note:'SP pass 制造的恒等往返，被 pattern ① 折叠' },
   { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T/2, 2048] × [2048, 128] → [T/2, 128]', note:'直接在分片上算' },
-  { kind:'moe', op:'moe_forward', shape:'in [T/2, 2048] → out [T/2, 2048]', note:'内部 EP all2all，输出直接交给下一层 norm' },
-  { kind:'io', op:'到下一层（保持分片）', shape:'[T/2, 2048]' },
+  { kind:'moe', op:'moe_forward', shape:'in [T/2, 2048] → out [T/2, 2048]', note:'输出直接交给下一层 norm（保持分片）' },
 ]);
 
 /* ---- 情况 2: TP 模式 (DP1/TP2/EP2) ---- */
@@ -258,7 +266,6 @@ flow('c2b', [
   NORM_FULL,
   { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T, 2048] × [2048, 128] → [T, 128]' },
   { kind:'moe', op:'moe_forward', shape:'in [T, 2048] → out [T, 2048]', note:'内部 EP all2all（64 experts/rank）+ 最终 TP all_reduce' },
-  { kind:'io', op:'到下一层（完整 tensor）', shape:'[T, 2048]' },
 ]);
 
 flow('c2a', [
@@ -272,7 +279,6 @@ flow('c2a', [
   { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'MoE 要求完整 tensor 输入' },
   { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T, 2048] × [2048, 128] → [T, 128]' },
   { kind:'moe', op:'moe_forward', shape:'in [T, 2048] → out [T, 2048]', note:'输入输出均为完整 tensor' },
-  { kind:'io', op:'到下一层（完整 tensor，由替换点 ② 切分）', shape:'[T, 2048]' },
 ]);
 
 /* ---- 情况 3: TP 模式 EP off ---- */
@@ -287,7 +293,6 @@ flow('c3a', [
   { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'充当 expert dispatch' },
   { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T, 2048] × [2048, 128] → [T, 128]' },
   { kind:'moe', op:'moe_forward', shape:'in [T, 2048] → out [T, 2048]', note:'无 all2all；expert 按 TP 切分（intermediate 768 → 384/rank）' },
-  { kind:'io', op:'到下一层（完整 tensor）', shape:'[T, 2048]' },
 ]);
 
 /* ---------- 幻灯片控制 ---------- */
@@ -323,7 +328,6 @@ document.addEventListener('keydown', e => {
   if (e.key === 'End') show(slides.length - 1);
 });
 
-// 支持 #页码 直接定位；默认幻灯片模式打开
 const start = parseInt(location.hash.slice(1), 10);
 show(isNaN(start) ? 0 : start - 1);
 </script>
