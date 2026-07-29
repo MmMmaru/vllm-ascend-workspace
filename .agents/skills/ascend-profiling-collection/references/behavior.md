@@ -83,17 +83,6 @@ this gate a partial capture (e.g. only rank 0 dumped) can look "clean"
 because every directory that *did* land was complete, masking a topology
 failure.
 
-## Bind-mount permissions
-
-Managed services initialize their dedicated `.vaws-runtime/serving` tree with
-`umask 000` and make the runtime directories accessible to the host user.
-This is required because the container SSH endpoint commonly runs as root
-while the workspace is a host bind mount. After `analyse()`,
-`run_remote_analyse.py` also applies the same mode normalization to each
-discovered `*_ascend_pt` directory, covering CANN versions that override the
-process umask. Only the discovered profiler rank directories are changed;
-the command does not recursively modify the workspace.
-
 ## Post-stop flush window
 
 The orchestrator sleeps `POST_STOP_FLUSH_SECONDS` (5s) between `/stop_profile` returning and `serve_stop.py` being called. `/stop_profile` should already block until profiler threads quiesce, but historical traces show flush latency on some CANN versions. The window is short enough not to bother humans and long enough to cover known races.

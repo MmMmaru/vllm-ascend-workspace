@@ -35,7 +35,7 @@ import subprocess
 import sys
 import threading
 import time
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -231,20 +231,9 @@ def build_launch_script(
     extra_args: list[str],
     wrap_script: str = "",
 ) -> str:
-    lines: list[str] = [
-        "set -e",
-        # The container usually runs as root while runtime_dir is a bind mount
-        # owned by the host user. Keep logs and profiler artifacts usable from
-        # the host instead of inheriting root-only permissions.
-        "umask 000",
-    ]
+    lines: list[str] = ["set -e"]
 
     lines.append(f"mkdir -p {shlex.quote(runtime_dir)}")
-    runtime_parent = str(PurePosixPath(runtime_dir).parent)
-    lines.append(
-        "chmod a+rwX "
-        f"{shlex.quote(runtime_parent)} {shlex.quote(runtime_dir)}"
-    )
 
     # Ascend environment — source the managed profile that sets PATH,
     # LD_LIBRARY_PATH, CANN, ATB, and the correct Python.

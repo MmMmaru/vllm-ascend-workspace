@@ -50,7 +50,6 @@ This skill is **only** about collection: start a profiled service, bracket a wor
 - Progress on `stderr` as `__VAWS_PROFILING_COLLECTION_PROGRESS__=<json>`. Final manifest on `stdout` as one JSON object.
 - For parallel agent work, create a session first and pass `--session-id <id>`. Service start/stop and parity then stay scoped to that session.
 - Local state lives under `.vaws-local/ascend-profiling-collection/runs/` for collection manifests; serving/parity state follows the target mode.
-- Container runtime and profiler artifacts must remain accessible from the host bind mount: serving initializes the dedicated runtime tree with a permissive umask, and post-`analyse()` normalization applies only to discovered `*_ascend_pt` directories.
 
 ## Public entry point
 

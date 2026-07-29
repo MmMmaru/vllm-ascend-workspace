@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 export PYTHONPATH=/home/x50063850/vllm-ascend-workspace/vllm-ascend:/home/x50063850/vllm-ascend-workspace/vllm:${PYTHONPATH}
-export ASCEND_RT_VISIBLE_DEVICES=0,1
+export ASCEND_RT_VISIBLE_DEVICES=2,3,4,5
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export OMP_NUM_THREADS=1
 export VLLM_LOGGING_LEVEL=DEBUG
@@ -14,6 +14,7 @@ mkdir -p /home/x50063850/vllm-ascend-workspace/.log "${VLLM_CACHE_ROOT}"
 
 vllm bench throughput \
   --model /home/weights/Qwen/Qwen3-30B-A3B \
+  --data-parallel-size 2 \
   --tensor-parallel-size 2 \
   --dtype bfloat16 \
   --max-model-len 25600 \

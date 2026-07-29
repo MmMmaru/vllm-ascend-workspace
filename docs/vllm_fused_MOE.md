@@ -349,3 +349,44 @@ EP 维度：只负责 routed experts
 3. [`moe_runner.py`](../vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py#L525) — shared expert 与 routed expert 分开执行；shared expert 不进入 routed dispatch。
 4. [`shared_experts.py`](../vllm/vllm/model_executor/layers/fused_moe/runner/shared_experts.py#L155) — 共享专家在当前 rank 的输入上执行，并可使用独立 CUDA stream 与 dispatch/combine 重叠。
 5. [`moe_runner.py`](../vllm/vllm/model_executor/layers/fused_moe/runner/moe_runner.py#L411) — 根据 routed kernel 是否已经归约，决定对 shared output 或最终结果执行 TP AllReduce。
+
+## moe 详细 DP + TP + SP
+
+你说得对，应该看上游 `vllm/`。先纠正一点：上游没有 Ascend 的 `enable_shared_expert_dp` 开关，shared expert 的 DP/TP/SP 行为由 `ParallelConfig`、`FusedMoEParallelConfig` 和模型里的 shared MLP 实现共同决定。
+
+**DP/TP：** shared expert 不参与 routed expert 的 EP token dispatch。普通 DP 下，每个 DP 副本保留一份 shared expert，并只计算本 DP rank 的本地 tokens；shared output 不做 DP AllReduce。普通 TP 下，shared MLP 使用 `MergedColumnParallelLinear + RowParallelLinear`：`gate_up_proj` 按 TP 切分，`down_proj` 按 TP 切分，TP rank 共同处理同一批 replicated tokens；模型通常传入 `reduce_results=False`，先得到 `shared_out + routed_out`，再由 `MoERunner` 对合并结果做一次 TP AllReduce。
+
+**SP：** 上游只有在 `EP=True、TP>1、DP>1` 且 backend 支持时启用 `use_sequence_parallel_moe`。此时 shared expert 的输入 token 沿 sequence/TP rank 切分，但 shared expert 权重通过 `disable_tp=True` 完整复制，每个 rank 只计算自己的 token shard，因此 shared output 不再做 TP AllReduce；routed expert 则通过 EP dispatch/combine，最后保留本 rank 的 sequence shard。`SharedExperts` 类本身主要负责普通执行、独立 stream 或 MoE kernel 内部重叠，不负责 DP/TP/SP 的权重切分。
+
+数据流架构图：
+
+```text
+[hidden_states]
+       |
+       +------------------------------+
+       |                              |
+       v                              v
+[shared expert]                   [routed experts]
+                                  router -> top-k
+ DP: 本地 tokens                  DP/TP: 本地并行
+ TP: replicated input             EP: token dispatch
+ SP: sequence shard               SP: sequence-aware combine
+       |                              |
+       +--------------+---------------+
+                      v
+             [shared_out + routed_out]
+                      |
+       TP 普通模式: TP AllReduce
+       SP 模式: 不做 TP AllReduce
+                      |
+                      v
+              [下一层 Transformer]
+```
+
+代码定位：
+
+1. `vllm/model_executor/layers/fused_moe/runner/moe_runner.py:628-715` — `MoERunner.forward`：保存 shared expert 输入，执行 routed/shared 分支，并合并最终输出。
+2. `vllm/model_executor/layers/fused_moe/runner/moe_runner.py:411-453` — `_maybe_reduce_shared_expert_output`、`_maybe_reduce_final_output`：控制 shared/routed 输出的 TP AllReduce。
+3. `vllm/model_executor/layers/fused_moe/config.py:1096-1235` — `FusedMoEParallelConfig.make`：决定 DP、TP、EP、SP 的实际布局；EP 开启时 `tp_size=1`、`ep_size=DP×TP`。
+4. `vllm/config/parallel.py:641-656` — `use_sequence_parallel_moe`：定义上游 SP 的触发条件。
+5. `vllm/model_executor/models/deepseek_v2.py:199-243,300-323` — `DeepseekV2MLP` 和 shared expert 构造：SP 时 `disable_tp=True`，完整复制 shared expert 权重。

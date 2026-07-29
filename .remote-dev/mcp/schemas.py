@@ -50,7 +50,10 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "remote.monitor": schema({"command": {"type": "string"}, "description": {"type": "string"}, "timeout_ms": {"type": "integer"}, "pattern": {"type": "string"}, "env": {"type": "object", "additionalProperties": {"type": "string"}}}, ["command"]),
     "remote.apply_patch": {
         **schema({"patch": {"type": "string"}, "command": {"type": "string"}, "timeout_ms": {"type": "integer"}}),
-        "anyOf": [{"required": ["patch"]}, {"required": ["command"]}],
+        "allOf": [
+            {"anyOf": ENDPOINT_SELECTOR_ANY_OF},
+            {"anyOf": [{"required": ["patch"]}, {"required": ["command"]}]},
+        ],
     },
     "remote.job_status": schema({"job_id": {"type": "string"}}, ["job_id"], endpoint_selector=False),
     "remote.job_tail": schema({"job_id": {"type": "string"}, "lines": {"type": "integer", "maximum": 500}, "stream": {"type": "string", "enum": ["stdout", "stderr", "both"]}}, ["job_id"], endpoint_selector=False),

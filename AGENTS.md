@@ -10,6 +10,9 @@
 @CONTEXT.md
 在commit前运行pre-commit
 在commit的时候需要sing off
+[`vllm/vllm/config/parallel.py`](../vllm/vllm/config/parallel.py#L126) 使用这种格式描述代码。
+测试中的模型路径使用环境变量读取，保证本地和上游都有模型用：
+os.environ.get("SP_TEST_MODEL", "Qwen/Qwen3-30B-A3B")
 
 ## 开发环境
 **在docker容器中运行代码！**

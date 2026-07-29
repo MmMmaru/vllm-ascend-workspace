@@ -76,6 +76,13 @@
 - 更新 `docs/sp_debug.md`，精确说明 485 次 all-gather 的来源、`maybe_chunk_residual` 隐式 gather 调用位置及 profiling/after-graph 判定方法。
 - 补充旧日志判读说明：`before apply replacement graph()` 和 `Pattern N:` 中仍会看到 `maybe_all_reduce -> alias -> maybe_chunk_residual`；验收必须检查 `Replaced 96 patterns` 之后的 after-graph。
 - 验证补充：聚焦 UT `8 passed`，功能 E2E `1 passed`；全量 `tests/ut` 已在 Docker 中启动，但在既有 `attention/a2/test_attention_v1_precision.py` 精度用例阶段超时，未将该环境级阻塞归因于本次 SP 修改。
+### 07-28 20:20
+
+- 定位 DP2/TP2/EP4 + SP 乱码：SP+EP 的 MoE finalize 已返回 token-sharded 结果，但 Ascend runner 仍无条件执行 TP all-reduce，随后 Qwen3 MoE 再 TP all-gather，导致不同 token 段被相加。
+- 修复 `AscendMoERunner._maybe_reduce_final_output`：`moe_config.is_sequence_parallel` 时跳过最终 TP all-reduce；同时补齐 DP/TP 变长分片在 EP all-gather 后 unpad、EP reduce-scatter 前 pad 的处理。
+- Docker focused UT `27 passed`；使用真实 `bash scripts/serve_sp.sh`、DP2/TP2/EP 开启/SP 开启服务验证，短请求 19 tokens 和长请求 1420 tokens 均恢复连贯输出；SP off 对照也通过。
+- 详细定位、profiling、after-graph 和 E2E 验证方法写入 `docs/sp_debug.md`。
+
 ### 07-28
 
 - 新增 `docs/container_compile_flow.md`，记录换仓后在 `xrs_vllm_main` 中对齐 catlass、重建 CANN custom-op/C++ 扩展、验证实际加载路径、运行 `bench_sp_tpot.sh` 和执行两卡 SP E2E smoke 的完整流程与失败边界。
@@ -83,9 +90,3 @@
 - 新增 `tests/ut/compilation/test_sequence_parallelism.py`，覆盖命中替换、零命中回退和 token 范围不满足时回退三种状态；Docker 定向测试结果为 `3 passed`。
 - 增加两卡 Qwen3-VL SP fallback 功能 E2E，并通过本地权重验证 TP fallback 输出与无 SP 基线一致；日志同时观察到 `(1, 2047)` 回退 TP 和 `(2048, 8192)` 替换 53 个 pattern。结果为 `1 passed`，日志为 `.log/e2e_sp_warning_fallback_0728.log`。
 - Docker 运行 `tests/ut/compilation`，结果为 `29 passed, 14 warnings`；新增源码和测试通过 `py_compile`。
-
-### 07-29
-
-- 修复 Docker root 启动服务导致 profiler/runtime 日志对宿主机用户不可读写：启动脚本设置专用 runtime 树的权限和 `umask 000`，离线 `analyse()` 后逐 rank 规范化 CANN 产物权限。
-- 新增 scaffold 权限回归测试；Docker 中新增测试 `2 passed`，权限模拟验证宿主机 UID 1000 可读写 profile 文件。
-- 已修复现有 `/home/x50063850/vllm-workspace` 中两个 root-owned profile 目录及当前 workspace `.log` 目录；全量 scaffold 测试另有既有环境问题：容器缺少 `ssh-keygen`，结果 `15 passed, 1 failed`。

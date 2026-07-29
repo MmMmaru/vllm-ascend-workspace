@@ -39,12 +39,7 @@ ENABLE_SP=true
 RUN_NAME=sp_${ENABLE_SP}
 export VLLM_CACHE_ROOT=/workspace/.temp/${RUN_NAME}
 PROFILE_DIR=/workspace/.log/profile_${RUN_NAME}
-# Docker development containers may execute as root while /workspace is a
-# host bind mount. Keep benchmark and profiler artifacts usable by the host
-# user, including rank directories created later by CANN.
-umask 000
 mkdir -p /workspace/.log "${VLLM_CACHE_ROOT}" "${PROFILE_DIR}"
-chmod a+rwX /workspace/.log "${PROFILE_DIR}"
 
 vllm bench throughput \
   --model /home/weights/Qwen/Qwen3-30B-A3B \
@@ -223,7 +218,129 @@ MoE prepare 路径同时又被全局 `enable_sp_by_pass` 标志选中，
 这样既能在 MoE 配置中 `sp_size > 1` 时保留 EP 路径，又能避免
 在只开启 RMSNorm 编译 pass 时发生第二次 gather。
 
-## 6. 修复后的验证清单
+## 6. DP2/TP2/EP 下乱码问题的精确定位
+
+本节记录一次实际服务回归中发现的功能性问题。它说明为什么只看
+`Replaced N patterns` 或通信次数不能证明 SP 正确：这次 pass 确实命中，
+但 MoE 输出在最后一次 TP 通信中被错误地相加。
+
+### 6.1 先做 SP off 对照
+
+使用同一个服务脚本，只临时把脚本中的 `enable_sp=true` 改成 `false`，
+并隔离编译缓存：
+
+```bash
+docker exec -w /home/x50063850/vllm-ascend-workspace xrs_vllm_main \
+  bash -lc 'sed "s/enable_sp=true/enable_sp=false/" scripts/serve_sp.sh | bash'
+```
+
+短 prompt 和约 1400 token 的长 prompt 必须完全相同，采样使用
+`temperature=0`。如果 SP off 连贯、SP on 乱码，说明问题在 SP 的 token
+布局或通信语义，而不是模型权重或 EP 初始化。服务启动后应检查：
+
+```bash
+curl -fsS http://127.0.0.1:8010/health
+rg -n 'FusedMoEParallelConfig|num_tokens_across_dp|SequenceParallelism' \
+  .log/bench_sp_true_16384.log
+```
+
+本次真实日志的关键输入是：
+
+```text
+DP token distribution: [2, 1420]
+SP MoE config: sp_size=2, ep_size=4, all2all_backend=allgather_reducescatter
+```
+
+`[2, 1420]` 表示一个 DP rank 只有少量 dummy/有效 token，另一个 rank
+承载长 prefill；不能把 EP all-gather 的等长结果直接当成无 padding 的
+连续序列。
+
+### 6.2 逐层核对 MoE 的 token 流
+
+正确的 DP2/TP2/EP4 流向如下：
+
+```text
+Qwen3 MoE input [global tokens]
+  -> sequence_parallel_chunk       [each DP/TP chunk]
+  -> EP all-gather                 [equal-size chunks]
+  -> remove per-rank invalid tail  [DPMetadata.sp_local_sizes]
+  -> expert routing and compute    [valid concatenated tokens]
+  -> restore equal-size chunks     [zero padding before collective]
+  -> EP reduce-scatter             [token-sharded output]
+  -> TP all-gather in Qwen3 MoE   [restore model token order]
+  -> next residual/RMSNorm
+```
+
+两个 shape 约束必须同时满足：
+
+1. EP all-gather 后按 `dp_metadata.get_chunk_sizes_across_dp_rank()` 截取
+   每个 DP/TP 分片的有效长度；否则 dummy token 会进入路由和 combine。
+2. EP reduce-scatter 要求输入仍能按 EP rank 等分，所以必须把有效 token
+   按同一组 local sizes 放回等长 buffer，空出的尾部补零。
+
+本次另一个更直接的 bug 位于
+`vllm_ascend/ops/fused_moe/fused_moe.py` 的
+`AscendMoERunner._maybe_reduce_final_output`：SP+EP finalize 已经完成
+EP reduce-scatter，输出是 token-sharded；Qwen3 MoE 随后会在
+`vllm/model_executor/models/qwen3_moe.py` 中做 TP all-gather。旧代码仍
+无条件执行 `maybe_all_reduce_tensor_model_parallel`，于是 TP rank 0/1
+把不同 token 段相加，后续 all-gather 得到的不是原序列，表现为乱码。
+
+因此该函数必须与 upstream `MoERunner` 的语义一致：
+
+```text
+if moe_config.is_sequence_parallel:
+    skip final TP all-reduce
+else:
+    retain ordinary TP/EP final all-reduce
+```
+
+### 6.3 如何用 after-graph 证明修复
+
+编译完成后，打开对应 cache 下的
+`rank_*/*/backbone/computation_graph.py`，对 MoE 周围按源码位置检查，
+而不是只数全局通信算子：
+
+```bash
+rg -n -C 5 \
+  'sequence_parallel_chunk_impl|moe_forward|maybe_all_reduce_tensor_model_parallel|all_gather' \
+  .temp/bench/torch_compile_cache/*/rank_1_1/backbone/computation_graph.py
+```
+
+修复后的图可以出现模型显式的：
+
+```text
+sequence_parallel_chunk_impl -> moe_forward -> all_gather(group_name='tp:0')
+```
+
+但 MoE 的 token-sharded 输出路径不能再有一个真正执行的 TP
+all-reduce。图中仍保留 `maybe_all_reduce_tensor_model_parallel` 节点名
+不等于它一定执行 all-reduce；必须结合 runner 条件、custom-op 实现和
+服务输出验证。`Replaced 48/96 patterns` 只说明编译匹配成功，不说明
+collective 的 rank 维度和 token 维度都正确。
+
+### 6.4 最终服务验证
+
+最终验证必须直接执行真实脚本，而不是只执行 pytest：
+
+```bash
+docker exec -w /home/x50063850/vllm-ascend-workspace xrs_vllm_main \
+  bash -lc 'bash scripts/serve_sp.sh'
+```
+
+然后在容器内发送相同的短/长请求，检查三件事：
+
+- `/health` 返回成功，启动日志确认 DP2、TP2、`enable_expert_parallel=True`
+  和 `pass_config.enable_sp=True`；
+- 短请求与长请求均为连贯文本，不出现随机字符、重复片段或乱码；
+- 长请求日志中的 `num_tokens_across_dp` 可以不均衡，但请求输出仍与
+  SP off 的语义一致。
+
+本次修复后的服务脚本回归使用 prompt token 数 19 和 1420，二者均恢复
+为连贯中文；SP off 对照同样通过。该结果是功能正确性的证据，不能
+直接当作性能结论，性能仍需按前述 profiler/JSON 流程重新测量。
+
+## 7. 修复后的验证清单
 
 ### 静态与单元验证
 
