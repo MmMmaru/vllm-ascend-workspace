@@ -311,12 +311,22 @@ function show(i) {
   fit(slides[cur]);
 }
 
-/* 内容超过一页时整体缩放，保证单页放下 */
+/* 内容超过一页时整体缩放，保证单页放下。
+   用 transform: scale()（各浏览器行为一致），不用非标准的 zoom。
+   测量时临时取消 100vh 高度限制，拿到内容的自然宽高，再按高/宽比取小值缩放。 */
 function fit(slide) {
   if (!slide || !document.body.classList.contains('slide')) return;
-  slide.style.zoom = 1;
-  const ratio = slide.clientHeight / slide.scrollHeight;
-  slide.style.zoom = ratio < 1 ? Math.max(ratio * 0.98, 0.4) : 1;
+  if (!slide.classList.contains('active')) return;  // display:none 时量不出尺寸
+  slide.style.transform = '';
+  slide.style.height = 'auto';              // 临时取消 100vh，量自然尺寸
+  const naturalH = slide.scrollHeight;
+  const naturalW = slide.scrollWidth;
+  slide.style.height = '';
+  const scale = Math.min(1, slide.clientHeight / naturalH, slide.clientWidth / naturalW);
+  if (scale < 1) {
+    slide.style.transform = `scale(${Math.max(scale * 0.98, 0.3)})`;
+    slide.style.transformOrigin = 'top center';
+  }
 }
 
 function fitAll() { slides.forEach(fit); }
@@ -326,6 +336,7 @@ function setMode(slideMode) {
   document.body.classList.toggle('slide', slideMode);
   toggleBtn.textContent = slideMode ? '📄 文档模式' : '▶ 幻灯片模式';
   if (slideMode) show(cur);
+  else slides.forEach(s => { s.style.transform = ''; s.style.height = ''; });
 }
 
 document.getElementById('prev').onclick = () => show(cur - 1);

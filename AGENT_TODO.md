@@ -1,6 +1,2 @@
 - [x] 针对SP pass的unittest，需要test是否sp开启的时候发生了pass替换
 - [x] 针对SP 功能，加一个logger.warning显示是否发生替换/还是fallback回到TP模式。
-
-- SP和flashcomm融合
-- MOE DP解耦
-- modelrunner V2迁移SP

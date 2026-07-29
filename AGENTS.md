@@ -15,6 +15,7 @@
 os.environ.get("SP_TEST_MODEL", "Qwen/Qwen3-30B-A3B")
 
 ## 开发环境
+目前在本机开发，不用理会remote相关设置。
 **在docker容器中运行代码！**
 
 ## 验证条件

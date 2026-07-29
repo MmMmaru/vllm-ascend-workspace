@@ -4,9 +4,16 @@
 
 ## flashcomm & SP 代码重构/性能优化/模型支持
 issues # 5712
-1. [] - SP支持文本模型
-2. [] - flashcomm pass模式
-3. [] - 看看量化相关的算法需不需要做？
+[x] - SP支持文本模型
+[] - flashcomm pass模式
+[] - 看看量化相关的算法需不需要做？
+[] - SP和flashcomm融合
+[] - MOE DP解耦
+[] - modelrunner V2迁移SP
+
+## 性能测试实验
+SP开启后EP
+SP+PP
 
 
 ### TO learn
