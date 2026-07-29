@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vLLM-Ascend SP / MoE Pass 替换图解</title>
+<style>
+  :root {
+    --comm: #d97706; --norm: #059669; --gemm: #2563eb;
+    --attn: #7c3aed; --moe: #dc2626; --io: #6b7280;
+    --bg: #f8fafc; --card: #ffffff; --line: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--bg); color: #1e293b;
+         font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; line-height: 1.6; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 20px; margin: 36px 0 4px; padding-top: 16px; border-top: 3px solid #334155; }
+  h3 { font-size: 16px; margin: 20px 0 8px; }
+  .sub { color: #64748b; font-size: 14px; margin-bottom: 12px; }
+  code { background: #eef2ff; padding: 1px 6px; border-radius: 4px; font-size: 13px;
+         font-family: "JetBrains Mono", Consolas, monospace; color: #3730a3; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+  .legend span { padding: 3px 12px; border-radius: 12px; color: #fff; font-size: 13px; }
+  .flows { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .flow { flex: 1 1 380px; background: var(--card); border: 1px solid var(--line);
+          border-radius: 10px; padding: 14px; }
+  .flow h4 { margin: 0 0 10px; font-size: 15px; text-align: center; padding: 6px;
+             border-radius: 6px; background: #f1f5f9; }
+  .flow h4 .cnt { color: var(--comm); font-weight: 700; }
+  .node { border-radius: 8px; padding: 8px 12px; margin: 0 auto; color: #fff; font-size: 13px; }
+  .node .op { font-weight: 700; font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px; }
+  .node .shape { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; opacity: .95; margin-top: 2px; }
+  .node .note { font-size: 12px; opacity: .9; margin-top: 2px; }
+  .comm { background: var(--comm); } .norm { background: var(--norm); }
+  .gemm { background: var(--gemm); } .attn { background: var(--attn); }
+  .moe  { background: var(--moe); }
+  .io   { background: #fff; color: #334155; border: 2px dashed var(--io); }
+  .io .op { color: #334155; }
+  .removed { background: #fff; color: #94a3b8; border: 2px dashed #cbd5e1; }
+  .removed .op { color: #94a3b8; text-decoration: line-through; }
+  .arrow { text-align: center; color: #94a3b8; font-size: 16px; line-height: 1.2; padding: 1px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; background: var(--card); }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; }
+  ul { margin: 6px 0; padding-left: 22px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
+  .tag { display: inline-block; background: #334155; color: #fff; font-size: 12px;
+         border-radius: 4px; padding: 1px 8px; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+<h1>SP Pass / MoE Pass FX 图替换图解</h1>
+<div class="sub">
+  模型：Qwen3-30B-A3B（hidden = <b>2048</b>，48 层，128 experts top-8，TP=2 时每 rank q = 16 heads × 128、kv = 2 heads × 128）。
+  记号：<code>T</code> = 单个 DP rank 上的总 token 数（如 16K 输入时 T ≈ 16384 × 并发），<code>T/2</code> = TP=2 分片后每 rank 的 token 数。
+  只保留关键算子，<code>getitem</code> / <code>view</code> / <code>detach</code> 已省略。
+</div>
+
+<div class="legend">
+  <span style="background:var(--comm)">通信算子</span>
+  <span style="background:var(--norm)">AddRMSNorm（含 residual）</span>
+  <span style="background:var(--gemm)">GEMM</span>
+  <span style="background:var(--attn)">Attention</span>
+  <span style="background:var(--moe)">fused MoE</span>
+  <span style="background:#fff;color:#334155;border:2px dashed var(--io)">层间输入/输出</span>
+  <span style="background:#fff;color:#94a3b8;border:2px dashed #cbd5e1">被 pass 消除的算子</span>
+</div>
+
+<h2>0. 两个 Pass 各自做什么</h2>
+<div class="card">
+  <p><span class="tag">SP pass</span><code>vllm_ascend/compilation/passes/sequence_parallelism.py</code>
+     —— 把 TP 的 <b>all_reduce + AddRMSNorm</b> 换成 <b>reduce_scatter + AddRMSNorm + all_gather</b>，
+     让 norm 在 <code>[T/2, 2048]</code> 分片上计算（也匹配 MoE 输出的 <code>maybe_all_reduce</code> 变体）。</p>
+  <p><span class="tag">MoE pass</span><code>vllm_ascend/compilation/passes/sequence_parallelism_moe.py</code>
+     —— 只在 <b>SP+EP MoE 模式</b>下生效，两个 pattern：</p>
+  <ul>
+    <li><b>Pattern ① AllGatherChunkNoOp</b>：<code>all_gather + sequence_parallel_chunk → identity</code>。
+        MoE 本来就吃 token 分片，先 gather 再切回原分片是纯往返，直接折叠。</li>
+    <li><b>Pattern ② MiddleLayerAllgatherAddRMSNorm</b>：<code>all_gather + slice + AddRMSNorm → AddRMSNorm + all_gather</code>。
+        把 MoE 输出后的 all_gather 挪到下一层 RMSNorm <b>之后</b>，norm 改在分片上算。</li>
+  </ul>
+  <p>生效条件：<code>compile_range.start ≥ sp_min_token_num</code>（MoE 模型默认 1，dense 默认 1000，benchmark 中常设 1024）。</p>
+</div>
+
+<h2>1. SP + EP MoE 模式（DP=2, TP=2, EP=4）</h2>
+<div class="sub">fused MoE 输入/输出都是 <b>token 分片</b> <code>[T/2, 2048]</code>，内部 EP all2all（128 experts → 32/rank），输出后<b>不做</b> TP all-reduce。
+日志实测：SP pass 替换 48 处（每层 1 处，o_proj 后），MoE pass 替换 96 处（每层 2 处：pattern ① + ②）。</div>
+<div class="flows">
+  <div class="flow"><h4>Before（MoE pass 前）</h4><div id="c1b"></div></div>
+  <div class="flow"><h4>After（SP ×48 + MoE ×96）</h4><div id="c1a"></div></div>
+</div>
+<div class="card">
+  <b>变化要点：</b>
+  <ul>
+    <li>每层通信从 <b>2 次 all_gather + 1 次 reduce_scatter + 1 次 chunk 往返</b> 降到 <b>1 次 all_gather + 1 次 reduce_scatter</b>。</li>
+    <li>MoE 前的 <code>all_gather + sequence_parallel_chunk</code> 是恒等往返，被 pattern ① 折叠；gate GEMM 改在 <code>[T/2, 2048]</code> 分片上算。</li>
+    <li>MoE 输出的 all_gather 被 pattern ② 挪到下一层 norm 之后 —— 它仍然存在，因为 <b>attention 需要完整序列</b>（qkv GEMM 输入必须是 <code>[T, 2048]</code>），但 norm 本身在分片上完成。</li>
+  </ul>
+</div>
+
+<h2>2. TP 模式（DP=1, TP=2, EP=2，MoE 非 SP）</h2>
+<div class="sub">fused MoE 输入/输出都是<b>完整 tensor</b> <code>[T, 2048]</code>，内部 EP all2all（64 experts/rank）+ 最终 TP all_reduce。
+只有 SP pass 生效：每层替换 2 处（o_proj 后、MoE 输出后），48 层共 <b>96</b> 处。MoE pass 不生效。</div>
+<div class="flows">
+  <div class="flow"><h4>Before</h4><div id="c2b"></div></div>
+  <div class="flow"><h4>After（SP ×96）</h4><div id="c2a"></div></div>
+</div>
+<div class="card">
+  <b>变化要点：</b>
+  <ul>
+    <li>两处 <code>all_reduce</code>（o_proj 后、MoE 后的 <code>maybe_all_reduce</code>）都被拆成 <code>reduce_scatter + all_gather</code>，中间的 AddRMSNorm 在 <code>[T/2, 2048]</code> 分片上算。</li>
+    <li>MoE 入口前必须 all_gather 回 <code>[T, 2048]</code>，因为该模式下 fused MoE 要求完整 tensor（内部自己做 all2all + 最终 all_reduce）。</li>
+  </ul>
+</div>
+
+<h2>3. TP 模式，EP off（TP=2）</h2>
+<div class="sub">外部数据流与情况 2 的 After <b>完全相同</b>（SP pass ×96）；区别只在 fused MoE 内部：无 all2all，expert 按 TP 切分（moe_intermediate 768 → 384/rank），
+外部的 all_gather / reduce_scatter 实际上充当了 expert 的 dispatch / combine。</div>
+<div class="flows">
+  <div class="flow"><h4>After（SP ×96，同情况 2）</h4><div id="c3a"></div></div>
+</div>
+
+<h2>4. 三种模式对比总结</h2>
+<table>
+  <tr><th>模式</th><th>配置</th><th>fused MoE 输入</th><th>MoE 内部通信</th><th>fused MoE 输出</th><th>pass 替换数（48 层）</th><th>替换后每层外部通信</th></tr>
+  <tr><td><b>SP + EP MoE</b></td><td>DP2 / TP2 / EP4</td><td><code>[T/2, 2048]</code> 分片</td><td>EP all2all，无最终 all_reduce</td><td><code>[T/2, 2048]</code> 分片</td><td>SP ×48 + MoE ×96</td><td>1 all_gather + 1 reduce_scatter</td></tr>
+  <tr><td><b>TP（EP on）</b></td><td>DP1 / TP2 / EP2</td><td><code>[T, 2048]</code> 完整</td><td>EP all2all + 最终 TP all_reduce</td><td><code>[T, 2048]</code> 完整</td><td>SP ×96</td><td>2 all_gather + 2 reduce_scatter</td></tr>
+  <tr><td><b>TP（EP off）</b></td><td>TP2</td><td><code>[T, 2048]</code> 完整</td><td>无 all2all；expert 按 TP 切分</td><td><code>[T, 2048]</code> 完整</td><td>SP ×96</td><td>2 all_gather + 2 reduce_scatter</td></tr>
+</table>
+<div class="card">
+  <b>一句话理解：</b>SP+EP MoE 模式下 MoE 输出<b>天然就是分片</b>，任何「gather 完整 tensor」的动作都是浪费，
+  MoE pass 的全部工作就是把这两处浪费消掉；而 TP 模式下 MoE 要完整 tensor，SP pass 只能在 norm 前后做
+  reduce_scatter / all_gather 配对，通信次数降不下来。上游 vLLM 的做法是 all_gather 后 slice 成分片输入，效果类似但多一次 gather。
+</div>
+
+<script>
+// kind: comm | norm | gemm | attn | moe | io | removed
+function flow(el, steps) {
+  const html = steps.map(s => `
+    <div class="node ${s.kind}">
+      <div class="op">${s.op}</div>
+      ${s.shape ? `<div class="shape">${s.shape}</div>` : ''}
+      ${s.note ? `<div class="note">${s.note}</div>` : ''}
+    </div>`).join('<div class="arrow">↓</div>');
+  document.getElementById(el).innerHTML = html;
+}
+
+const NORM_FULL = { kind:'norm', op:'maybe_chunk_residual + npu_add_rms_norm_bias', shape:'[T, 2048]' };
+const NORM_SHARD = { kind:'norm', op:'maybe_chunk_residual + npu_add_rms_norm_bias', shape:'[T/2, 2048]' };
+const QKV = { kind:'gemm', op:'unquantized_gemm (qkv_proj)', shape:'[T, 2048] × [2048, 2560] → [T, 2560]' };
+const ATTN = { kind:'attn', op:'qkv_rmsnorm_rope + unified_attention', shape:'q [T, 16, 128] / kv [T, 2, 128] → [T, 2048]' };
+const OPROJ = { kind:'gemm', op:'unquantized_gemm (o_proj)', shape:'[T, 2048] × [2048, 2048] → [T, 2048]' };
+
+/* ---- 情况 1: SP+EP MoE (DP2/TP2/EP4) ---- */
+flow('c1b', [
+  { kind:'io', op:'上一层 MoE 输出（token 分片）', shape:'[T/2, 2048]' },
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'MoE 输出被无条件 gather（冗余）' },
+  NORM_FULL,
+  QKV, ATTN, OPROJ,
+  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]' },
+  NORM_SHARD,
+  { kind:'comm', op:'all_gather + sequence_parallel_chunk', shape:'[T/2, 2048] → [T, 2048] → [T/2, 2048]', note:'恒等往返：gather 后立刻切回原分片（冗余）' },
+  { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T/2, 2048] × [2048, 128] → [T/2, 128]' },
+  { kind:'moe', op:'moe_forward', shape:'in [T/2, 2048] → out [T/2, 2048]', note:'内部 EP all2all（32 experts/rank），无 TP all_reduce' },
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'交给下一层 slice + norm（冗余）' },
+  { kind:'io', op:'到下一层', shape:'[T, 2048]' },
+]);
+
+flow('c1a', [
+  { kind:'io', op:'上一层 MoE 输出（token 分片）', shape:'[T/2, 2048]' },
+  { kind:'removed', op:'all_gather + slice（MoE 输出后）', note:'pattern ②：gather 挪到 norm 之后' },
+  NORM_SHARD,
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'pattern ② 挪到此处，供 attention 用完整序列' },
+  QKV, ATTN, OPROJ,
+  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]', note:'SP pass：o_proj 后的 all_reduce 已拆分' },
+  NORM_SHARD,
+  { kind:'removed', op:'all_gather + sequence_parallel_chunk', note:'pattern ①：恒等往返折叠为 identity' },
+  { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T/2, 2048] × [2048, 128] → [T/2, 128]', note:'直接在分片上算' },
+  { kind:'moe', op:'moe_forward', shape:'in [T/2, 2048] → out [T/2, 2048]', note:'内部 EP all2all，输出直接交给下一层 norm' },
+  { kind:'io', op:'到下一层（保持分片）', shape:'[T/2, 2048]' },
+]);
+
+/* ---- 情况 2: TP 模式 (DP1/TP2/EP2) ---- */
+flow('c2b', [
+  { kind:'io', op:'上一层 MoE 输出（完整 tensor）', shape:'[T, 2048]' },
+  { kind:'comm', op:'maybe_all_reduce_tensor_model_parallel', shape:'[T, 2048]', note:'MoE 内部最终的 TP all_reduce' },
+  NORM_FULL,
+  QKV, ATTN, OPROJ,
+  { kind:'comm', op:'all_reduce (TP)', shape:'[T, 2048]' },
+  NORM_FULL,
+  { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T, 2048] × [2048, 128] → [T, 128]' },
+  { kind:'moe', op:'moe_forward', shape:'in [T, 2048] → out [T, 2048]', note:'内部 EP all2all（64 experts/rank）+ 最终 TP all_reduce' },
+  { kind:'io', op:'到下一层（完整 tensor）', shape:'[T, 2048]' },
+]);
+
+flow('c2a', [
+  { kind:'io', op:'上一层 MoE 输出（完整 tensor）', shape:'[T, 2048]' },
+  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]', note:'SP pass 替换点 ②：MoE 后的 maybe_all_reduce' },
+  NORM_SHARD,
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'attention 需要完整序列' },
+  QKV, ATTN, OPROJ,
+  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]', note:'SP pass 替换点 ①：o_proj 后的 all_reduce' },
+  NORM_SHARD,
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'MoE 要求完整 tensor 输入' },
+  { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T, 2048] × [2048, 128] → [T, 128]' },
+  { kind:'moe', op:'moe_forward', shape:'in [T, 2048] → out [T, 2048]', note:'输入输出均为完整 tensor' },
+  { kind:'io', op:'到下一层（完整 tensor，由替换点 ② 切分）', shape:'[T, 2048]' },
+]);
+
+/* ---- 情况 3: TP 模式 EP off ---- */
+flow('c3a', [
+  { kind:'io', op:'上一层 MoE 输出（完整 tensor）', shape:'[T, 2048]' },
+  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]', note:'充当 expert combine 的前半段' },
+  NORM_SHARD,
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]' },
+  QKV, ATTN, OPROJ,
+  { kind:'comm', op:'reduce_scatter (TP)', shape:'[T, 2048] → [T/2, 2048]' },
+  NORM_SHARD,
+  { kind:'comm', op:'all_gather (TP)', shape:'[T/2, 2048] → [T, 2048]', note:'充当 expert dispatch' },
+  { kind:'gemm', op:'unquantized_gemm (gate / router)', shape:'[T, 2048] × [2048, 128] → [T, 128]' },
+  { kind:'moe', op:'moe_forward', shape:'in [T, 2048] → out [T, 2048]', note:'无 all2all；expert 按 TP 切分（intermediate 768 → 384/rank）' },
+  { kind:'io', op:'到下一层（完整 tensor）', shape:'[T, 2048]' },
+]);
+</script>
+</body>
+</html>
