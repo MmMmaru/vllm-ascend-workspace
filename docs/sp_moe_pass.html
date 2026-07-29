@@ -82,7 +82,7 @@
   body.slide { overflow: hidden; padding: 0; }
   body.slide #progress, body.slide #nav { display: flex; }
   body.slide .slide { display: none; height: 100vh; padding: 5vh 9vw 80px;
-                      flex-direction: column; justify-content: center; overflow: hidden auto; }
+                      flex-direction: column; justify-content: flex-start; overflow: hidden; }
   body.slide .slide.active { display: flex; }
   body.slide h1 { font-size: 32px; }
   body.slide h2 { font-size: 24px; }
@@ -308,7 +308,19 @@ function show(i) {
   counter.textContent = `${cur + 1} / ${slides.length}`;
   progress.style.width = `${(cur + 1) / slides.length * 100}%`;
   history.replaceState(null, '', `#${cur + 1}`);
+  fit(slides[cur]);
 }
+
+/* 内容超过一页时整体缩放，保证单页放下 */
+function fit(slide) {
+  if (!slide || !document.body.classList.contains('slide')) return;
+  slide.style.zoom = 1;
+  const ratio = slide.clientHeight / slide.scrollHeight;
+  slide.style.zoom = ratio < 1 ? Math.max(ratio * 0.98, 0.4) : 1;
+}
+
+function fitAll() { slides.forEach(fit); }
+window.addEventListener('resize', fitAll);
 
 function setMode(slideMode) {
   document.body.classList.toggle('slide', slideMode);
@@ -330,6 +342,7 @@ document.addEventListener('keydown', e => {
 
 const start = parseInt(location.hash.slice(1), 10);
 show(isNaN(start) ? 0 : start - 1);
+fitAll();
 </script>
 </body>
 </html>
