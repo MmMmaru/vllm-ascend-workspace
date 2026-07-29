@@ -93,6 +93,26 @@ def run_analyse(ep, remote_dir: str) -> None:
         )
 
 
+def normalize_profile_permissions(ep, remote_dir: str) -> None:
+    """Make one profiler rank directory usable from the host bind mount.
+
+    The service normally starts with a permissive umask, but some CANN
+    versions create profiler files with restrictive modes of their own. The
+    SSH endpoint may be root while the bind mount belongs to the host user,
+    so normalize only the discovered rank directory after analyse().
+    """
+    result = ssh_exec(
+        ep,
+        f"chmod -R a+rwX -- {shlex.quote(remote_dir)}",
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"failed to normalize profiler permissions for {remote_dir!r}: "
+            f"{result.stderr[:1000]}"
+        )
+
+
 def verify_outputs(ep, remote_dir: str) -> dict[str, Any]:
     """Check that the expected ASCEND_PROFILER_OUTPUT files exist."""
     outputs: dict[str, Any] = {}
@@ -161,6 +181,7 @@ def analyse_profile_root(
     for path in targets:
         emit_progress("analyse", f"analysing {path}")
         run_analyse(ep, path)
+        normalize_profile_permissions(ep, path)
         outputs = verify_outputs(ep, path)
         status = classify_status(outputs)
         analysed.append({

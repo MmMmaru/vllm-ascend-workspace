@@ -83,3 +83,9 @@
 - 新增 `tests/ut/compilation/test_sequence_parallelism.py`，覆盖命中替换、零命中回退和 token 范围不满足时回退三种状态；Docker 定向测试结果为 `3 passed`。
 - 增加两卡 Qwen3-VL SP fallback 功能 E2E，并通过本地权重验证 TP fallback 输出与无 SP 基线一致；日志同时观察到 `(1, 2047)` 回退 TP 和 `(2048, 8192)` 替换 53 个 pattern。结果为 `1 passed`，日志为 `.log/e2e_sp_warning_fallback_0728.log`。
 - Docker 运行 `tests/ut/compilation`，结果为 `29 passed, 14 warnings`；新增源码和测试通过 `py_compile`。
+
+### 07-29
+
+- 修复 Docker root 启动服务导致 profiler/runtime 日志对宿主机用户不可读写：启动脚本设置专用 runtime 树的权限和 `umask 000`，离线 `analyse()` 后逐 rank 规范化 CANN 产物权限。
+- 新增 scaffold 权限回归测试；Docker 中新增测试 `2 passed`，权限模拟验证宿主机 UID 1000 可读写 profile 文件。
+- 已修复现有 `/home/x50063850/vllm-workspace` 中两个 root-owned profile 目录及当前 workspace `.log` 目录；全量 scaffold 测试另有既有环境问题：容器缺少 `ssh-keygen`，结果 `15 passed, 1 failed`。

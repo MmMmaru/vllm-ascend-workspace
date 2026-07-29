@@ -386,5 +386,30 @@ class RunStateIsolationTests(unittest.TestCase):
             module.BENCHMARK_STATE_DIR = original_state_dir
 
 
+class ServingLaunchPermissionTests(unittest.TestCase):
+    def test_runtime_artifacts_are_host_accessible(self) -> None:
+        module = load_script_module(
+            "_vaws_serving_start_permission_test",
+            ROOT / ".agents" / "skills" / "vllm-ascend-serving" / "scripts" / "serve_start.py",
+        )
+        script = module.build_launch_script(
+            runtime_dir="/workspace/.vaws-runtime/serving/20260729_000000",
+            model="/models/test",
+            served_model_name="test",
+            port=30001,
+            tp=1,
+            dp=None,
+            devices="0",
+            extra_env={},
+            extra_args=[],
+        )
+        self.assertIn("umask 000", script)
+        self.assertIn(
+            "chmod a+rwX /workspace/.vaws-runtime/serving "
+            "/workspace/.vaws-runtime/serving/20260729_000000",
+            script,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

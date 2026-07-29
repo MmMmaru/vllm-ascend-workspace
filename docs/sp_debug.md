@@ -39,7 +39,12 @@ ENABLE_SP=true
 RUN_NAME=sp_${ENABLE_SP}
 export VLLM_CACHE_ROOT=/workspace/.temp/${RUN_NAME}
 PROFILE_DIR=/workspace/.log/profile_${RUN_NAME}
+# Docker development containers may execute as root while /workspace is a
+# host bind mount. Keep benchmark and profiler artifacts usable by the host
+# user, including rank directories created later by CANN.
+umask 000
 mkdir -p /workspace/.log "${VLLM_CACHE_ROOT}" "${PROFILE_DIR}"
+chmod a+rwX /workspace/.log "${PROFILE_DIR}"
 
 vllm bench throughput \
   --model /home/weights/Qwen/Qwen3-30B-A3B \
