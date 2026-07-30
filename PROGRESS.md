@@ -108,3 +108,9 @@
 - 为 `scripts/naive_precision_test.py` 增加 `TEST_ENABLE_SP=1`，开启非 eager 编译、SP pass 和 FULL_DECODE_ONLY ACL graph。
 - Docker 使用空闲 NPU 2,3,4,5、TP4 和本地 Qwen3-30B-A3B 验证通过；日志确认 SP pass 替换 96 个 pattern 并完成 ACL graph replay。
 - SP 模式生成结果正常，输出与 eager 基线一致；运行结束后 2–5 卡无残留进程。
+
+### 07-30 12:12
+
+- 新增 `scripts/bench_sp_serve.sh`，在同一脚本中后台启动 `vllm serve`，健康检查通过后执行 `vllm bench serve`，退出时自动清理服务。
+- 按当前 SP 配置使用 TP4、NPU 2,3,4,5、FULL_DECODE_ONLY、`enable_sp=true`、16K 输入、100 请求和 10 warmup；bench 使用本地 tokenizer 与 `/v1/completions`。
+- Docker 验证通过：SP pass 每个 rank 替换 96 patterns，100/100 请求成功，耗时 159.10 秒、请求吞吐 0.6285 req/s、总 token 吞吐 10300.26 token/s；结果为 `.log/bench_sp_serve_20260730T120606Z.json`。
