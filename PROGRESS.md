@@ -97,6 +97,24 @@
 按三种 fused MoE 外部模式分节：SP+EP MoE（DP2/TP2/EP4）、TP 模式 EP on（DP1/TP2/EP2）、TP 模式 EP off；标注具体 shape 与关键算子，省略 getitem/view。
 内联 JS 已通过 node 语法与运行校验。随后追加幻灯片播放模式（方向键/空格翻页、进度条、#页码 定位、文档模式切换）；后按更新后的 sp_moe.md 修正情况 1 before 图（o_proj 后 all_reduce、MoE 前 sequence_parallel_chunk），重排为 5 页：设置→模式映射、三个模式各一页（图+要点）、总结。
 
+### 07-29 16:27
+
+- 将 DP2/TP2/EP SP 回归测试从 `two_card/test_sp_pass.py` 移到 `four_card/test_sp_pass.py`。
+- 在 `GraphFusionPassManager` 增加可选的 pass match-count 记录，E2E 直接读取 `SequenceParallelismPass.matched_count`，不再解析日志。
+- 使用空闲 NPU 2,3,4,5 和本地 Qwen3-30B-A3B 权重验证，四卡 E2E `1 passed`；pytest 收集共 2 个测试通过。
+
+### 07-30 12:12
+
+- 新增 `scripts/bench_sp_serve.sh`，在同一脚本中后台启动 `vllm serve`，健康检查通过后执行 `vllm bench serve`，退出时自动清理服务。
+- 按当前 SP 配置使用 TP4、NPU 2,3,4,5、FULL_DECODE_ONLY、`enable_sp=true`、16K 输入、100 请求和 10 warmup；bench 使用本地 tokenizer 与 `/v1/completions`。
+- Docker 验证通过：SP pass 每个 rank 替换 96 patterns，100/100 请求成功，耗时 159.10 秒、请求吞吐 0.6285 req/s、总 token 吞吐 10300.26 token/s；结果为 `.log/bench_sp_serve_20260730T120606Z.json`。
+
+### 07-30 12:37
+
+- 新增 `docs/model_runner_v2_design.md`，整理上游 Model Runner V2 的选择逻辑、SchedulerOutput/InputBatch、forward/sampling 两阶段、PP/DP、KV/Attention、CUDA Graph 和异步输出设计。
+- 文档引用当前 `vllm/` checkout 的源码路径与行号，包含 ASCII 数据流图、MRV1 对比、MRV2 限制和硬件后端阅读边界。
+- 已通过源码链接目标存在性、引用行范围和 `git diff --check` 校验；本次为文档变更，未运行 NPU 全量/E2E 测试。
+
 ### 07-30 09:24
 
 - 将 `scripts/naive_precision_test.py` 简化为 vLLM 高层离线 `LLM.chat()` 单请求精度测试。
