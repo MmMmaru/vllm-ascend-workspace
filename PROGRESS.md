@@ -102,3 +102,9 @@
 - 将 `scripts/naive_precision_test.py` 简化为 vLLM 高层离线 `LLM.chat()` 单请求精度测试。
 - 使用 `TEST_MODEL` 覆盖模型路径，默认 `Qwen/Qwen3-30B-A3B`；采用贪心采样并关闭 Qwen3 思考模式。
 - 已通过 Python 语法编译检查和 `git diff --check`；未在宿主机执行 NPU 推理。
+
+### 07-30 11:11
+
+- 为 `scripts/naive_precision_test.py` 增加 `TEST_ENABLE_SP=1`，开启非 eager 编译、SP pass 和 FULL_DECODE_ONLY ACL graph。
+- Docker 使用空闲 NPU 2,3,4,5、TP4 和本地 Qwen3-30B-A3B 验证通过；日志确认 SP pass 替换 96 个 pattern 并完成 ACL graph replay。
+- SP 模式生成结果正常，输出与 eager 基线一致；运行结束后 2–5 卡无残留进程。

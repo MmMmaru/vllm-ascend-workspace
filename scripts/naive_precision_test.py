@@ -32,18 +32,30 @@ MODEL = os.environ.get("TEST_MODEL", "Qwen/Qwen3-30B-A3B")
 PROMPT = "请用一句话介绍人工智能。"
 TENSOR_PARALLEL_SIZE = int(os.environ.get("TEST_TP_SIZE", "4"))
 MAX_TOKENS = 64
+ENABLE_SP = os.environ.get("TEST_ENABLE_SP", "0") == "1"
 
 
 def main() -> None:
     """加载本地模型，输入一句话并打印一句生成结果。"""
     from vllm import LLM, SamplingParams
 
-    llm = LLM(
-        model=MODEL,
-        tensor_parallel_size=TENSOR_PARALLEL_SIZE,
-        trust_remote_code=True,
-        enforce_eager=True,
-    )
+    llm_kwargs = {
+        "model": MODEL,
+        "tensor_parallel_size": TENSOR_PARALLEL_SIZE,
+        "trust_remote_code": True,
+        "enforce_eager": not ENABLE_SP,
+    }
+    if ENABLE_SP:
+        llm_kwargs["compilation_config"] = {
+            "cudagraph_mode": "FULL_DECODE_ONLY",
+            "cudagraph_capture_sizes": [1, 2, 4],
+            "pass_config": {"enable_sp": True, "sp_min_token_num": 1},
+        }
+        llm_kwargs["additional_config"] = {
+            "ascend_compilation_config": {"enable_npugraph_ex": False}
+        }
+
+    llm = LLM(**llm_kwargs)
     sampling_params = SamplingParams(temperature=0.0, max_tokens=MAX_TOKENS)
     outputs = llm.chat(
         [{"role": "user", "content": PROMPT}],
