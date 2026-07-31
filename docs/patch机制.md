@@ -168,7 +168,7 @@ KV Cache patch 也采用类似方式，将上游的 `MLAAttentionSpec` 替换为
 
 这类机制不直接修改每个模型的构造代码，而是在上游层实例化时做替换。
 
-上游的 `CustomOp` 和 `PluggableLayer` 会在 `__new__` 中检查 OOT registry。Ascend 在 [`utils.py`](../vllm-ascend/vllm_ascend/utils.py#L638) 建立映射：
+上游的 `CustomOp` 和 `PluggableLayer` 会在 `__new__` 中检查 OOT registry。Ascend 在 [`utils.py`](../vllm-ascend/vllm_ascend/utils.py#L660) 建立映射：
 
 ```python
 REGISTERED_ASCEND_OPS = {

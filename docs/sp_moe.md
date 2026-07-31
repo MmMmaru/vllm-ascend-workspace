@@ -167,3 +167,28 @@ TP模式下：sp pass替换两次一个block，fused MOE之后会有一个TP all
 
 #### 遗留问题
 不同的内部通信方式是否会导致输入输出不同？需要测试。
+
+
+
+## 为什么SP Moe，non SP Moe输入输出需要不一样？
+                    AllGatherCommImpl
+                           |
+          +----------------+----------------+
+          |                                 |
+       non-SP                              SP
+          |                                 |
+     DP AllGather                      EP AllGather
+     MoE kernel                        MoE kernel
+     DP Reduce-Scatter                 EP Reduce-Scatter
+          |                                 |
+     token维度 All-Reduce                    token-sharded output
+1、moe 的真正的forward的输入输出都是local expert的结果。所以理论上都要做all reduce
+2、在SP的时候，finalize做了EP 的reduce scatter。non-SP 没有做allreduce，需要在外面再补一个allreduce
+3、为什么抓取Graph的时候暴露了allreduce这个算子？
+    vllm自定义算子注册的是内层的_forward_impl这个算子，allreduce暴露在外面了。（上游实现）
+4、自定义算子包含了什么？（以下游实现为例）
+    prepare，expert计算（本地），finalize
+    prepare 负责收集token （分多种通信实现）allgather实现直接收集全部token
+    expert计算完，得到全量token，本地expert
+    finalize做reduce 得到全量token，全量expert，然后scatter，得到本地token，全量expert
+    non-SP finalize里面没有做allreduce/reduce scatter，数据上还是全量token，本地expert。
