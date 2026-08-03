@@ -144,3 +144,9 @@
 - 修复 `scripts/bench_sp_serve.sh` 的 DP2/TP2/EP benchmark 配置：默认关闭 SP，使用环境变量生成合法 JSON，并恢复 bench 详细日志与 TTFT 分位数统计。
 - 增加结果校验：`completed` 必须等于请求数且 `failed` 必须为 0，否则输出服务端日志并以失败退出。
 - Docker 完整验证通过：TP2/DP2/EP、16K 输入、100 请求、10 warmup，100/100 成功，耗时 95.96 秒，总 token 吞吐 17078.51 token/s；无残留进程。
+
+### 08-03 05:03
+重写 concise-code-explanation skill 为总分总结构
+- 修改 `.agents/skills/concise-code-explanation/SKILL.md`：去掉 2-3 段限制，改为总述数据流、分模块讲设计、总结串回全局。
+- 同步更新 `agents/openai.yaml` 的展示名与默认提示词。
+- 文档类改动，无需运行验证；已提交 62cf5b1。
