@@ -1,7 +1,7 @@
 interface:
-  display_name: "简洁代码解释"
-  short_description: "用2-3段简洁解释代码目的、触发原因、处理逻辑与完整数据流"
-  default_prompt: "使用 $concise-code-explanation 解释这段代码为什么这样工作，并给出带行号的数据流图。"
+  display_name: "代码解释（总分总）"
+  short_description: "按总分总结构解释整体数据流与各模块设计，给出带行号的数据流图"
+  default_prompt: "使用 $concise-code-explanation 解释这段代码为什么这样工作，先总述数据流，再分模块讲解设计，最后总结，并给出带行号的数据流图。"
 
 policy:
   allow_implicit_invocation: true
