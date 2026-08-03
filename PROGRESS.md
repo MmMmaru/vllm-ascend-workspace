@@ -155,3 +155,10 @@
 修正 `scripts/naive_precision_test.py` 的 Ascend profile 路径分析
 - 记录 `llm.start_profile()` 前已有的 rank 目录，只对本次新增的 `*_ascend_pt` 执行离线 `analyse()`。
 - Docker TP2 使用 NPU 2、3 验证通过，生成结果正常，两个新 rank 的 profile 均完成离线分析并打印 `ASCEND_PROFILER_OUTPUT` 路径。
+
+### 08-03 20:20
+SP 特性 W8A8(INT8) 量化支持（worktree `vllm-ascend/.worktrees/sp-int8`，提交 8ae7b7c8b）
+- 新增 `npu_quant_mm_reduce_scatter` custom op、`QuantMatmulReduceScatterPattern`（pm DSL 搜索模式）与独立 pass；aclgraph 捕获区间门控 + compile range 按 max_capture_size 分裂。
+- 修复三个关键问题：aclnnMatmulReduceScatterV2 对非连续输入 ND 报错/NZ 静默错值（impl 内 x.contiguous()）；matcher 忽略 pattern 外 kwargs 导致 rank0 bias 被静默丢弃（extra_check 过滤）；rank1 分片缺 bias 修正（apply 改为 bias-free mm + 每 rank 加 1/tp 修正，图 rank 对称，2 的幂除法精确）。
+- 验证：fused vs nofuse prompt-logprob top1 全一致；E2E `test_sp_w8a8.py` 通过；16K 输入吞吐 SP-off 14664 / SP-nofuse 14452 / SP-fused 14653 tokens/s；ruff/mypy 通过（gitleaks 因二进制架构问题跳过，代码无密钥）。
+- 新增脚本 `scripts/naive_precision_test_sp_int8.py`、`scripts/bench_sp_int8_tpot.sh`。
