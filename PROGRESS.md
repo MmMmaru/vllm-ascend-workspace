@@ -150,3 +150,8 @@
 - 修改 `.agents/skills/concise-code-explanation/SKILL.md`：去掉 2-3 段限制，改为总述数据流、分模块讲设计、总结串回全局。
 - 同步更新 `agents/openai.yaml` 的展示名与默认提示词。
 - 文档类改动，无需运行验证；已提交 62cf5b1。
+
+### 08-03 16:05
+修正 `scripts/naive_precision_test.py` 的 Ascend profile 路径分析
+- 记录 `llm.start_profile()` 前已有的 rank 目录，只对本次新增的 `*_ascend_pt` 执行离线 `analyse()`。
+- Docker TP2 使用 NPU 2、3 验证通过，生成结果正常，两个新 rank 的 profile 均完成离线分析并打印 `ASCEND_PROFILER_OUTPUT` 路径。
