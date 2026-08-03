@@ -28,11 +28,13 @@ def configure_environment() -> None:
 
 configure_environment()
 
-MODEL = os.environ.get("TEST_MODEL", "Qwen/Qwen3-30B-A3B")
+MODEL = os.environ.get("TEST_MODEL", "/home/weights/Qwen/Qwen3-30B-A3B")
 PROMPT = "请用一句话介绍人工智能。"
-TENSOR_PARALLEL_SIZE = int(os.environ.get("TEST_TP_SIZE", "4"))
+TENSOR_PARALLEL_SIZE = 2
 MAX_TOKENS = 64
-ENABLE_SP = os.environ.get("TEST_ENABLE_SP", "0") == "1"
+ENABLE_SP = True
+# 开启 matmul + reduce_scatter 融合（依赖 ENABLE_SP）
+FUSE_GEMM_COMMS = True
 
 
 def main() -> None:
@@ -41,15 +43,20 @@ def main() -> None:
 
     llm_kwargs = {
         "model": MODEL,
-        "tensor_parallel_size": TENSOR_PARALLEL_SIZE,
+        "tensor_parallel_size": 2,
+        "data_parallel_size": 1,
         "trust_remote_code": True,
         "enforce_eager": not ENABLE_SP,
     }
     if ENABLE_SP:
         llm_kwargs["compilation_config"] = {
             "cudagraph_mode": "FULL_DECODE_ONLY",
-            "cudagraph_capture_sizes": [1, 2, 4],
-            "pass_config": {"enable_sp": True, "sp_min_token_num": 1},
+            "cudagraph_capture_sizes": [2, 4],
+            "pass_config": {
+                "enable_sp": True,
+                "sp_min_token_num": 1,
+                "fuse_gemm_comms": FUSE_GEMM_COMMS,
+            },
         }
         llm_kwargs["additional_config"] = {
             "ascend_compilation_config": {"enable_npugraph_ex": False}

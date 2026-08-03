@@ -9,12 +9,13 @@ export VLLM_CACHE_ROOT=/home/x50063850/vllm-ascend-workspace/.temp/bench
 
 input_len=16384
 enable_sp=true
+fuse_gemm_comms=true
 
 mkdir -p /home/x50063850/vllm-ascend-workspace/.log "${VLLM_CACHE_ROOT}"
 
 vllm bench throughput \
   --model /home/weights/Qwen/Qwen3-30B-A3B \
-  --data-parallel-size 2 \
+  --data-parallel-size 1 \
   --tensor-parallel-size 2 \
   --dtype bfloat16 \
   --max-model-len 25600 \
@@ -25,7 +26,7 @@ vllm bench throughput \
   --num-prompts 100 \
   --num-warmups 10 \
   --seed 0 \
-  --compilation-config "{\"cudagraph_mode\":\"FULL_DECODE_ONLY\",\"cudagraph_capture_sizes\":[2,4],\"pass_config\":{\"enable_sp\":${enable_sp},\"sp_min_token_num\":1024}}" \
+  --compilation-config "{\"cudagraph_mode\":\"FULL_DECODE_ONLY\",\"cudagraph_capture_sizes\":[2,4],\"pass_config\":{\"enable_sp\":${enable_sp},\"sp_min_token_num\":1024,\"fuse_gemm_comms\":${fuse_gemm_comms}}}" \
   --additional-config "{\"ascend_compilation_config\":{\"enable_npugraph_ex\":false}}" \
-  --output-json /home/x50063850/vllm-ascend-workspace/.log/bench_sp_${enable_sp}_${input_len}.json \
-  2>&1 | tee /home/x50063850/vllm-ascend-workspace/.log/bench_sp_${enable_sp}_${input_len}.log
+  --output-json /home/x50063850/vllm-ascend-workspace/.log/bench_sp_${enable_sp}_fuse_${fuse_gemm_comms}_${input_len}.json \
+  2>&1 | tee /home/x50063850/vllm-ascend-workspace/.log/bench_sp_${enable_sp}_fuse_${fuse_gemm_comms}_${input_len}.log

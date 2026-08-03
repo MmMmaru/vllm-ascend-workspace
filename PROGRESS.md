@@ -1,3 +1,9 @@
+### 08-03 12:00
+
+- 实现 SP 下 matmul + reduce_scatter 算子融合（参照上游 AsyncTPPass，开关复用 `pass_config.fuse_gemm_comms`）：新增 `torch.ops.vllm.npu_mm_reduce_scatter` custom op（`register_custom_ops.py`，底层 `npu_mm_reduce_scatter_base`）、`MatmulReduceScatterFusionPass`（`sequence_parallelism.py`，匹配 `unquantized_gemm + reduce_scatter`）、挂载于 `graph_fusion_pass_manager.py`，`platform.py` 补齐 fuse_gemm_comms 的 sp_min_token_num 默认值。
+- 关键修正：实际图中 mm 节点是 Ascend 的 `unquantized_gemm(x, weight)`（weight 为 (n,k) F.linear 布局），非上游的 `aten.mm`；初版 pattern 0 命中后改为匹配该 op，融合算子内部做 `weight.t()`。
+- 验证：Qwen3-30B-A3B TP2/EP 精度脚本输出与未融合一致（48 层全部命中）；16K 输入吞吐 14099.69 → 14437.00 tokens/s（+2.39%）；E2E 新增 `test_qwen3_vl_sp_fuse_gemm_comms_tp2` 并按规范改用 `TEST_MODEL` 环境变量。
+
 ### 07-28 02:45
 
 - 完善 `.agents/skills/handoff_context/SKILL.md`：补充 frontmatter、触发场景（了解=读取 CONTEXT.md，理解=读源码构建/增量更新）、工作流程与硬约束（≤800 行、可点击链接、事实标注）。
@@ -132,3 +138,9 @@
 - 新增 `scripts/bench_sp_serve.sh`，在同一脚本中后台启动 `vllm serve`，健康检查通过后执行 `vllm bench serve`，退出时自动清理服务。
 - 按当前 SP 配置使用 TP4、NPU 2,3,4,5、FULL_DECODE_ONLY、`enable_sp=true`、16K 输入、100 请求和 10 warmup；bench 使用本地 tokenizer 与 `/v1/completions`。
 - Docker 验证通过：SP pass 每个 rank 替换 96 patterns，100/100 请求成功，耗时 159.10 秒、请求吞吐 0.6285 req/s、总 token 吞吐 10300.26 token/s；结果为 `.log/bench_sp_serve_20260730T120606Z.json`。
+
+### 07-31 10:45
+
+- 修复 `scripts/bench_sp_serve.sh` 的 DP2/TP2/EP benchmark 配置：默认关闭 SP，使用环境变量生成合法 JSON，并恢复 bench 详细日志与 TTFT 分位数统计。
+- 增加结果校验：`completed` 必须等于请求数且 `failed` 必须为 0，否则输出服务端日志并以失败退出。
+- Docker 完整验证通过：TP2/DP2/EP、16K 输入、100 请求、10 warmup，100/100 成功，耗时 95.96 秒，总 token 吞吐 17078.51 token/s；无残留进程。
