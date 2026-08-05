@@ -162,3 +162,7 @@ SP 特性 W8A8(INT8) 量化支持（worktree `vllm-ascend/.worktrees/sp-int8`，
 - 修复三个关键问题：aclnnMatmulReduceScatterV2 对非连续输入 ND 报错/NZ 静默错值（impl 内 x.contiguous()）；matcher 忽略 pattern 外 kwargs 导致 rank0 bias 被静默丢弃（extra_check 过滤）；rank1 分片缺 bias 修正（apply 改为 bias-free mm + 每 rank 加 1/tp 修正，图 rank 对称，2 的幂除法精确）。
 - 验证：fused vs nofuse prompt-logprob top1 全一致；E2E `test_sp_w8a8.py` 通过；16K 输入吞吐 SP-off 14664 / SP-nofuse 14452 / SP-fused 14653 tokens/s；ruff/mypy 通过（gitleaks 因二进制架构问题跳过，代码无密钥）。
 - 新增脚本 `scripts/naive_precision_test_sp_int8.py`、`scripts/bench_sp_int8_tpot.sh`。
+### 08-05 06:23
+更新代码解释 skill 的代码定位规范。
+- 修改 `.agents/skills/concise-code-explanation/SKILL.md`：要求 Codex 使用可点击的绝对路径 Markdown 链接并附行号。
+- 未运行测试；仅完成文档规则更新。
