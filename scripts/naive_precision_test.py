@@ -28,13 +28,15 @@ def configure_environment() -> None:
 
 configure_environment()
 
-os.environ["VLLM_TORCH_PROFILER_DIR"] = "./.temp/profile"
+from datetime import datetime
+os.environ["VLLM_TORCH_PROFILER_DIR"] = "./.temp/profile/" + datetime.now().strftime("%d_%H-%M")
+os.environ["ASCEND_RT_VISIBLE_DEVICES"] = "4,5"
 profile_path = os.environ["VLLM_TORCH_PROFILER_DIR"]
 MODEL = os.environ.get("TEST_MODEL", "/home/weights/Qwen/Qwen3-30B-A3B")
-PROMPT = "请用一句话介绍人工智能。"
+PROMPT = "hello" * 16000
 TENSOR_PARALLEL_SIZE = 2
-MAX_TOKENS = 64
-ENABLE_SP = True
+MAX_TOKENS = 2
+ENABLE_SP = False
 # 开启 matmul + reduce_scatter 融合（依赖 ENABLE_SP）
 FUSE_GEMM_COMMS = True
 
@@ -48,12 +50,15 @@ def main() -> None:
         "model": MODEL,
         "tensor_parallel_size": 2,
         "data_parallel_size": 1,
-        "trust_remote_code": True,
-        "enforce_eager": not ENABLE_SP,
+        "enable_expert_parallel": True,
         "profiler_config": {
             "profiler": "torch",
             "torch_profiler_dir": os.environ["VLLM_TORCH_PROFILER_DIR"],
             "torch_profiler_with_stack":True
+        },
+        "additional_config": {
+            "ascend_compilation_config": {"enable_npugraph_ex": True},
+            "enable_flashcomm1": False,
         }
     }
     if ENABLE_SP:
@@ -67,13 +72,22 @@ def main() -> None:
             },
         }
         llm_kwargs["additional_config"] = {
-            "ascend_compilation_config": {"enable_npugraph_ex": False}
+            "ascend_compilation_config": {"enable_npugraph_ex": True},
         }
 
     llm = LLM(**llm_kwargs)
     sampling_params = SamplingParams(temperature=0.0, max_tokens=MAX_TOKENS)
     profile_root = Path(profile_path).resolve()
     existing_profile_dirs = set(profile_root.glob("*_ascend_pt"))
+    for _ in range(10):
+        
+        outputs = llm.chat(
+            [{"role": "user", "content": PROMPT}],
+            sampling_params=sampling_params,
+            chat_template_kwargs={"enable_thinking": False},
+            use_tqdm=True,
+        )
+
     llm.start_profile()
     outputs = llm.chat(
         [{"role": "user", "content": PROMPT}],

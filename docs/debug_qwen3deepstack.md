@@ -1,0 +1,4 @@
+(Worker_TP1 pid=685172) DEBUG 08-05 17:38:06 [sequence_parallelism.py:351]     %all_reduce_3 : [num_users=1] = call_function[target=torch.ops.vllm.all_reduce.default](args = (%unquantized_gemm_7, tp:0), kwargs = {})
+(Worker_TP1 pid=685172) DEBUG 08-05 17:38:06 [sequence_parallelism.py:351]     %add_166 : [num_users=2] = call_function[target=torch.ops.aten.add.Tensor](args = (%all_reduce_3, %arg24_1), kwargs = {})
+(Worker_TP1 pid=685172) DEBUG 08-05 17:38:06 [sequence_parallelism.py:351]     %maybe_chunk_residual_3 : [num_users=1] = call_function[target=torch.ops.vllm.maybe_chunk_residual.default](args = (%add_166, %getitem_440), kwargs = {})
+(Worker_TP1 pid=685172) DEBUG 08-05 17:38:06 [sequence_parallelism.py:351]     %npu_add_rms_norm_bias_3 : [num_users=2] = call_function[target=torch.ops._C_ascend.npu_add_rms_norm_bias.default](args = (%add_166, %maybe_chunk_residual_3, %arg25_1), kwargs = {})
