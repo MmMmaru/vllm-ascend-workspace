@@ -139,3 +139,9 @@
 - 测试3准备阶段已确认 `vllm-ascend-main@9f3aa1e70` 的远端源码 overlay 可导入，`VLLM_ASCEND_ENABLE_FLASHCOMM1=0` 生效；目标权重在 90.90.97.4 可见，正式测试尚未开始。
 - 90.90.97.4 的正确依赖容器持续被其他服务占用，观测到 0–4 的 OmniDiff/TP worker 以及 6–7 的 Python worker，无法满足 Qwen 的 4 卡或 DeepSeek 的 8 卡配置；未停止他人任务。
 - 为寻找空闲资源保守修复了 80.5.17.110 和 90.90.97.44 的已登记退出容器。80.5.17.110 的 main overlay 启动先后受 vLLM API 不匹配、旧 Transformers 缺少 `HunYuanVLProcessor` 阻断；受控 parity 安装又因镜像缺少 `setuptools_rust` 在 editable metadata 阶段失败，未使用裸 pip。90.90.97.44 的 Transformers 为 5.5.4，同样不满足 main 的 5.14.1 要求。因此测试3仍待正确依赖与足够 NPU 资源。
+
+### 08-11
+
+- 修复 Windows remote-code-parity：增加 SSH 连接保活和有界超时，流式 SSH 超时主动终止；统一本地/远端输出为 UTF-8。
+- 修复 `gc_runtime_cache.py` 使用 Windows `Path` 拼接容器 POSIX 路径的问题；更新 parity 行为文档。
+- 验证 parity 脚本编译、SSH 超时 smoke、POSIX 路径 smoke 和 snapshot plan 均通过。

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 from common import SshEndpoint, json_dump, quoted, ssh_exec
@@ -25,7 +25,9 @@ def build_parser() -> argparse.ArgumentParser:
 def run_gc(args: argparse.Namespace) -> int:
     container = SshEndpoint(host=args.container_host, port=args.container_port, user=args.container_user)
     workspace_root = cache_workspace_root(args.container_cache_root, args.workspace_id)
-    manifests_dir = str(Path(workspace_root) / 'manifests')
+    # This path is interpreted inside the Linux container.  Do not use the
+    # host platform's Path here: on Windows it would generate backslashes.
+    manifests_dir = PurePosixPath(workspace_root, 'manifests').as_posix()
     script = '\n'.join(
         [
             'set -eo pipefail',

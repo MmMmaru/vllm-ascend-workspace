@@ -46,6 +46,10 @@ STATE_LOCK_SUFFIX = '.lock'
 DEFAULT_STATE_LOCK_TIMEOUT_SECONDS = 15.0
 DEFAULT_STATE_LOCK_POLL_SECONDS = 0.05
 DEFAULT_STATE_LOCK_STALE_SECONDS = 60 * 60 * 6
+# Local SSH calls must have a bounded lifetime.  The streaming timeout is
+# longer because it also covers remote editable builds and bundle transfer.
+DEFAULT_SSH_COMMAND_TIMEOUT_SECONDS = 300.0
+DEFAULT_SSH_STREAM_TIMEOUT_SECONDS = 60 * 60.0
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,8 @@ def run(
             check=False,
             capture_output=capture_output,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
@@ -244,6 +250,12 @@ def _ssh_base_cmd(endpoint: SshEndpoint) -> list[str]:
         '-o',
         'BatchMode=yes',
         '-o',
+        'ConnectTimeout=15',
+        '-o',
+        'ServerAliveInterval=15',
+        '-o',
+        'ServerAliveCountMax=3',
+        '-o',
         'StrictHostKeyChecking=accept-new',
         '-o',
         'LogLevel=ERROR',
@@ -271,9 +283,10 @@ def ssh_exec(
     *,
     check: bool = True,
     capture_output: bool = True,
+    timeout: float | None = DEFAULT_SSH_COMMAND_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
     cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
-    return run(cmd, check=check, capture_output=capture_output)
+    return run(cmd, check=check, capture_output=capture_output, timeout=timeout)
 
 
 def ssh_exec_stream(
@@ -282,6 +295,7 @@ def ssh_exec_stream(
     *,
     check: bool = True,
     stream_progress: bool = True,
+    timeout: float | None = DEFAULT_SSH_STREAM_TIMEOUT_SECONDS,
 ) -> SshStreamingResult:
     cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
     proc = subprocess.Popen(
@@ -316,7 +330,13 @@ def ssh_exec_stream(
         thread.start()
 
     done_streams: set[str] = set()
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    timed_out = False
     while len(done_streams) < 2 or proc.poll() is None:
+        if deadline is not None and time.monotonic() >= deadline:
+            timed_out = True
+            proc.kill()
+            break
         try:
             stream_name, line = q.get(timeout=0.2)
         except queue.Empty:
@@ -339,6 +359,15 @@ def ssh_exec_stream(
     returncode = proc.wait()
     for thread in threads:
         thread.join(timeout=1)
+
+    if timed_out:
+        rendered_cmd = ' '.join(shlex.quote(part) for part in cmd)
+        timeout_text = 'disabled' if timeout is None else f'{timeout:.0f}s'
+        raise RuntimeError(
+            f'command timed out after {timeout_text}: {rendered_cmd}\n'
+            f'stdout:\n{"".join(stdout_parts)}\n'
+            f'stderr:\n{"".join(stderr_parts)}'
+        )
 
     while True:
         try:
@@ -377,23 +406,51 @@ def ssh_exec_stream(
     )
 
 
-def ssh_stream_to_file(endpoint: SshEndpoint, remote_path: str, payload: str) -> None:
+def ssh_stream_to_file(
+    endpoint: SshEndpoint,
+    remote_path: str,
+    payload: str,
+    *,
+    timeout: float | None = DEFAULT_SSH_COMMAND_TIMEOUT_SECONDS,
+) -> None:
     script = f'mkdir -p {quoted(PurePosixPath(remote_path).parent.as_posix())} && cat > {quoted(remote_path)}'
     cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
-    result = subprocess.run(cmd, input=payload, text=True, capture_output=True)
+    try:
+        result = subprocess.run(
+            cmd,
+            input=payload,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            capture_output=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        timeout_text = 'disabled' if timeout is None else f'{timeout:.0f}s'
+        raise RuntimeError(f'command timed out after {timeout_text} while streaming {remote_path}') from exc
     if result.returncode != 0:
         raise RuntimeError(
             f'failed to stream payload to {remote_path}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}'
         )
 
 
-def ssh_stream_bytes_to_file(endpoint: SshEndpoint, remote_path: str, payload: bytes) -> None:
+def ssh_stream_bytes_to_file(
+    endpoint: SshEndpoint,
+    remote_path: str,
+    payload: bytes,
+    *,
+    timeout: float | None = DEFAULT_SSH_STREAM_TIMEOUT_SECONDS,
+) -> None:
     script = (
         f'mkdir -p {quoted(PurePosixPath(remote_path).parent.as_posix())} && '
         f'head -c {len(payload)} > {quoted(remote_path)}'
     )
     cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
-    result = subprocess.run(cmd, input=payload, capture_output=True)
+    try:
+        result = subprocess.run(cmd, input=payload, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        timeout_text = 'disabled' if timeout is None else f'{timeout:.0f}s'
+        raise RuntimeError(f'command timed out after {timeout_text} while streaming {remote_path}') from exc
     if result.returncode != 0:
         raise RuntimeError(
             f'failed to stream binary payload to {remote_path}\n'

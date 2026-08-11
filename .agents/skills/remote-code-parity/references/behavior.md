@@ -12,6 +12,7 @@ This file defines the durable behavior of `remote-code-parity`.
 - Fail closed when parity cannot be proven.
 - Prove the final container-side commit ids instead of trusting command exit status alone.
 - Stream phase progress on `stderr` as `__VAWS_PARITY_PROGRESS__=<json>` and keep one final JSON payload on `stdout`.
+- Bound local SSH connect, keepalive, and subprocess wait time so a half-open Windows SSH process fails closed instead of hanging indefinitely.
 - Keep runtime-install phases attributable instead of collapsing them into one opaque step: uninstall, `vllm`, `vllm-ascend` requirements, `vllm-ascend`, import verification, and marker write should each surface their own progress event.
 
 ## Apply-mode split

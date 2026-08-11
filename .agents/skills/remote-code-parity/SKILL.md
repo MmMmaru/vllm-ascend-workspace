@@ -35,6 +35,7 @@ Keep a **ready** remote runtime in exact code parity with the local `vllm-ascend
 - Preserve runtime-private paths under `/vllm-workspace`, in particular `Mooncake/` (image-provided runtime) and `.vaws-runtime/` (workspace-managed runtime artifacts such as profiler dumps consumed by downstream skills). The exact list lives in `DEFAULT_ROOT_PRESERVE_PATHS` in `scripts/remote_code_parity.py`.
 - Container locks should record owner metadata and recover stale lock directories after the bounded stale interval; failed mirror hydration should best-effort clean any matching legacy `git-receive-pack` process trees and discard that repo's partial mirror before retry.
 - Keep `stdout` reserved for one final JSON summary and stream phase progress on `stderr` as `__VAWS_PARITY_PROGRESS__=<json>`.
+- Bound local SSH operations with connect/keepalive settings and phase-appropriate subprocess timeouts; a half-open Windows SSH process must fail closed instead of waiting forever.
 - Runtime install progress should be attributable at the package-step level: uninstall, `vllm`, `vllm-ascend` requirements, `vllm-ascend`, import smoke, and marker write.
 - Publish each synthetic snapshot to both the parity ref and an advertised branch ref inside the container-local mirror. Use Git bundles imported inside the container so parentless transport snapshots do not depend on remote receive-pack negotiation or remote base objects.
 - Materialize child repos explicitly; do not rely on `git submodule update` to fetch synthetic child commits.
