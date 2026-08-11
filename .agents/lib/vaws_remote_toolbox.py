@@ -1373,7 +1373,7 @@ def _local_manifest(local_path: Path) -> dict[str, Any]:
     for path in roots:
         if path.is_symlink():
             raise RemoteToolboxError(f"symlinks are not allowed by artifact_push: {path}")
-        relpath = "." if path == local_path else str(path.relative_to(local_path))
+        relpath = "." if path == local_path else path.relative_to(local_path).as_posix()
         files.append({
             "relpath": relpath,
             "path": str(path),
@@ -1415,11 +1415,11 @@ def artifact_push(
         with src.open("rb") as fh:
             upload = ssh_exec_bytes(
                 target.container_endpoint,
-                f"cat > {shlex.quote(remote_tmp)} && sha256sum {shlex.quote(remote_tmp)} | awk '{{print $1}}'",
+                f"cat > {shlex.quote(remote_tmp)} && sha256sum {shlex.quote(remote_tmp)}",
                 stdin=fh,
                 timeout=timeout,
             )
-        observed = upload.stdout.decode("utf-8", errors="replace").strip().splitlines()[-1:] or [""]
+        observed = upload.stdout.decode("utf-8", errors="replace").strip().split()[:1] or [""]
         if upload.returncode != 0 or observed[0] != file_info["sha256"]:
             ssh_exec_raw(target.container_endpoint, f"rm -f {shlex.quote(remote_tmp)}", check=False)
             return {

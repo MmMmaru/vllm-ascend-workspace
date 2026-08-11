@@ -30,6 +30,8 @@ Rules:
 - read it before mutating remote state
 - write it after successful add, identity-changing repair, or remove
 - alias and host IP must not resolve to different records
+- new machine aliases default to the host IP, such as `90.90.97.4`
+- existing aliases are preserved; an explicit alias is available for non-IP naming
 - machine username must be letters and digits only, normalized to lowercase
 - v1 supports one managed workspace container per host
 - wrapper scripts stream phase progress on `stderr` as `__VAWS_PROGRESS__=<json>` and keep one final JSON result on `stdout`

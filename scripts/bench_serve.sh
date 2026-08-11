@@ -9,8 +9,8 @@ vllm bench serve \
   --dataset-name random \
   --random-input-len 4096 \
   --random-output-len 2048 \
-  --num-prompts 100 \
-  --num-warmups 10 \
-  --max-concurrency 1 \
+  --num-prompts 50 \
+  --num-warmups 5 \
+  --max-concurrency 32 \
   --metric-percentiles 50,90,99 \
   --seed 0

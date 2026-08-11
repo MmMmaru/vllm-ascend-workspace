@@ -132,6 +132,10 @@ Use the resulting machine username as the stable namespace for collision-sensiti
 
 If inventory already records a container name for the target machine, keep using that recorded name even if the current local profile later changes.
 
+For a new machine, use the host IP as its alias, for example
+`90.90.97.4` becomes `90.90.97.4`. Preserve an existing inventory alias and
+use an explicit `--alias` only when a non-IP alias is required.
+
 ### 3. Probe first
 
 Before any mutation, inspect:

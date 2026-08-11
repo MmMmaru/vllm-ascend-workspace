@@ -5,16 +5,16 @@
 @.agents/AGENTS.md
 @Contributing.md
 @CONTEXT.md
+全量读取docs/instructions获取配置流程、当前设置。
+
 在commit前运行pre-commit
 在commit的时候需要sing off
 [`vllm/vllm/config/parallel.py`](../vllm/vllm/config/parallel.py#L126) 使用这种格式描述代码。
 测试中的模型路径使用环境变量读取，保证本地和上游都有模型用：
 os.environ.get("SP_TEST_MODEL", "Qwen/Qwen3-30B-A3B")
-如果被kill就暂停之后的运行。
 
 ## 开发环境
-目前在本机开发，不用理会remote相关设置。
-**在docker容器中运行代码！**
+目前在远程开发
 
 ## 验证条件
 全量完成测试验证

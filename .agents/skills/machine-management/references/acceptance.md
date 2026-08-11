@@ -72,6 +72,8 @@ These should not trigger `machine-management` unless machine readiness is the ob
 - when the shared bootstrap helper's prepared-image cache is not requested, `machine_add.py` and `machine_repair.py` keep raw selected-image bootstrap behavior
 - when a caller explicitly requests the prepared-image cache, the helper reports `prepared_image`, `used_prepared_image_cache`, and `created_prepared_image_cache` in the bootstrap payload
 - `machine_add.py` persists final alias, namespace, host identity, container name, image, and SSH port into inventory without the agent having to call `inventory.py put`
+- new registrations default the alias to the host IP, and existing aliases are preserved
+- an explicit `--alias` remains available for non-IP naming
 - the recorded inventory image is the actual selected image after mirror resolution and pull / cache fallback
 - selector-based image resolution is hardware-aware: A2 keeps the base tag, A3 appends `-a3`, and 310P appends `-310p`
 - inventory persists `host.machine_type`, `host.soc`, and `container.machine_type`

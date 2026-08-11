@@ -24,6 +24,9 @@ docs/superpowers/
 .machine-inventory.json
 .worktrees/
 
+# Local linked worktree used for vllm-ascend main-branch experiments.
+vllm-ascend-main/
+
 # Cursor IDE — ignore all except rules and skills (those are tracked / shared)
 .cursor/*
 !.cursor/rules/
