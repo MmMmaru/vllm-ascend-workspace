@@ -779,7 +779,11 @@ def run_remote_script(
         ) from exc
 
     assert proc.stdin is not None
-    proc.stdin.write(script)
+    # Write the remote bash script through the binary buffer so Windows does
+    # not translate LF to CRLF before bash -s receives it.
+    stdin_buffer = getattr(proc.stdin, "buffer", proc.stdin)
+    stdin_buffer.write(script.encode("utf-8"))
+    stdin_buffer.flush()
     proc.stdin.close()
 
     q: queue.Queue[tuple[str, str | None]] = queue.Queue()

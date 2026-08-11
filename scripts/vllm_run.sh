@@ -10,27 +10,22 @@ cd "${VLLM_DIR}"
 
 # 设置环境变量
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
-export ASCEND_RT_VISIBLE_DEVICES=0,1
-export ASCEND_HOME_PATH="${ASCEND_HOME_PATH:-/usr/local/Ascend/ascend-toolkit/latest}"
+export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3
 export PYTHONPATH="${ASCEND_DIR}:${VLLM_DIR}:${PYTHONPATH}"
-# vllm is built with the local "+empty" suffix in the container; vllm-ascend
-# uses this override to select the exact v0.24.0 compatibility lane.
-export VLLM_VERSION=0.24.0
+export VLLM_VERSION=0.26.0
 export VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS=86400
+export HCCL_IF_BASE_PORT=50000
 
 # 启动 vllm serve
 
-vllm serve /home/weights/Qwen/Qwen3-30B-A3B \
+vllm serve \
+    --model /mnt/a800_weight/Qwen3-30B-A3B \
     --served-model-name qwen \
     --host 0.0.0.0 \
     --port 8010 \
+    --data-parallel-size 2 \
     --tensor-parallel-size 2 \
-    --pipeline-parallel-size 1 \
     --gpu-memory-utilization 0.9 \
-    --trust-remote-code \
-    --no-enable-prefix-caching \
-    --no-async-scheduling \
-    --compilation-config '{"pass_config": {"enable_sp": true}}' \
-    --additional-config "{\"ascend_compilation_config\":{\"enable_npugraph_ex\":false}}" 
+    --max-num-seqs 16 \
+    --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[2,4,8,16,32,64,128,256]}' \
     # --enable-expert-parallel \
-    # --additional-config '{"enable_flashcomm1": true}' \

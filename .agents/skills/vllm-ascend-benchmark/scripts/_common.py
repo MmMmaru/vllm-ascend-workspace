@@ -214,6 +214,7 @@ class BenchConfig:
     model: str = ""
     tp: int | None = None
     dp: int | None = None
+    devices: str | None = None
     port: int | None = None
     serve_args: list[str] = field(default_factory=list)
     bench_args: list[str] = field(default_factory=list)
@@ -234,6 +235,8 @@ class BenchConfig:
             args.extend(["--tp", str(self.tp)])
         if self.dp is not None:
             args.extend(["--dp", str(self.dp)])
+        if self.devices is not None:
+            args.extend(["--devices", self.devices])
         if self.port is not None:
             args.extend(["--port", str(self.port)])
         for k, v in self.env.items():
@@ -283,6 +286,10 @@ class BenchConfig:
             d["session_file"] = self.session_file
         if self.tp is not None:
             d["tp"] = self.tp
+        if self.dp is not None:
+            d["dp"] = self.dp
+        if self.devices is not None:
+            d["devices"] = self.devices
         if self.serve_args:
             d["serve_args"] = self.serve_args
         if self.bench_args:
@@ -300,6 +307,7 @@ def assemble_config(
     model: str,
     tp: int | None = None,
     dp: int | None = None,
+    devices: str | None = None,
     port: int | None = None,
     serve_args: list[str] | None = None,
     bench_args: list[str] | None = None,
@@ -340,6 +348,7 @@ def assemble_config(
             cfg.dp = int(nightly_ref.server_cmd[idx + 1])
 
     # --- Port ---
+    cfg.devices = devices
     cfg.port = port
 
     # --- Serve args: user provided overrides nightly ---
@@ -510,8 +519,23 @@ def run_bench_on_remote(
 
     bench_cmd = " ".join(shlex.quote(str(s)) for s in bench_cmd_parts)
 
+    # The benchmark client is launched in a new SSH shell, so service-only
+    # extra_env would otherwise be lost.  Keep the client on the same source
+    # tree and entrypoint as the service when a PYTHONPATH-based runtime is
+    # requested.
+    client_env = {
+        key: config.env[key]
+        for key in ("PATH", "PYTHONPATH", "VLLM_VERSION", "VLLM_PLUGINS")
+        if key in config.env
+    }
+    client_env_export = " ".join(
+        f"export {key}={shlex.quote(value)};"
+        for key, value in client_env.items()
+    )
+
     remote_script = (
         _ascend_env_preamble()
+        + client_env_export
         + f"cd /tmp && {bench_cmd} 2>&1 && cat /tmp/{result_filename}"
     )
 

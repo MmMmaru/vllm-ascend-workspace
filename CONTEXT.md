@@ -1,22 +1,7 @@
 ## 环境配置
-
-- 工作区根目录：`/home/x50063850/vllm-ascend-workspace`。
-- 工作区不是单一 Python 仓库，而是一个 scaffold，包含两个 Git submodule：
-  - [`vllm/`](vllm/)：上游 vLLM；当前 checkout 为 `7b3d595eb197d714052ce296cc8b124f0dc8af31`。
-  - [`vllm-ascend/`](vllm-ascend/)：Ascend NPU 插件；当前 checkout 为 `49c07478883e02b40cf52dd7da7f1c365d1e9673`，提交为 `fix: preserve sequence parallel MoE token layout`。
-- 所有 torch/torch_npu、UT、E2E 和 benchmark 必须在 Docker 容器 `xrs_vllm_main` 中执行；本地宿主机不具备 NPU 运行条件。
-- 容器中需要保留 CANN 原有环境，并把当前工作区源码追加到 `PYTHONPATH`：
-
-  ```bash
-  export PYTHONPATH=/home/x50063850/vllm-ascend-workspace/vllm-ascend:/home/x50063850/vllm-ascend-workspace/vllm:${PYTHONPATH:-}
-  ```
-- 如果连接不上尝试使用export https_proxy=localhost:33210端口
-- 
-
-- 常用环境：`ASCEND_HOME_PATH=/usr/local/Ascend/cann-9.0.1`、`SOC_VERSION=ascend910b1`，权重目录为 `/home/weights`。
-- 多卡调试通常使用 `VLLM_WORKER_MULTIPROC_METHOD=spawn`、`OMP_NUM_THREADS=1`；`fork` 继承父进程 NPU/线程池状态，曾出现 OpenMP thread-pool abort。
-- 临时缓存放 `.temp/`，日志、benchmark JSON 和 profiler 产物放 `.log/`。每个 benchmark 变体必须使用独立的 `VLLM_CACHE_ROOT`、日志和 JSON。
-- 换仓/重建/运行验收流程见 [`docs/container_compile_flow.md`](docs/container_compile_flow.md)。关键原则：`.so` 存在只说明构建完成，`Replaced N patterns` 只说明 FX 图被改写，只有请求完成、JSON 和 E2E 输出一致才说明真实 NPU 执行成功。
+阅读docs/instructions获取最新的环境配置方案。
+目前在绿区服务器上执行命令。不是本地执行。
+机器名统一用网段
 
 ## 项目架构
 
@@ -61,10 +46,9 @@ vllm-ascend/worker/model_runner_v1.py
 
 核心概念要分开：
 
-- `enable_sp()` 是运行时 FlashComm1/运行时 SP 开关，主要由 `additional_config.enable_flashcomm1` 或 `VLLM_ASCEND_ENABLE_FLASHCOMM1` 决定。
-- `enable_sp_by_pass` 是编译期 SP 开关，要求非 eager 且 `compilation_config.pass_config.enable_sp=True`。
+- `enable_sp()` 是运行时 上游 parallel_config 驱动的 SP 开关，主要由 `vllm_config.parallel_config.use_sequence_parallel_moe` 决定。
 - `torch.compile` 负责 Dynamo FX 捕获、调用 AscendCompiler 和生成 compiled callable；它不是 ACL graph capture 本身。
-- `SequenceParallelismPass` 修改 FX 图；`FULL_DECODE_ONLY` 只决定 decode 是否捕获完整 ACL graph。Prefill 可以经过 SP pass，但通常以 `NONE` 运行时模式执行。
+- 上游 vLLM 的 `SequenceParallelismPass` 修改 FX 图；`FULL_DECODE_ONLY` 只决定 decode 是否捕获完整 ACL graph。Prefill 可以经过 SP pass，但通常以 `NONE` 运行时模式执行。
 - `FULL`/`FULL_DECODE_ONLY` 是完整 forward/decode graph 模式；`PIECEWISE` 只捕获可捕获的编译区域；日志中的 `Capturing a aclgraph` 是 capture 动作本身。
 
 ## 源码理解
@@ -73,28 +57,21 @@ vllm-ascend/worker/model_runner_v1.py
 
 - [`vllm-ascend/vllm_ascend/ops/fused_moe/fused_moe.py`](vllm-ascend/vllm_ascend/ops/fused_moe/fused_moe.py)：`AscendMoERunner._maybe_reduce_final_output()` 在原生 MoE SP 时跳过最终 TP all-reduce，保留 token-sharded 结果给 Qwen3 MoE 后续 all-gather。
 - [`vllm-ascend/vllm_ascend/ops/register_custom_ops.py`](vllm-ascend/vllm_ascend/ops/register_custom_ops.py)：SP+EP 的 all-gather 后按 DP local sizes 去除无效尾部，reduce-scatter 前恢复等长 padding；fake shape 使用 EP group world size。
-- [`vllm-ascend/vllm_ascend/compilation/passes/sequence_parallelism_moe.py`](vllm-ascend/vllm_ascend/compilation/passes/sequence_parallelism_moe.py)：MoE SP FX pass；调试日志打印修改后的 `graph.graph`，避免把 GraphModule 对象误当成图内容。
 - [`vllm-ascend/tests/ut/ops/test_fused_moe.py`](vllm-ascend/tests/ut/ops/test_fused_moe.py)：回归测试 SP 时不调用最终 all-reduce、非 SP 时保留 all-reduce。
-- [`vllm-ascend/tests/ut/ops/test_register_custom_ops.py`](vllm-ascend/tests/ut/ops/test_register_custom_ops.py)：覆盖 EP group fake shape、DP 变长分片 unpad 和 reduce-scatter 前 padding。
 - [`vllm-ascend/tests/e2e/pull_request/two_card/test_sp_pass.py`](vllm-ascend/tests/e2e/pull_request/two_card/test_sp_pass.py)：新增 DP2/TP2/EP/SP 与 SP-off 输出对照的功能 E2E。
 
 ### 相关文件
 
 - [`vllm-ascend/vllm_ascend/compilation/compiler_interface.py`](vllm-ascend/vllm_ascend/compilation/compiler_interface.py)：`AscendCompiler.compile()`；`enable_npugraph_ex=False` 时进入 `fusion_pass_compile`，将 PassManager 插入 `torch.compile` 的 inner compiler。
-- [`vllm-ascend/vllm_ascend/compilation/graph_fusion_pass_manager.py`](vllm-ascend/vllm_ascend/compilation/graph_fusion_pass_manager.py)：配置并按 `compile_range` 依次执行 fusion、SP 和 MoE SP pass；只有 `pass_config.enable_sp` 为真时才加入两个 SP pass。
-- [`vllm-ascend/vllm_ascend/compilation/passes/sequence_parallelism_moe.py`](vllm-ascend/vllm_ascend/compilation/passes/sequence_parallelism_moe.py)：处理 MoE/all-gather epilogue 和 sequence-parallel chunk 消除；必须和主 SP pass 的 after-graph 一起判断。
+- [`vllm-ascend/vllm_ascend/compilation/graph_fusion_pass_manager.py`](vllm-ascend/vllm_ascend/compilation/graph_fusion_pass_manager.py)：配置并按 `compile_range` 执行 Ascend fusion pass；SP pass 由上游 vLLM PassManager 管理。
 - [`vllm-ascend/vllm_ascend/compilation/acl_graph.py`](vllm-ascend/vllm_ascend/compilation/acl_graph.py)：`ACLGraphWrapper` 在 runtime mode 匹配且 batch descriptor 命中时创建 `torch.npu.NPUGraph`，随后 replay；这是编译之后的运行时阶段。
-- [`vllm-ascend/vllm_ascend/ascend_config.py`](vllm-ascend/vllm_ascend/ascend_config.py)：计算 `enable_sp_by_pass`，当前条件是 model config 存在、非 enforce eager、且 pass config enable_sp。
-- [`vllm-ascend/vllm_ascend/utils.py`](vllm-ascend/vllm_ascend/utils.py)：`enable_sp()` 读取 FlashComm1/运行时 SP 开关；不要把它和 `enable_sp_by_pass()` 混为一个状态。
-- [`vllm-ascend/vllm_ascend/ops/fused_moe/prepare_finalize.py`](vllm-ascend/vllm_ascend/ops/fused_moe/prepare_finalize.py)：MoE prepare/finalize；`_use_ep_sequence_parallel()` 仅在运行时 SP 开启，或 SP pass 开启且 `moe_config.is_sequence_parallel` 为真时走 EP sequence-parallel 路径。
-- [`vllm-ascend/vllm_ascend/ops/register_custom_ops.py`](vllm-ascend/vllm_ascend/ops/register_custom_ops.py)：注册 `maybe_chunk_residual`、`maybe_all_gather_and_maybe_unpad`、`maybe_pad_and_reduce` 等 `torch.ops.vllm`；真实实现和 fake 实现必须保持 shape/通信分支一致。
+- [`vllm-ascend/vllm_ascend/ops/fused_moe/prepare_finalize.py`](vllm-ascend/vllm_ascend/ops/fused_moe/prepare_finalize.py)：MoE prepare/finalize；`_use_ep_sequence_parallel()` 根据当前 MoE sequence-parallel token 布局选择 EP 路径。
 - [`vllm-ascend/vllm_ascend/ops/fused_moe/fused_moe.py`](vllm-ascend/vllm_ascend/ops/fused_moe/fused_moe.py)：MoE 主执行，消费 prepare 输出并调用 expert/routing，随后交给 finalize。
 - [`vllm/vllm/model_executor/layers/fused_moe/config.py`](vllm/vllm/model_executor/layers/fused_moe/config.py)：`FusedMoEConfig.is_sequence_parallel` 的定义；本质是 `sp_size > 1`，表示 MoE 自己是否拥有 sequence-parallel token 分片。
 - [`vllm-ascend/vllm_ascend/worker/model_runner_v1.py`](vllm-ascend/vllm_ascend/worker/model_runner_v1.py)：NPU v1 preprocess、SP padding、forward、cudagraph runtime mode 和 attention metadata。
 - [`vllm/vllm/v1/engine/core.py`](vllm/vllm/v1/engine/core.py) 和 [`vllm/vllm/v1/core/sched/scheduler.py`](vllm/vllm/v1/core/sched/scheduler.py)：EngineCore 调度、请求批处理和 KV cache 生命周期。
 - [`vllm-ascend/vllm_ascend/attention/attention_v1.py`](vllm-ascend/vllm_ascend/attention/attention_v1.py)：从 `query_start_loc` 构造 attention metadata，并调用 NPU fused attention；长 prefill 的 query token 与 `actual_seq_lengths_q` 必须同时检查。
 - [`scripts/bench_sp_tpot.sh`](scripts/bench_sp_tpot.sh)：当前 Qwen3-30B-A3B TP2/EP SP 长输入吞吐 benchmark，16K input、1 output、100 prompts、10 warmups、FULL_DECODE_ONLY、SP threshold 1024。
-- [`scripts/bench_flashcomm_tpot.sh`](scripts/bench_flashcomm_tpot.sh)：FlashComm1 对照 benchmark；当前实验需要额外检查 custom OPP、`libcust_opapi.so` 和 `vllm_ascend_C` 的加载路径。
 - [`scripts/serve_sp.sh`](scripts/serve_sp.sh) 和 [`scripts/bench_serve.sh`](scripts/bench_serve.sh)：在线服务和 TTFT benchmark 入口；TTFT 使用 `vllm bench serve`，关注 mean/median/p50/p90/p99 TTFT。
 - [`docs/torch_compile_pass_sp.md`](docs/torch_compile_pass_sp.md)：torch.compile、FX pass 和 SP 的编译链说明。
 - [`docs/sp_debug.md`](docs/sp_debug.md)：SP 性能回退排查、FX after-graph、profiler 和 MoE 重复 gather 判定标准。

@@ -70,6 +70,12 @@ DEFAULT_PROFILE_CONTROL_TIMEOUT = 600
 DEFAULT_REQUEST_TIMEOUT = 900
 POST_STOP_FLUSH_SECONDS = 5
 
+# Requests during collection go through an SSH local-forward tunnel.  The
+# developer workstation may have a corporate HTTP(S) proxy configured, and
+# urllib otherwise routes even loopback requests through that proxy.  Keep
+# the profiler workload on the tunnel and out of the proxy path.
+_DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
 VL_DEFAULT_IMAGE = (
     ROOT / "vllm-ascend" / "tests" / "e2e" / "310p" / "data" / "qwen.png"
 )
@@ -97,7 +103,7 @@ def _post_json(url: str, payload: dict[str, Any], timeout: int) -> tuple[int, by
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with _DIRECT_OPENER.open(req, timeout=timeout) as resp:
         return resp.status, resp.read()
 
 
@@ -328,10 +334,14 @@ def _build_serve_args(args: argparse.Namespace, profiler_config: dict[str, Any])
         serve_args[:0] = ["--machine", args.machine]
     if args.dp is not None and args.dp > 1:
         serve_args.extend(["--dp", str(args.dp)])
+    if args.devices:
+        serve_args.extend(["--devices", args.devices])
     serve_args.extend([
         "--extra-env",
         "PYTORCH_NPU_ALLOC_CONF=expandable_segments:True",
     ])
+    for item in args.extra_env:
+        serve_args.extend(["--extra-env", item])
     if args.skip_parity:
         serve_args.append("--skip-parity")
 
@@ -365,18 +375,32 @@ def _build_serve_args(args: argparse.Namespace, profiler_config: dict[str, Any])
 
     if args.mode == "enforce_eager":
         serve_args.append("--enforce-eager")
-    elif args.mode == "full_decode_only":
-        serve_args.extend([
-            "--compilation-config",
-            json.dumps({"cudagraph_mode": "FULL_DECODE_ONLY"}, separators=(",", ":")),
-        ])
-    elif args.mode == "piecewise_graph":
-        serve_args.extend([
-            "--compilation-config",
-            json.dumps({"cudagraph_mode": "PIECEWISE"}, separators=(",", ":")),
-        ])
     else:
-        raise ValueError(f"unknown --mode: {args.mode}")
+        if args.compilation_config:
+            try:
+                compilation_config = json.loads(args.compilation_config)
+            except json.JSONDecodeError as exc:
+                raise ValueError("--compilation-config must be valid JSON") from exc
+        elif args.mode == "full_decode_only":
+            compilation_config = {"cudagraph_mode": "FULL_DECODE_ONLY"}
+        elif args.mode == "piecewise_graph":
+            compilation_config = {"cudagraph_mode": "PIECEWISE"}
+        else:
+            raise ValueError(f"unknown --mode: {args.mode}")
+        serve_args.extend([
+            "--compilation-config",
+            json.dumps(compilation_config, separators=(",", ":")),
+        ])
+
+    if args.additional_config:
+        try:
+            additional_config = json.loads(args.additional_config)
+        except json.JSONDecodeError as exc:
+            raise ValueError("--additional-config must be valid JSON") from exc
+        serve_args.extend([
+            "--additional-config",
+            json.dumps(additional_config, separators=(",", ":")),
+        ])
 
     return serve_args
 
@@ -419,6 +443,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dp", type=int, default=None,
                    help="data-parallel size (forwarded to serving as --dp)")
     p.add_argument("--enable-expert-parallel", action="store_true")
+    p.add_argument(
+        "--devices", default=None,
+        help="ASCEND_RT_VISIBLE_DEVICES forwarded to serving, e.g. 0,3,4,5",
+    )
+    p.add_argument(
+        "--extra-env", action="append", default=[],
+        help="KEY=VALUE forwarded to serving (repeatable)",
+    )
+    p.add_argument(
+        "--compilation-config", default=None,
+        help="JSON override for vLLM --compilation-config",
+    )
+    p.add_argument(
+        "--additional-config", default=None,
+        help="JSON forwarded to vLLM --additional-config",
+    )
     p.add_argument(
         "--speculative-tokens", type=int, default=0,
         help="num_speculative_tokens; 0 disables --speculative-config",

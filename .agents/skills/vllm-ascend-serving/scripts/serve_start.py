@@ -274,8 +274,11 @@ def build_launch_script(
     # shadow the installed vllm package with the source tree.
     lines.append(f"cd {shlex.quote(runtime_dir)}")
 
-    # Build argv — every token individually quoted for bash safety
-    argv_tokens = ["vllm", "serve", shlex.quote(model)]
+    # Invoke the CLI module through the selected interpreter instead of the
+    # ``vllm`` console wrapper.  Images may ship a wrapper with a baked-in
+    # PYTHONPATH from another runtime; using the interpreter here keeps
+    # explicit --extra-env PYTHONPATH overrides effective.
+    argv_tokens = ["python3", "-m", "vllm.entrypoints.cli.main", "serve", shlex.quote(model)]
     argv_tokens.extend(["--host", "0.0.0.0"])
     argv_tokens.extend(["--port", str(port)])
     if served_model_name:

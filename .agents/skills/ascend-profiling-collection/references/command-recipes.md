@@ -10,10 +10,23 @@ python3 .agents/skills/ascend-profiling-collection/scripts/collect_torch_profile
   --model /home/weights/Qwen3-8B \
   --served-model-name Qwen3-8B \
   --tp 1 \
+  --devices 0 \
   --tag qwen3_8b_eager_text \
   --mode enforce_eager \
   --request-kind text \
   --benchmark-output-tokens 64
+```
+
+When the service must use an isolated source tree, forward its runtime
+environment explicitly:
+
+```bash
+python3 .agents/skills/ascend-profiling-collection/scripts/collect_torch_profile_case.py \
+  --machine blue-a --model /home/weights/Qwen3-8B --served-model-name Qwen3-8B \
+  --tp 1 --devices 0 --tag qwen3_8b_pythonpath \
+  --mode enforce_eager --request-kind text --benchmark-output-tokens 64 \
+  --extra-env PYTHONPATH=/workspace/vllm:/workspace/vllm-ascend \
+  --extra-env VLLM_PLUGINS=ascend
 ```
 
 Session-scoped equivalent:

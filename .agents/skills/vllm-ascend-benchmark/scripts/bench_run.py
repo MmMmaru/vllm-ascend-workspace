@@ -68,6 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", required=True, help="remote model weight path")
     p.add_argument("--tp", "--tensor-parallel-size", type=int, default=None)
     p.add_argument("--dp", "--data-parallel-size", type=int, default=None)
+    p.add_argument("--devices", help="explicit ASCEND_RT_VISIBLE_DEVICES CSV")
     p.add_argument("--port", type=int, default=None)
     p.add_argument("--extra-env", action="append", default=None,
                    help="KEY=VALUE env vars for the service (repeatable)")
@@ -162,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
             model=args.model,
             tp=args.tp,
             dp=args.dp,
+            devices=args.devices,
             port=args.port,
             serve_args=serve_args,
             bench_args=bench_args,

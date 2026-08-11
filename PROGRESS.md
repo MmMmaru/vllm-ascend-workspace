@@ -1,8 +1,33 @@
-### 08-03 12:00
+### 08-10 18:45
 
-- 实现 SP 下 matmul + reduce_scatter 算子融合（参照上游 AsyncTPPass，开关复用 `pass_config.fuse_gemm_comms`）：新增 `torch.ops.vllm.npu_mm_reduce_scatter` custom op（`register_custom_ops.py`，底层 `npu_mm_reduce_scatter_base`）、`MatmulReduceScatterFusionPass`（`sequence_parallelism.py`，匹配 `unquantized_gemm + reduce_scatter`）、挂载于 `graph_fusion_pass_manager.py`，`platform.py` 补齐 fuse_gemm_comms 的 sp_min_token_num 默认值。
-- 关键修正：实际图中 mm 节点是 Ascend 的 `unquantized_gemm(x, weight)`（weight 为 (n,k) F.linear 布局），非上游的 `aten.mm`；初版 pattern 0 命中后改为匹配该 op，融合算子内部做 `weight.t()`。
-- 验证：Qwen3-30B-A3B TP2/EP 精度脚本输出与未融合一致（48 层全部命中）；16K 输入吞吐 14099.69 → 14437.00 tokens/s（+2.39%）；E2E 新增 `test_qwen3_vl_sp_fuse_gemm_comms_tp2` 并按规范改用 `TEST_MODEL` 环境变量。
+- 在 90.90.97.4 最后四张逻辑卡 `12,13,14,15` 上完成 main 分支离线 DP E2E：Qwen3-30B-A3B、vLLM `35efdf6b3` + `vllm-ascend-main` `9f3aa1e7`、DP2/TP2/EP、FlashComm=1、CANN 9.1、eager。作业 `job-20260810T104208Z-d1da19d8` 状态 `succeeded`、exit code 0；DP rank 0/1 均完成 200 条 prompt 并输出生成文本。为适配容器没有 ModelScope，将官方示例通过未跟踪临时 launcher 指向本地模型，并将采样改为 greedy；这是测试启动适配，不是仓库源码改动。
+- E2E 日志没有上一轮随机采样触发的 `hfusion.cumsum`/`EngineDeadError`；结束后 `npu-smi` 显示 NPU 6/7（逻辑卡12–15）均为 `No running processes found`。
+
+### 08-10 18:30
+
+- 按当前资源窗口使用 90.90.97.4 最后四张逻辑卡 `12,13,14,15`，以 vLLM `35efdf6b3` + `vllm-ascend-main` `9f3aa1e7`、CANN 9.1、Qwen3-30B-A3B `/mnt/weights/Qwen3-30B-A3B` 完成 DP2/TP2/EP、FlashComm=1 的 4K/2K、并发1 正式在线 benchmark。服务使用 `FULL_DECODE_ONLY` 图模式，2 次请求中 1 次 warmup；计入统计的第2次为 `5.8678 output tok/s`、TTFT `399.7 ms`、TPOT `170.3 ms`、E2E `349020.4 ms`，warmup 为 `5.7055 output tok/s`。完整结果为 `.vaws-local/benchmark/90.90.97.4/runs/2026-08-10T10-19-42Z_90.90.97.4_38940_d0cfd00d.json`。
+- 同一 main + FlashComm=1 四卡服务通过正常 OpenAI Chat 请求，固定回复为 `FLASHCOMM_OK`，system fingerprint 为 `vllm-0.1.dev1+g9374f773a-tp2-dp2-ep-6887a6a9`。
+- 使用 `lm_eval==0.4.12`、本地 GSM8K JSONL task `goal2_gsm8k` 和 Qwen3-30B-A3B tokenizer 完成一次文本评测执行 smoke（`limit=1`）：strict/flexible exact-match 均为 `0`；结果和样本已保存到 `.temp/goal2-lm-eval-qwen3-main-chat/`。该结果只证明评测链路可执行，不代表完整数据集准确率。
+- benchmark、正常对话和 lm-eval 完成后已停止服务；`npu-smi` 确认 NPU 6/7（逻辑卡12–15）无本次残留进程。
+
+### 08-10 15:45
+
+- Goal2 main + FlashComm online path is now valid for Qwen3-30B-A3B on CANN 9.1: matched vLLM `35efdf6b3` + vllm-ascend-main `9f3aa1e7`, DP2/TP2/EP, devices `12,13,14,15`, eager mode, 4K input/2K output, concurrency 1. `vllm bench serve` completed `1/1` request with `failed=0`, `377.366s`, and `5.4271 output tok/s`; result JSON is under `.vaws-local/benchmark/90.90.97.4/runs/`.
+- After setting `--compilation-config {"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[2]}` to satisfy the TP2 capture-size constraint, the same Qwen3 case also passed full-graph startup and completed `1/1` request with `failed=0`, `368.484s`, `5.5579 output tok/s`, `TTFT=437.6ms`, `TPOT=179.8ms`; result JSON is `.vaws-local/benchmark/90.90.97.4/runs/2026-08-10T08-10-14Z_90.90.97.4_35704_79a07f02.json`.
+- A matched full-graph FlashComm=0 baseline also completed `1/1` request with `failed=0`, `344.454s`, `5.9456 output tok/s`, `TTFT=1285.0ms`, `TPOT=167.6ms`; result JSON is `.vaws-local/benchmark/90.90.97.4/runs/2026-08-10T08-21-54Z_90.90.97.4_18340_7cb1ab78.json`. On this single-request sample, FlashComm=1 is `-6.52%` output tok/s versus off; the sample is not a stable multi-run estimate and should be rerun with warmups before using it as a performance conclusion.
+- The same service passed a normal OpenAI chat request with `chat_template_kwargs.enable_thinking=false` and returned `FLASHCOMM_OK`; system fingerprint records `tp2-dp2-ep`.
+- `lm_eval` is installed in the container (`0.4.12`). A local JSONL GSM8K task ran through `local-completions` with the remote Qwen3 tokenizer, `limit=1`, and saved result/sample artifacts under `.temp/goal2-lm-eval-qwen3-tokenizer/`; this is an execution smoke result, not a full accuracy score.
+- The exact DP2/TP2 normal-conversation e2e test remains skipped with `reason="broken, fix me"`; this is an existing test skip, not passing functional evidence.
+- The exact `Qwen/Qwen3.5-35B-A3B` target is being downloaded locally through the ModelScope skill manager into `D:\temp\goal2-qwen35-exact` (official target is 66.99 GiB; current proxy speed is approximately 0.2 MiB/s). The remote container cannot reach ModelScope directly, so no remote weight replacement has been attempted. The existing remote directory is incomplete and uses a different 15-shard layout.
+- The available Qwen3-VL-2B fallback was attempted for multimodal startup on devices `10,11`: with batch-invariant disabled it reached model profiling but failed because CANN 9.1 lacks `aclnnAddRmsNormBias`; with batch-invariant enabled it instead hit the known 3-D input assertion in `linear_batch_invariant`. This is fallback-model evidence only, not the absent Qwen3-VL-30B target.
+- The AGENT_TODO DeepSeek target is BF16, and the complete remote weights are available at `/mnt/weights/dsv4_bf16/DeepSeek-V4-Flash-bf16`; its DP2/TP4/EP test still needs eight logical cards, so it was not substituted into the four-card run. The requested Qwen3-VL-30B-A3B-Instruct directory is still absent remotely; only the Qwen3-VL-2B fallback is present and was not used as target evidence.
+- Qwen3 full-graph startup is now verified in the 4K/2K benchmark with `--compilation-config {"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[2]}`; `--enforce-eager` was used only for the separate normal-chat smoke.
+
+### 08-07 20:00
+
+- 完成目标2的 SP 消融：容器 `90.90.97.4`、CANN 9.1、Qwen3-30B-A3B（`/mnt/weights/Qwen3-30B-A3B`），vLLM 子模块为 `v0.26.0`，DP2/TP2/EP，输入 16384，50 个有效请求。SP off 为 `0.8634 requests/s`、`14147.23 tokens/s`；SP on 为 `1.0755 requests/s`、`17621.86 tokens/s`，吞吐提升约 `24.56%`。
+- 完成目标2的 FlashComm PP2 关闭组：DP2/TP2/PP2/EP，`VLLM_BATCH_INVARIANT=1`，关闭旧 norm/rope/muls fusion 以适配 CANN 9.1，输入 16384、50 个有效请求；结果 `60.6846 s`、`0.8239 requests/s`、`13500.12 tokens/s`。
+- FlashComm 开启组确认读取 `enable_flashcomm1=True`，但在旧 `vllm-ascend` main 基线（`9f3aa1e7`）的 RoPE warmup 中触发 `positions.shape[0] != num_tokens` 断言，未生成吞吐 JSON。该问题发生在 warmup、不是性能结果；因此未用运行时改算子逻辑来伪造开启组数据，目标2的 FlashComm on/off 数值对比仍被环境/版本兼容性阻塞。
 
 ### 07-28 02:45
 
@@ -103,66 +128,14 @@
 按三种 fused MoE 外部模式分节：SP+EP MoE（DP2/TP2/EP4）、TP 模式 EP on（DP1/TP2/EP2）、TP 模式 EP off；标注具体 shape 与关键算子，省略 getitem/view。
 内联 JS 已通过 node 语法与运行校验。随后追加幻灯片播放模式（方向键/空格翻页、进度条、#页码 定位、文档模式切换）；后按更新后的 sp_moe.md 修正情况 1 before 图（o_proj 后 all_reduce、MoE 前 sequence_parallel_chunk），重排为 5 页：设置→模式映射、三个模式各一页（图+要点）、总结。
 
-### 07-29 16:27
+### 08-10
 
-- 将 DP2/TP2/EP SP 回归测试从 `two_card/test_sp_pass.py` 移到 `four_card/test_sp_pass.py`。
-- 在 `GraphFusionPassManager` 增加可选的 pass match-count 记录，E2E 直接读取 `SequenceParallelismPass.matched_count`，不再解析日志。
-- 使用空闲 NPU 2,3,4,5 和本地 Qwen3-30B-A3B 权重验证，四卡 E2E `1 passed`；pytest 收集共 2 个测试通过。
+- 新增 `scripts/offline_profile.py`：固定 Qwen3-30B-A3B、DP2/TP2、随机离线负载和 Torch NPU profiler，运行后自动执行 `analyse()` 并校验 4 个 rank 的 `kernel_details.csv` 与 `trace_view.json`；输出目录统一追加 `D-H-M` 时间后缀，本机仅完成静态校验，未启动 NPU 推理。
 
-### 07-30 12:12
-
-- 新增 `scripts/bench_sp_serve.sh`，在同一脚本中后台启动 `vllm serve`，健康检查通过后执行 `vllm bench serve`，退出时自动清理服务。
-- 按当前 SP 配置使用 TP4、NPU 2,3,4,5、FULL_DECODE_ONLY、`enable_sp=true`、16K 输入、100 请求和 10 warmup；bench 使用本地 tokenizer 与 `/v1/completions`。
-- Docker 验证通过：SP pass 每个 rank 替换 96 patterns，100/100 请求成功，耗时 159.10 秒、请求吞吐 0.6285 req/s、总 token 吞吐 10300.26 token/s；结果为 `.log/bench_sp_serve_20260730T120606Z.json`。
-
-### 07-30 12:37
-
-- 新增 `docs/model_runner_v2_design.md`，整理上游 Model Runner V2 的选择逻辑、SchedulerOutput/InputBatch、forward/sampling 两阶段、PP/DP、KV/Attention、CUDA Graph 和异步输出设计。
-- 文档引用当前 `vllm/` checkout 的源码路径与行号，包含 ASCII 数据流图、MRV1 对比、MRV2 限制和硬件后端阅读边界。
-- 已通过源码链接目标存在性、引用行范围和 `git diff --check` 校验；本次为文档变更，未运行 NPU 全量/E2E 测试。
-
-### 07-30 09:24
-
-- 将 `scripts/naive_precision_test.py` 简化为 vLLM 高层离线 `LLM.chat()` 单请求精度测试。
-- 使用 `TEST_MODEL` 覆盖模型路径，默认 `Qwen/Qwen3-30B-A3B`；采用贪心采样并关闭 Qwen3 思考模式。
-- 已通过 Python 语法编译检查和 `git diff --check`；未在宿主机执行 NPU 推理。
-
-### 07-30 11:11
-
-- 为 `scripts/naive_precision_test.py` 增加 `TEST_ENABLE_SP=1`，开启非 eager 编译、SP pass 和 FULL_DECODE_ONLY ACL graph。
-- Docker 使用空闲 NPU 2,3,4,5、TP4 和本地 Qwen3-30B-A3B 验证通过；日志确认 SP pass 替换 96 个 pattern 并完成 ACL graph replay。
-- SP 模式生成结果正常，输出与 eager 基线一致；运行结束后 2–5 卡无残留进程。
-
-### 07-30 12:12
-
-- 新增 `scripts/bench_sp_serve.sh`，在同一脚本中后台启动 `vllm serve`，健康检查通过后执行 `vllm bench serve`，退出时自动清理服务。
-- 按当前 SP 配置使用 TP4、NPU 2,3,4,5、FULL_DECODE_ONLY、`enable_sp=true`、16K 输入、100 请求和 10 warmup；bench 使用本地 tokenizer 与 `/v1/completions`。
-- Docker 验证通过：SP pass 每个 rank 替换 96 patterns，100/100 请求成功，耗时 159.10 秒、请求吞吐 0.6285 req/s、总 token 吞吐 10300.26 token/s；结果为 `.log/bench_sp_serve_20260730T120606Z.json`。
-
-### 07-31 10:45
-
-- 修复 `scripts/bench_sp_serve.sh` 的 DP2/TP2/EP benchmark 配置：默认关闭 SP，使用环境变量生成合法 JSON，并恢复 bench 详细日志与 TTFT 分位数统计。
-- 增加结果校验：`completed` 必须等于请求数且 `failed` 必须为 0，否则输出服务端日志并以失败退出。
-- Docker 完整验证通过：TP2/DP2/EP、16K 输入、100 请求、10 warmup，100/100 成功，耗时 95.96 秒，总 token 吞吐 17078.51 token/s；无残留进程。
-
-### 08-03 05:03
-重写 concise-code-explanation skill 为总分总结构
-- 修改 `.agents/skills/concise-code-explanation/SKILL.md`：去掉 2-3 段限制，改为总述数据流、分模块讲设计、总结串回全局。
-- 同步更新 `agents/openai.yaml` 的展示名与默认提示词。
-- 文档类改动，无需运行验证；已提交 62cf5b1。
-
-### 08-03 16:05
-修正 `scripts/naive_precision_test.py` 的 Ascend profile 路径分析
-- 记录 `llm.start_profile()` 前已有的 rank 目录，只对本次新增的 `*_ascend_pt` 执行离线 `analyse()`。
-- Docker TP2 使用 NPU 2、3 验证通过，生成结果正常，两个新 rank 的 profile 均完成离线分析并打印 `ASCEND_PROFILER_OUTPUT` 路径。
-
-### 08-03 20:20
-SP 特性 W8A8(INT8) 量化支持（worktree `vllm-ascend/.worktrees/sp-int8`，提交 8ae7b7c8b）
-- 新增 `npu_quant_mm_reduce_scatter` custom op、`QuantMatmulReduceScatterPattern`（pm DSL 搜索模式）与独立 pass；aclgraph 捕获区间门控 + compile range 按 max_capture_size 分裂。
-- 修复三个关键问题：aclnnMatmulReduceScatterV2 对非连续输入 ND 报错/NZ 静默错值（impl 内 x.contiguous()）；matcher 忽略 pattern 外 kwargs 导致 rank0 bias 被静默丢弃（extra_check 过滤）；rank1 分片缺 bias 修正（apply 改为 bias-free mm + 每 rank 加 1/tp 修正，图 rank 对称，2 的幂除法精确）。
-- 验证：fused vs nofuse prompt-logprob top1 全一致；E2E `test_sp_w8a8.py` 通过；16K 输入吞吐 SP-off 14664 / SP-nofuse 14452 / SP-fused 14653 tokens/s；ruff/mypy 通过（gitleaks 因二进制架构问题跳过，代码无密钥）。
-- 新增脚本 `scripts/naive_precision_test_sp_int8.py`、`scripts/bench_sp_int8_tpot.sh`。
-### 08-05 06:23
-更新代码解释 skill 的代码定位规范。
-- 修改 `.agents/skills/concise-code-explanation/SKILL.md`：要求 Codex 使用可点击的绝对路径 Markdown 链接并附行号。
-- 未运行测试；仅完成文档规则更新。
+- 测试一当前源码快照已 materialize 到 `90.90.97.4`；通过 `HCCL_NPU_SOCKET_PORT_RANGE=auto` 与 `HCCL_HOST_SOCKET_PORT_RANGE=auto` 完成 Qwen3-4B DP1/TP2/SP 4K/2K 基础烟测，输出吞吐 `14.35 tok/s`、TTFT `7483 ms`、TPOT `66.05 ms`，证据为 `.log/test1_infra_qwen3_4b_bench_sp_dp1_hccl_clean.log`。
+- 正式目标仍未产出：Qwen3-30B 路径为未量化 BF16 约 57G，Qwen3.5-35B 路径仅有 15 个分片中的 1 个约 446M，DeepSeek 可用路径为 `w8a8` 而 TODO 要求 `w4a8`。
+- 目标 DP2/TP2/EP 与 DP2/TP4/EP 分别需要 4/8 个逻辑 NPU；尝试的 DP1/TP2/EP+SP 降配启动也因既有任务并发占用、worker 初始化失败而无结果，未停止他人进程，正式 `vllm bench` 与 multimodal/text `lm-eval` 待资源和权重补齐，日志为 `.log/test1_qwen3_30b_dp1_tp2_smoke.log`。
+- 远端已安装并验证 `lm-eval==0.4.12`；烟测结果 JSON 为 `.vaws-local/benchmark/90.90.97.4/runs/2026-08-10T06-29-13Z_90.90.97.4_41656_b134186e.json`。
+- 测试3准备阶段已确认 `vllm-ascend-main@9f3aa1e70` 的远端源码 overlay 可导入，`VLLM_ASCEND_ENABLE_FLASHCOMM1=0` 生效；目标权重在 90.90.97.4 可见，正式测试尚未开始。
+- 90.90.97.4 的正确依赖容器持续被其他服务占用，观测到 0–4 的 OmniDiff/TP worker 以及 6–7 的 Python worker，无法满足 Qwen 的 4 卡或 DeepSeek 的 8 卡配置；未停止他人任务。
+- 为寻找空闲资源保守修复了 80.5.17.110 和 90.90.97.44 的已登记退出容器。80.5.17.110 的 main overlay 启动先后受 vLLM API 不匹配、旧 Transformers 缺少 `HunYuanVLProcessor` 阻断；受控 parity 安装又因镜像缺少 `setuptools_rust` 在 editable metadata 阶段失败，未使用裸 pip。90.90.97.44 的 Transformers 为 5.5.4，同样不满足 main 的 5.14.1 要求。因此测试3仍待正确依赖与足够 NPU 资源。

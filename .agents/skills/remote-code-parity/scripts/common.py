@@ -13,7 +13,7 @@ import tempfile
 import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 WORKSPACE_ID_PATTERN = re.compile(r'[^A-Za-z0-9._-]+')
@@ -378,7 +378,7 @@ def ssh_exec_stream(
 
 
 def ssh_stream_to_file(endpoint: SshEndpoint, remote_path: str, payload: str) -> None:
-    script = f'mkdir -p {quoted(str(Path(remote_path).parent))} && cat > {quoted(remote_path)}'
+    script = f'mkdir -p {quoted(PurePosixPath(remote_path).parent.as_posix())} && cat > {quoted(remote_path)}'
     cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
     result = subprocess.run(cmd, input=payload, text=True, capture_output=True)
     if result.returncode != 0:
@@ -389,7 +389,7 @@ def ssh_stream_to_file(endpoint: SshEndpoint, remote_path: str, payload: str) ->
 
 def ssh_stream_bytes_to_file(endpoint: SshEndpoint, remote_path: str, payload: bytes) -> None:
     script = (
-        f'mkdir -p {quoted(str(Path(remote_path).parent))} && '
+        f'mkdir -p {quoted(PurePosixPath(remote_path).parent.as_posix())} && '
         f'head -c {len(payload)} > {quoted(remote_path)}'
     )
     cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]

@@ -33,7 +33,6 @@ python -m debugpy\
     --trust-remote-code \
     --no-enable-prefix-caching \
     --no-async-scheduling \
-    --enforce-eager \
-    --additional-config '{"enable_flashcomm1": true}'
+    --enforce-eager
 
     # --compilation-config '{"pass_config": {"enable_sp": true}}'

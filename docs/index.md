@@ -244,7 +244,7 @@ vllm-ascend/vllm_ascend/
 | HCCL communicator | [`vllm_ascend/distributed/device_communicators/`](../vllm-ascend/vllm_ascend/distributed/device_communicators/) |
 | 多进程 executor patch | [`vllm_ascend/patch/platform/patch_multiproc_executor.py`](../vllm-ascend/vllm_ascend/patch/platform/patch_multiproc_executor.py) |
 | Qwen3-VL patch | [`vllm_ascend/patch/worker/patch_qwen3vl.py`](../vllm-ascend/vllm_ascend/patch/worker/patch_qwen3vl.py) |
-| sequence-parallel 编译 pass | [`vllm_ascend/compilation/passes/sequence_parallelism.py`](../vllm-ascend/vllm_ascend/compilation/passes/sequence_parallelism.py) |
+| sequence-parallel 编译 pass | [`vllm/compilation/passes/fusion/sequence_parallelism.py`](../vllm/vllm/compilation/passes/fusion/sequence_parallelism.py) |
 
 ### 3.3 Ascend 辅助目录
 
@@ -270,7 +270,6 @@ scripts/
 ├── vllm_run.sh                    普通 vLLM 服务启动
 ├── debug_vllm.sh                  debugpy + vLLM 服务启动
 ├── send_req_2vllm.sh              向服务端口发送请求
-├── Qwen3_flashcomm_test.py        Qwen3/FlashComm 试验脚本
 └── repro_issue_11548.sh           问题复现脚本
 
 .vscode/
@@ -318,9 +317,9 @@ vllm-ascend/tests/
 
 与当前专题最相关的测试入口：
 
-- [`tests/e2e/pull_request/two_card/test_flashcomm_distributed.py`](../vllm-ascend/tests/e2e/pull_request/two_card/test_flashcomm_distributed.py)：TP/FlashComm 基础验证。
+- [`tests/e2e/pull_request/two_card/test_sequence_parallel_linear.py`](../vllm-ascend/tests/e2e/pull_request/two_card/test_sequence_parallel_linear.py)：TP/EP sequence-parallel 基础验证。
 - [`tests/e2e/pull_request/four_card/test_pipeline_parallel.py`](../vllm-ascend/tests/e2e/pull_request/four_card/test_pipeline_parallel.py)：PP 验证。
-- [`tests/e2e/nightly/single_node/models/configs/Qwen3-VL-32B-Instruct-W8A8.yaml`](../vllm-ascend/tests/e2e/nightly/single_node/models/configs/Qwen3-VL-32B-Instruct-W8A8.yaml)：Qwen3-VL + FlashComm 配置示例。
+- [`tests/e2e/nightly/single_node/models/configs/Qwen3-VL-32B-Instruct-W8A8.yaml`](../vllm-ascend/tests/e2e/nightly/single_node/models/configs/Qwen3-VL-32B-Instruct-W8A8.yaml)：Qwen3-VL 配置示例。
 
 ### 5.2 上游测试
 

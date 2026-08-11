@@ -49,7 +49,7 @@ compatibility backend for managed VAWS sessions.
 python3 .agents/skills/vllm-ascend-benchmark/scripts/bench_run.py \
   (--machine <alias-or-ip> | --session-id <id>) \
   --model <remote-weight-path> \
-  [--tp <N>] [--dp <N>] \
+  [--tp <N>] [--dp <N>] [--devices <csv>] \
   [--runs <N>] \
   [--warmup-runs <M>] \
   [--serve-args <arg> ...] \
@@ -65,6 +65,9 @@ python3 .agents/skills/vllm-ascend-benchmark/scripts/bench_run.py \
 - `--serve-args`: extra arguments forwarded to `vllm serve` (e.g. `--async-scheduling`, `--compilation-config '...'`)
 - `--bench-args`: extra arguments forwarded to `vllm bench serve` (e.g. `--num-prompts 128`, `--max-concurrency 32`)
 - `--extra-env`: environment variables for the service (e.g. `HCCL_BUFFSIZE=1024`)
+- `--devices`: explicitly select the `ASCEND_RT_VISIBLE_DEVICES` CSV when the
+  machine has fragmented free devices; the benchmark client also inherits
+  source-loading `PATH`/`PYTHONPATH` values from `--extra-env`.
 - `--refer-nightly`: name of a nightly YAML (without path prefix) to use as a configuration reference; user-provided args override anything from the YAML
 
 ## Workflow

@@ -65,6 +65,8 @@ python3 .agents/skills/ascend-profiling-collection/scripts/collect_torch_profile
   --benchmark-output-tokens <N> \
   [--dp <N>] \
   [--enable-expert-parallel] \
+  [--devices <csv>] [--extra-env KEY=VALUE]... \
+  [--compilation-config <json>] [--additional-config <json>] \
   [--speculative-tokens <N>] [--speculative-method <name>] \
   [--gpu-memory-utilization <f>] \
   [--max-model-len <N>] [--max-num-seqs <N>] [--max-num-batched-tokens <N>] \
@@ -91,6 +93,15 @@ The script intentionally has no Qwen-specific defaults. The agent must always pa
 | `--request-kind` | Determines payload assembly (text vs VL) |
 | `--benchmark-output-tokens` | Decode length is the dominant knob for what the trace looks like |
 | `--tag` | Stable identifier folded into the run-dir name and manifest |
+
+`--devices` and repeatable `--extra-env` are forwarded to the serving skill. Use
+them when a machine has multiple tenants or when the service must import an
+isolated source tree through `PYTHONPATH`; record the exact values in the
+manifest's `serve_args`.
+
+`--compilation-config` overrides the mode-derived vLLM compilation JSON, and
+`--additional-config` is forwarded as-is. This is useful for reproducing a
+benchmark's pass configuration (for example `pass_config.enable_sp`).
 
 `--speculative-tokens 0` (the default) means "do not pass `--speculative-config` at all". Set to a positive integer to enable MTP/Eagle.
 

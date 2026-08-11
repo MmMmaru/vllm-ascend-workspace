@@ -525,29 +525,34 @@ def cache_workspace_root(container_cache_root: str, workspace_id: str) -> str:
     return f"{container_cache_root.rstrip('/')}/workspaces/{workspace_id}"
 
 
+def remote_path(*parts: str) -> str:
+    """Join container paths with POSIX semantics on every local platform."""
+    return PurePosixPath(*parts).as_posix()
+
+
 def mirror_path_for(container_cache_root: str, workspace_id: str, record: SnapshotRecord) -> str:
-    root = Path(cache_workspace_root(container_cache_root, workspace_id)) / 'mirrors'
+    root = remote_path(cache_workspace_root(container_cache_root, workspace_id), 'mirrors')
     if record.repo_id == 'workspace':
-        return str(root / 'workspace.git')
-    return str(root / 'nested' / f'{record.repo_id}.git')
+        return remote_path(root, 'workspace.git')
+    return remote_path(root, 'nested', f'{record.repo_id}.git')
 
 
 def bundle_path_for(container_cache_root: str, workspace_id: str, record: SnapshotRecord) -> str:
-    root = Path(cache_workspace_root(container_cache_root, workspace_id)) / 'bundles'
-    return str(root / f'{record.repo_id}-{record.commit}.bundle')
+    root = remote_path(cache_workspace_root(container_cache_root, workspace_id), 'bundles')
+    return remote_path(root, f'{record.repo_id}-{record.commit}.bundle')
 
 
 def manifest_path_for(container_cache_root: str, workspace_id: str, snapshot_id: str) -> str:
-    return str(Path(cache_workspace_root(container_cache_root, workspace_id)) / 'manifests' / f'{snapshot_id}.json')
+    return remote_path(cache_workspace_root(container_cache_root, workspace_id), 'manifests', f'{snapshot_id}.json')
 
 
 def lock_path_for(container_cache_root: str, workspace_id: str, container_identity: str) -> str:
     token = re.sub(r'[^A-Za-z0-9._-]+', '-', container_identity).strip('.-') or 'container'
-    return str(Path(cache_workspace_root(container_cache_root, workspace_id)) / 'locks' / token)
+    return remote_path(cache_workspace_root(container_cache_root, workspace_id), 'locks', token)
 
 
 def marker_path_for(runtime_root: str, marker_dirname: str) -> str:
-    return str(Path(runtime_root) / marker_dirname / 'runtime-install.json')
+    return remote_path(runtime_root, marker_dirname, 'runtime-install.json')
 
 
 def ensure_remote_bare_repos(container: SshEndpoint, mirror_paths: list[str], dry_run: bool) -> None:
@@ -557,8 +562,8 @@ def ensure_remote_bare_repos(container: SshEndpoint, mirror_paths: list[str], dr
     for mirror_path in mirror_paths:
         lines.extend(
             [
-                f'mkdir -p {quoted(str(Path(mirror_path).parent))}',
-                f'if [ -e {quoted(mirror_path)} ] && [ ! -d {quoted(str(Path(mirror_path) / "objects"))} ]; then rm -rf {quoted(mirror_path)}; fi',
+                f'mkdir -p {quoted(PurePosixPath(mirror_path).parent.as_posix())}',
+                f'if [ -e {quoted(mirror_path)} ] && [ ! -d {quoted(remote_path(mirror_path, "objects"))} ]; then rm -rf {quoted(mirror_path)}; fi',
                 f'if [ ! -d {quoted(mirror_path)} ]; then git init --bare {quoted(mirror_path)} >/dev/null; fi',
             ]
         )
@@ -621,7 +626,7 @@ def push_snapshot_to_mirror(
         script = '\n'.join(
             [
                 'set -eo pipefail',
-                f'mkdir -p {quoted(str(Path(mirror_path).parent))}',
+                f'mkdir -p {quoted(PurePosixPath(mirror_path).parent.as_posix())}',
                 f'if [ ! -d {quoted(mirror_path)} ]; then git init --bare {quoted(mirror_path)} >/dev/null; fi',
                 (
                     f'git -C {quoted(mirror_path)} fetch --force {quoted(remote_bundle_path)} '
@@ -701,7 +706,7 @@ def upload_manifest(container: SshEndpoint, manifest_path: str, manifest: dict[s
 def container_repo_path(runtime_root: str, record: SnapshotRecord) -> str:
     if record.relpath in ('', '.'):
         return runtime_root
-    return str(Path(runtime_root) / record.relpath)
+    return remote_path(runtime_root, record.relpath)
 
 
 def first_install_prepare_script(runtime_root: str) -> str:
@@ -711,8 +716,8 @@ def first_install_prepare_script(runtime_root: str) -> str:
     lines.extend(
         [
             '$PIP uninstall -y vllm vllm-ascend vllm_ascend >/dev/null 2>&1 || true',
-            f'rm -rf {quoted(str(Path(runtime_root) / "vllm"))} {quoted(str(Path(runtime_root) / "vllm-ascend"))}',
-            f'rm -rf {quoted(str(Path(runtime_root) / ".git/modules/vllm"))} {quoted(str(Path(runtime_root) / ".git/modules/vllm-ascend"))}',
+            f'rm -rf {quoted(remote_path(runtime_root, "vllm"))} {quoted(remote_path(runtime_root, "vllm-ascend"))}',
+            f'rm -rf {quoted(remote_path(runtime_root, ".git/modules/vllm"))} {quoted(remote_path(runtime_root, ".git/modules/vllm-ascend"))}',
         ]
     )
     return '\n'.join(lines)
@@ -744,12 +749,12 @@ def materialize_runtime(
     def render_repo_step(record: SnapshotRecord) -> str:
         repo_dir = container_repo_path(runtime_root, record)
         mirror_path = mirror_path_for(container_cache_root, workspace_id, record)
-        lines = ['set -eo pipefail', f'mkdir -p {quoted(str(Path(repo_dir).parent))}']
+        lines = ['set -eo pipefail', f'mkdir -p {quoted(PurePosixPath(repo_dir).parent.as_posix())}']
         if record.relpath in ('', '.'):
-            lines.append(f'if [ ! -e {quoted(str(Path(repo_dir) / ".git"))} ]; then git init {quoted(repo_dir)} >/dev/null; fi')
+            lines.append(f'if [ ! -e {quoted(remote_path(repo_dir, ".git"))} ]; then git init {quoted(repo_dir)} >/dev/null; fi')
         else:
             lines.append(
-                f'if [ ! -e {quoted(str(Path(repo_dir) / ".git"))} ]; then rm -rf {quoted(repo_dir)} && git clone --no-checkout {quoted(mirror_path)} {quoted(repo_dir)} >/dev/null; fi'
+                f'if [ ! -e {quoted(remote_path(repo_dir, ".git"))} ]; then rm -rf {quoted(repo_dir)} && git clone --no-checkout {quoted(mirror_path)} {quoted(repo_dir)} >/dev/null; fi'
             )
         lines.extend(
             [
@@ -789,7 +794,7 @@ def materialize_runtime(
     parts: list[str] = [
         'set -eo pipefail',
         f'mkdir -p {quoted(runtime_root)}',
-        f'mkdir -p {quoted(str(Path(runtime_root) / marker_dirname))}',
+        f'mkdir -p {quoted(remote_path(runtime_root, marker_dirname))}',
     ]
     repo_scripts: list[str] = []
     collect_scripts(root_record, repo_scripts)
@@ -920,7 +925,7 @@ def runtime_install_step_script(
     elif step == 'install-vllm':
         lines.extend(
             [
-                f'cd {quoted(str(Path(runtime_root) / "vllm"))}',
+                f'cd {quoted(remote_path(runtime_root, "vllm"))}',
                 'export VLLM_TARGET_DEVICE=empty',
                 'export TORCH_DEVICE_BACKEND_AUTOLOAD=0',
                 'install_editable_fast "runtime-install-vllm" "building editable vllm" . 900 "$PYTHON -m pip install --no-deps -e . --no-build-isolation"',
@@ -929,14 +934,14 @@ def runtime_install_step_script(
     elif step == 'install-vllm-ascend-requirements':
         lines.extend(
             [
-                f'cd {quoted(str(Path(runtime_root) / "vllm-ascend"))}',
+                f'cd {quoted(remote_path(runtime_root, "vllm-ascend"))}',
                 'pip_install_fast "runtime-install-vllm-ascend-requirements" "installing vllm-ascend requirements" 900 install -r requirements.txt',
             ]
         )
     elif step == 'install-vllm-ascend':
         lines.extend(
             [
-                f'cd {quoted(str(Path(runtime_root) / "vllm-ascend"))}',
+                f'cd {quoted(remote_path(runtime_root, "vllm-ascend"))}',
                 'install_editable_fast "runtime-install-vllm-ascend" "building editable vllm-ascend custom ops" . 2400 "$PYTHON -m pip install --no-deps -v -e . --no-build-isolation"',
             ]
         )
@@ -1023,7 +1028,7 @@ def runtime_install_step_script(
     elif step == 'write-marker':
         lines.extend(
             [
-                f'mkdir -p {quoted(str(Path(runtime_root) / marker_dirname))}',
+                f'mkdir -p {quoted(remote_path(runtime_root, marker_dirname))}',
                 (
                     'cat > '
                     + quoted(marker_path_for(runtime_root, marker_dirname))
@@ -1111,7 +1116,7 @@ def verify_runtime_commits(
         return expected
     lines = ['set -eo pipefail']
     for relpath in expected:
-        repo_dir = runtime_root if relpath in ('', '.') else str(Path(runtime_root) / relpath)
+        repo_dir = runtime_root if relpath in ('', '.') else remote_path(runtime_root, relpath)
         lines.append(f"printf '%s %s\\n' {quoted(relpath)} \"$(git -C {quoted(repo_dir)} rev-parse HEAD)\"")
     result = ssh_exec(container, '\n'.join(lines))
     observed: dict[str, str] = {}
