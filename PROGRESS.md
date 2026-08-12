@@ -1,3 +1,8 @@
+### 08-12 14:06
+
+- 扩展 `.agents/scripts/simple_code_sync.py`：源路径支持文件和目录，目录自动使用 `scp -r` 递归传输。
+- 已将 `.temp/simple_code_sync_smoke_dir` 传输到 17.111，并在远端执行 `run.sh`；输出与本地文件 SHA256 校验均通过。
+
 ### 08-11 21:25
 
 - 在空闲的 17.111（`80.5.17.111`，A3、CANN 9.0.1）完成当前工作区的 vllm-ascend A3 编译和 editable 安装：211 个 custom-op 构建目标完成，`cann-ops-transformer-custom_linux-aarch64.run` 打包成功，`vllm_ascend_C` 构建成功；导入校验、A3 设备类型校验和 ATB 注册均通过。构建日志位于远端 `.compile-log/a3-ninja-package-final-20260811.log`、`.compile-log/vllm-ascend-install-a3-final-20260811.log`。
