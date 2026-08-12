@@ -12,6 +12,7 @@
 [`vllm/vllm/config/parallel.py`](../vllm/vllm/config/parallel.py#L126) 使用这种格式描述代码。
 测试中的模型路径使用环境变量读取，保证本地和上游都有模型用：
 os.environ.get("SP_TEST_MODEL", "Qwen/Qwen3-30B-A3B")
+上传代码时首先查看环境，尽量不要用仓库自带install编译。
 
 ## 开发环境
 目前在远程开发

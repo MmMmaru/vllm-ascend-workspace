@@ -34,7 +34,7 @@ python3 .agents/skills/machine-management/scripts/machine_add.py \
   --image rc
 ```
 
-The wrapper will detect A2 / A3 / 310P from `npu-smi` when possible and append `-a3` or `-310p` automatically for selector-based images.
+The wrapper will detect A2 / A3 / A5 / 310P from `npu-smi` when possible and append `-a3` or `-310p` automatically for selector-based images. A5/Ascend950 uses an explicit custom image reference; the wrapper does not invent an `-a5` suffix.
 
 If `npu-smi` cannot identify the hardware cleanly, pass an explicit override:
 
@@ -199,6 +199,24 @@ python3 .agents/skills/machine-management/scripts/manage_machine.py bootstrap-co
   --image main \
   --machine-type A3 \
   --soc ascend910_9391
+```
+
+For an existing A5/Ascend950 container whose name must be preserved, use the
+low-level attach helper with an explicit image and port. A5 hosts may omit
+`/dev/devmm_svm`; the helper also provisions host URMA libraries in the
+container when they are missing:
+
+```bash
+python3 .agents/skills/machine-management/scripts/manage_machine.py bootstrap-container \
+  --host 141.61.52.183 \
+  --name xrs_vllm_main \
+  --port 46000 \
+  --namespace alice123 \
+  --image vllm-ascend:dev-26.1.0.day20260806-A5-py311-openEuler24.03-lts-aarch64 \
+  --machine-type A5 \
+  --soc ascend950dt \
+  --workdir /home \
+  --no-replace-container-on-image-change
 ```
 
 Run the smoke test directly:

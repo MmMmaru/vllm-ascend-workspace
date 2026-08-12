@@ -5,6 +5,7 @@
 | --- | --- |
 | `90.90.97.4` | `90.90.97.4` |
 | `90.90.97.15` | `90.90.97.15` |
+| `141.61.52.183` | `141.61.52.183` |
 
 `machine_add.py` 当前默认将 `--host` 的宿主机 IP 直接作为 alias，不再按 `/24` 网段转换别名。已有 inventory 记录继续使用原 alias；如需非 IP 命名，可显式传入 `--alias`。
 
@@ -48,6 +49,17 @@ docker run --name xrs_vllm_main -it -d --net=host --shm-size=500g \
     vllm-ascend:dev-26.1.0.cann9.1.0.day20260810-800I-A3-py311-Ubuntu24.04-lts-aarch64
 
 ## 机器
+
+| 宿主机 IP | 设备类型 | SoC | 容器 | 容器 SSH 端口 | 镜像 |
+| --- | --- | --- | --- | ---: | --- |
+| `141.61.52.183` | `A5` | `ascend950dt`（Ascend950DT） | `xrs_vllm_main` | `46000` | `vllm-ascend:dev-26.1.0.day20260806-A5-py311-openEuler24.03-lts-aarch64` |
+
+### A5（Ascend950）注册约定
+
+- 机器类型使用 `A5`，SoC 使用 `ascend950*`（本机为 `ascend950dt`）。
+- A5 使用明确指定的自定义镜像，不自动拼接 `-a5` 后缀。
+- A5 主机如果没有 `/dev/devmm_svm`，注册和容器启动不挂载该设备；保留 `/dev/davinci_manager` 与 `/dev/hisi_hdc` 等必要设备。
+- 如果 A5 容器缺少 URMA 运行库，注册脚本会从主机补齐到容器 `/usr/local/lib`，并加入运行时库搜索路径。
 
 ## 模型权重
 ### 97.15, 97.44： /mnt/a800_weights

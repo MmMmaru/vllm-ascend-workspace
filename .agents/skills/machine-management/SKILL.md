@@ -45,11 +45,11 @@ Ready does **not** imply code sync, rebuild, serving, or benchmark readiness.
   - `custom`: a full image reference with a concrete non-`latest` tag or digest
 - Treat `auto`, `*:latest`, and bare repositories without a tag as forbidden defaults for managed-machine bootstrap.
 - Report and persist the **actual selected image** for the managed container, not only the requested image policy.
-- Resolve hardware-specific image tags from the detected machine type whenever the user chose `rc`, `main`, or `stable`: A2 uses the base tag, A3 appends `-a3`, and 310P appends `-310p`.
+- Resolve hardware-specific image tags from the detected machine type whenever the user chose `rc`, `main`, or `stable`: A2 uses the base tag, A3 appends `-a3`, and 310P appends `-310p`. A5/Ascend950 currently requires an explicit custom image reference; do not invent or append an `-a5` suffix.
 - Detect the machine type from `npu-smi info` / SoC output when possible; when detection is inconclusive, stop and ask for an explicit machine type override instead of guessing.
 - Persist `host.machine_type`, `host.soc`, and `container.machine_type` into inventory, and write matching metadata under `/etc/vaws/` plus `/etc/profile.d/vaws-ascend-env.sh` on the host and inside the managed container.
 - Before running `apt-get update` / `apt-get install` inside the container, rewrite apt sources to the fixed A3-tested NJU mirror (`mirrors.nju.edu.cn`). Do not spend bootstrap time probing alternate mirrors.
-- Prepend `/usr/local/Ascend/driver/lib64/common`, `/usr/local/Ascend/driver/lib64/driver`, and `/usr/local/Ascend/driver/lib64` before calling `npu-smi` or the smoke test; source `/etc/profile.d/vaws-ascend-env.sh` when it exists.
+- Prepend `/usr/local/lib`, `/usr/local/Ascend/driver/lib64/common`, `/usr/local/Ascend/driver/lib64/driver`, and `/usr/local/Ascend/driver/lib64` before calling `npu-smi` or the smoke test; source `/etc/profile.d/vaws-ascend-env.sh` when it exists. On A5/Ascend950, `/dev/devmm_svm` is not required when the host does not expose it; if the container lacks the host URMA runtime libraries, bootstrap may copy the matching host libraries into `/usr/local/lib`.
 - Persist and reuse an explicit ATB C++ ABI setting during container bootstrap. Do not let login shells repeatedly call ATB `set_env.sh` without `--cxx_abi`, because that can import `torch` during shell startup and add 10+ seconds to ordinary SSH commands.
 - Long probe / bootstrap / smoke operations must expose bounded phase progress and have an overall timeout budget, not only a connect timeout.
 - On a missing local machine profile, never call `workspace_profile.py ensure` bare. Use either:
@@ -68,9 +68,9 @@ The primary bootstrap path must not depend on `ssh-copy-id`, `expect`, or any ot
 
 Use these task-oriented wrappers for normal agent work. They keep the parameter surface narrow and return structured JSON statuses such as `ready`, `needs_input`, `needs_repair`, `blocked`, `removed`, or `unmanaged`. They also stream phase progress on `stderr` as `__VAWS_PROGRESS__=<json>` while reserving `stdout` for one final machine-readable JSON payload.
 
-- `python3 .agents/skills/machine-management/scripts/machine_add.py --host <ip> --image <rc|main|stable|custom-ref> [--machine-type <A2|A3|310P>] [--machine-username <letters-or-digits> | --generate-machine-username] [--password-env NAME | --password-stdin | --password ...]`
+- `python3 .agents/skills/machine-management/scripts/machine_add.py --host <ip> --image <rc|main|stable|custom-ref> [--machine-type <A2|A3|A5|310P>] [--machine-username <letters-or-digits> | --generate-machine-username] [--password-env NAME | --password-stdin | --password ...]`
 - `python3 .agents/skills/machine-management/scripts/machine_verify.py --machine <alias-or-ip>`
-- `python3 .agents/skills/machine-management/scripts/machine_repair.py --machine <alias-or-ip> [--image <rc|main|stable|custom-ref>] [--machine-type <A2|A3|310P>] [--password-env NAME | --password-stdin | --password ...]`
+- `python3 .agents/skills/machine-management/scripts/machine_repair.py --machine <alias-or-ip> [--image <rc|main|stable|custom-ref>] [--machine-type <A2|A3|A5|310P>] [--password-env NAME | --password-stdin | --password ...]`
 - `python3 .agents/skills/machine-management/scripts/machine_remove.py --machine <alias-or-ip>`
 
 Design intent:
@@ -145,7 +145,7 @@ Before any mutation, inspect:
 - whether a local public key already exists
 - whether host SSH by key already works
 - whether Docker and required Ascend/NPU paths exist on the host
-- whether `npu-smi` / SoC output identifies the host as A2, A3, or 310P
+- whether `npu-smi` / SoC output identifies the host as A2, A3, A5, or 310P
 - whether a free high SSH port exists
 - whether a managed container already exists
 
@@ -230,7 +230,7 @@ Do not remove host firewall rules or host-level `authorized_keys` entries.
 - For smoke tests, do not pin a Python patch version. Discover the highest available `/usr/local/python*/bin/python3`, then fall back to `python3`.
 - Source only environment scripts that actually exist.
 - Preseed `PATH` and `LD_LIBRARY_PATH` before sourcing env scripts under `set -u`.
-- Prefix `LD_LIBRARY_PATH` with `/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64`.
+- Prefix `LD_LIBRARY_PATH` with `/usr/local/lib:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64`.
 - Do not add Ascend `devlib` paths by default.
 
 Reference files:

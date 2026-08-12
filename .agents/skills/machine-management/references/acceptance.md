@@ -75,7 +75,7 @@ These should not trigger `machine-management` unless machine readiness is the ob
 - new registrations default the alias to the host IP, and existing aliases are preserved
 - an explicit `--alias` remains available for non-IP naming
 - the recorded inventory image is the actual selected image after mirror resolution and pull / cache fallback
-- selector-based image resolution is hardware-aware: A2 keeps the base tag, A3 appends `-a3`, and 310P appends `-310p`
+- selector-based image resolution is hardware-aware: A2 keeps the base tag, A3 appends `-a3`, and 310P appends `-310p`; A5/Ascend950 requires an explicit custom image and does not receive an assumed `-a5` suffix
 - inventory persists `host.machine_type`, `host.soc`, and `container.machine_type`
 - `rc`, `main`, and `stable` remain first-class selectors, while `auto`, `*:latest`, and bare repositories without a tag are rejected as defaults
 - long-running bootstrap phases keep emitting attributable progress for image pull and package-install steps instead of going silent behind one global timeout
@@ -100,7 +100,8 @@ These should not trigger `machine-management` unless machine readiness is the ob
 - the skill uses the bare-metal host only when container SSH is broken
 - the skill does not recreate or delete a container unless the user explicitly asked for destructive repair
 - the smoke path stays dynamic: no pinned Python patch version, no unconditional vendor `set_env.bash`, no default `devlib` injection
-- verify / smoke prepend `driver/lib64/common`, `driver/lib64/driver`, and `driver/lib64`, and source `/etc/profile.d/vaws-ascend-env.sh` when it exists
+- verify / smoke prepend `/usr/local/lib`, `driver/lib64/common`, `driver/lib64/driver`, and `driver/lib64`, and source `/etc/profile.d/vaws-ascend-env.sh` when it exists
+- A5/Ascend950 bootstrap tolerates a host without `/dev/devmm_svm` and provisions matching host URMA libraries under `/usr/local/lib` when the container does not already provide them
 - container bootstrap records `VAWS_ATB_CXX_ABI`, sources ATB with `--cxx_abi=<0|1>`, and patches common image startup files so `bash -lc true` does not spend 10+ seconds importing `torch` for ATB ABI detection
 
 ### Remove

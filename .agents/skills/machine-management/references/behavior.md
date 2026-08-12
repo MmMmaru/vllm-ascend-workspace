@@ -194,9 +194,16 @@ The smoke path must remain dynamic and conservative:
 - source only existing env scripts
 - preseed `PATH` and `LD_LIBRARY_PATH`
 - prefix driver library paths:
+  - `/usr/local/lib`
   - `/usr/local/Ascend/driver/lib64/driver`
   - `/usr/local/Ascend/driver/lib64`
 - do not add toolkit `devlib` by default
+
+For A5/Ascend950 hosts, the probe maps `ascend950*` SoC output to machine type
+`A5`. Some A5 hosts do not expose `/dev/devmm_svm`; that device is optional for
+the A5 bootstrap in that case. If an A5 container is missing the host URMA
+runtime libraries, bootstrap copies the matching host libraries into
+`/usr/local/lib` and keeps that directory first in `LD_LIBRARY_PATH`.
 
 The recorded session showed that adding `devlib` advanced past one missing-library error but introduced ABI mismatch. Driver-library prefixing alone was the stable fix.
 
@@ -204,7 +211,7 @@ The recorded session showed that adding `devlib` advanced past one missing-libra
 
 Container bootstrap writes persistent runtime environment configuration so that subsequent SSH sessions (parity, serving, benchmark, ad-hoc scripts) work without per-session setup:
 
-- `/etc/profile.d/vaws-ascend-env.sh`: adds the runtime Python directory and Ascend driver libs to `PATH` and `LD_LIBRARY_PATH`.
+- `/etc/profile.d/vaws-ascend-env.sh`: adds the runtime Python directory and `/usr/local/lib` plus the Ascend driver libs to `PATH` and `LD_LIBRARY_PATH`.
 - `/etc/pip.conf`: configures pip with a single A3-tested source, HuaweiCloud (`https://repo.huaweicloud.com/repository/pypi/simple`). Do not add extra indexes by default.
 
 ATB environment initialization must be explicit and fast:
@@ -255,6 +262,7 @@ Image selection is an explicit decision gate, not an implicit default:
 5. custom references must include a concrete non-`latest` tag or digest; `auto`, `*:latest`, and bare repositories without a tag are forbidden defaults
 6. if fresh pulls fail but one of the explicit candidate refs is already cached locally, reuse that cached image as a bounded fallback
 7. for non-destructive attach / repair, a recorded explicit non-`latest` image may be reused; ambiguous legacy images require another user choice
+8. A5/Ascend950 currently uses an explicit custom image reference; selector resolution does not append an assumed `-a5` suffix
 
 Inventory should record the actual selected image, not only the requested selector string.
 

@@ -1,3 +1,10 @@
+### 08-11 21:25
+
+- 在空闲的 17.111（`80.5.17.111`，A3、CANN 9.0.1）完成当前工作区的 vllm-ascend A3 编译和 editable 安装：211 个 custom-op 构建目标完成，`cann-ops-transformer-custom_linux-aarch64.run` 打包成功，`vllm_ascend_C` 构建成功；导入校验、A3 设备类型校验和 ATB 注册均通过。构建日志位于远端 `.compile-log/a3-ninja-package-final-20260811.log`、`.compile-log/vllm-ascend-install-a3-final-20260811.log`。
+- 完成目标二第一项：`/mnt/share/weights/Qwen3-30B-A3B-W8A8`，DP1/TP2/EP、设备 `0,1`，服务健康检查和模型列表检查通过；OpenAI chat 请求返回 HTTP 200，关闭思考后回答 `Paris`。服务日志为 `/vllm-workspace/.vaws-runtime/serving/20260811_131302/stdout.log`，响应保存于远端 `.goal2/qwen3-30b-chat-final.json`。
+- 完成目标二第二项：原 `/mnt/share/weights/Qwen3-VL-2B-Instruct` 只有 `.git` 且缺少 `config.json`，因此按 TODO 的替代条件使用完整的 `/mnt/share/weights/Qwen3-VL-4B-Instruct`，DP1/TP2、设备 `0,1`；服务健康检查通过，chat 请求返回 HTTP 200，`12+30` 返回 `42`。服务日志为 `/vllm-workspace/.vaws-runtime/serving/20260811_131724/stdout.log`，响应保存于远端 `.goal2/qwen3-vl-4b-chat.json`。
+- 两个服务均已停止，目标卡 `0,1` 未保留本次服务进程。收尾时发现另有既有 Qwen3.5-35B-A3B 服务 PID `646303` 使用设备 `4,5,6,7`、端口 `38081`，未擅自终止。编译期间为绕过 CANN 9.0.1 内置 op-info 缺少 `limited` 的不兼容基础算子，远端 `csrc/build_aclnn.sh` 曾做临时构建调整；验证结束后已恢复原文件（SHA256 `f80f19bd80cdc9966663b4f1b2cf12f07e8d5017266f86cfbe9b32de5a264289`）。
+
 ### 08-10 18:45
 
 - 在 90.90.97.4 最后四张逻辑卡 `12,13,14,15` 上完成 main 分支离线 DP E2E：Qwen3-30B-A3B、vLLM `35efdf6b3` + `vllm-ascend-main` `9f3aa1e7`、DP2/TP2/EP、FlashComm=1、CANN 9.1、eager。作业 `job-20260810T104208Z-d1da19d8` 状态 `succeeded`、exit code 0；DP rank 0/1 均完成 200 条 prompt 并输出生成文本。为适配容器没有 ModelScope，将官方示例通过未跟踪临时 launcher 指向本地模型，并将采样改为 greedy；这是测试启动适配，不是仓库源码改动。
@@ -145,3 +152,21 @@
 - 修复 Windows remote-code-parity：增加 SSH 连接保活和有界超时，流式 SSH 超时主动终止；统一本地/远端输出为 UTF-8。
 - 修复 `gc_runtime_cache.py` 使用 Windows `Path` 拼接容器 POSIX 路径的问题；更新 parity 行为文档。
 - 验证 parity 脚本编译、SSH 超时 smoke、POSIX 路径 smoke 和 snapshot plan 均通过。
+### 08-12
+
+- Restored the deleted vllm-ascend runtime on 80.5.17.111: rebuilt the Ascend custom-op package and verified the generated package plus `vllm_ascend_C` import with the NPU platform.
+- Fixed the uneven DP/SP EP reduce-scatter contract by cropping each rank's padded result to its local token count; updated fake-shape coverage and Qwen3.5 regression assertions.
+- Remote current-source verification: `tests/ut/ops` + `tests/ut/compilation` passed with `233 passed, 16 skipped`; changed files compile and `git diff --check` passes. Full UT is still blocked by an existing vLLM API mismatch in `test_npu_ipc_engine.py` (`IPCTrainerInitInfo` is absent from the current vLLM submodule), while a subsequent run reached 167 passed before an attention test-order failure.
+- Qwen3.5 live output, target profiling, and DeepSeek-V4-Flash-w4a8 benchmark remain pending: `npu-smi` still reports 16 cross-container `VLLM::Worker_DP` processes using all eight NPUs, and they are not registered in this workspace's serving state.
+### 08-12 03:15
+
+- Rebuilt the Ascend custom-op package on `80.5.17.111` with the validated serial `-j1` flow after the automatic editable build failed inside `build_aclnn.sh`. The package completed successfully and was installed into `vllm_ascend/_cann_ops_custom`.
+- Verified the rebuilt package (`cann-ops-transformer-custom_linux-aarch64.run`, SHA256 `392cab2c...3b6a3b8`) and `libcust_opapi.so` (SHA256 `9d833a4f...7268a06a`). Re-registered `vllm-ascend` as an editable install with `COMPILE_CUSTOM_KERNELS=0` to preserve the verified compiled extension.
+- Runtime import now resolves `vllm` and `vllm_ascend` from `/vllm-workspace`, imports `vllm_ascend_C`, and reports platform `npu`. The `vllm-ascend` directory was present both locally and remotely; it was not missing during this continuation.
+- Parity 后复核远端当前快照：定向回归单测 `test_register_custom_ops.py`、`test_fused_moe.py`、`test_linear.py`、`test_moe_mlp.py` 通过（`70 passed`），Qwen3.5 四卡 E2E 文件收集到 2 个测试用例；编译包 SHA256 `392cab2c...3b6a3b8`、`libcust_opapi.so` SHA256 `9d833a4f...7268a06a` 保持不变。
+- 目标一的真实 Qwen3.5 DP2/TP2/EP、profiling 和 DeepSeek-V4-Flash-w4a8 benchmark 尚未执行：17.111 当前仅卡 `5,6,7` 空闲，卡 `0,1,2,3,4` 各占用约 61.8GB HBM，探针判定为其他容器；没有可安全停止的本工作区进程。
+
+### 08-12
+
+- 注册 `141.61.52.183`：A5/`ascend950dt`，复用 `xrs_vllm_main`，容器 SSH 端口 `46000`，镜像为显式 A5 镜像；已写入 `.vaws-local/machine-inventory.json`。
+- 完成主机密钥登录、容器 SSH、A5 运行库补齐和 `torch_npu` 导入验证；NPU tensor smoke 因其他容器 `k3_wyx_0807` 占用 8 张卡未通过，未停止其他服务，机器保持待修复状态。

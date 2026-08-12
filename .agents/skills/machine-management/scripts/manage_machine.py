@@ -83,10 +83,12 @@ SEMVER_TAG_PATTERN = re.compile(
     r"^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(?:(?P<kind>rc)(?P<kind_number>\d+))?$",
     re.IGNORECASE,
 )
-MACHINE_TYPE_CHOICES = ("A2", "A3", "310P")
+MACHINE_TYPE_CHOICES = ("A2", "A3", "A5", "310P")
 IMAGE_SUFFIX_BY_MACHINE_TYPE = {
     "A2": "",
     "A3": "-a3",
+    # A5/Ascend950 images are currently supplied as explicit custom images.
+    "A5": "",
     "310P": "-310p",
 }
 SOC_TO_MACHINE_TYPE = {
@@ -105,6 +107,8 @@ SOC_TO_MACHINE_TYPE = {
     "ascend910_9392": "A3",
     "ascend910_9382": "A3",
     "ascend910_9362": "A3",
+    "ascend950dt": "A5",
+    "ascend950": "A5",
     "ascend310p1": "310P",
     "ascend310p3": "310P",
     "ascend310p5": "310P",
@@ -149,7 +153,7 @@ def normalize_machine_type(value: str | None) -> str | None:
     normalized = value.strip().upper().replace("_", "")
     if normalized == "310P":
         return "310P"
-    if normalized in {"A2", "A3"}:
+    if normalized in {"A2", "A3", "A5"}:
         return normalized
     raise MachineManagementError(
         f"unsupported machine type {value!r}; expected one of: {', '.join(MACHINE_TYPE_CHOICES)}"
@@ -223,6 +227,8 @@ def infer_machine_type_from_image(ref: str | None) -> str | None:
     lowered = tag.lower()
     if "-310p" in lowered:
         return "310P"
+    if "-a5" in lowered:
+        return "A5"
     if "-a3" in lowered:
         return "A3"
     if docker_ref_repo(ref).endswith("ascend/vllm-ascend"):
@@ -660,7 +666,7 @@ def write_askpass_helper(temp_dir: pathlib.Path, env_name: str) -> pathlib.Path:
         helper_py = temp_dir / "askpass.py"
         helper_py.write_text(
             "import os, sys\n"
-            f"sys.stdout.write(os.environ.get({env_name!r}, '') + '\n')\n",
+            f"sys.stdout.write(os.environ.get({env_name!r}, '') + '\\n')\n",
             encoding="utf-8",
         )
         helper = temp_dir / "askpass.cmd"
@@ -982,7 +988,7 @@ port_range="$2"
 prefix="$3"
 
 export PATH="/usr/local/bin:/usr/local/sbin:${PATH:-}"
-export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:${LD_LIBRARY_PATH:-}"
 if [ -z "${ASCEND_HOME_PATH:-}" ]; then
   if [ -d /usr/local/Ascend/ascend-toolkit/latest ]; then
     export ASCEND_HOME_PATH=/usr/local/Ascend/ascend-toolkit/latest
@@ -1102,7 +1108,6 @@ result: dict[str, object] = {
 required = [
     "/dev/davinci_manager",
     "/dev/hisi_hdc",
-    "/dev/devmm_svm",
     "/usr/local/Ascend/driver",
     "/usr/local/Ascend/driver/lib64/common",
     "/usr/local/Ascend/driver/lib64/driver",
@@ -1184,6 +1189,13 @@ for token in SOC_MATCH_ORDER:
 
 result["detected_soc"] = result["npu_probe"]["detected_soc"]
 result["machine_type"] = result["npu_probe"]["machine_type"]
+effective_machine_type = result["machine_type"] or image.get("machine_type")
+if effective_machine_type != "A5":
+    devmm_path = "/dev/devmm_svm"
+    devmm_exists = pathlib.Path(devmm_path).exists()
+    result["required_paths"][devmm_path] = devmm_exists
+    if not devmm_exists:
+        result["missing_required_paths"].append(devmm_path)
 result["prerequisites_ok"] = bool(
     result["docker"]["present"]
     and result["docker"]["info_ok"]
@@ -1373,7 +1385,7 @@ write_host_state() {
   cat > "$host_env_file" <<EOF_HOST_ENV
 #!/bin/sh
 export PATH="/usr/local/bin:/usr/local/sbin:\${PATH:-}"
-export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:\${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:\${LD_LIBRARY_PATH:-}"
 if [ -z "\${ASCEND_HOME_PATH:-}" ]; then
   if [ -d /usr/local/Ascend/ascend-toolkit/latest ]; then
     export ASCEND_HOME_PATH=/usr/local/Ascend/ascend-toolkit/latest
@@ -1569,7 +1581,7 @@ image="$6"
 workdir="$7"
 namespace="$8"
 export PATH="/usr/local/bin:/usr/local/sbin:${PATH:-}"
-export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:${LD_LIBRARY_PATH:-}"
 if [ -z "${ASCEND_HOME_PATH:-}" ]; then
   if [ -d /usr/local/Ascend/ascend-toolkit/latest ]; then
     export ASCEND_HOME_PATH=/usr/local/Ascend/ascend-toolkit/latest
@@ -1649,7 +1661,7 @@ fi
 if [ -f /usr/local/Ascend/nnal/atb/set_env.sh ]; then
   . /usr/local/Ascend/nnal/atb/set_env.sh "--cxx_abi=\${VAWS_ATB_CXX_ABI:-1}" >/dev/null 2>&1 || true
 fi
-export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:\${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:\${LD_LIBRARY_PATH:-}"
 export PATH="$_path_prefix:\${PATH:-}"
 if [ -n "$machine_type" ]; then
   export VAWS_MACHINE_TYPE="$machine_type"
@@ -1742,18 +1754,21 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 missing=()
-for p in \
-  /dev/davinci_manager \
-  /dev/hisi_hdc \
-  /dev/devmm_svm \
-  /usr/local/Ascend/driver \
-  /usr/local/Ascend/driver/lib64/common \
-  /usr/local/Ascend/driver/lib64/driver \
-  /usr/local/dcmi \
-  /usr/local/bin/npu-smi \
-  /usr/local/sbin \
+required_paths=(
+  /dev/davinci_manager
+  /dev/hisi_hdc
+  /usr/local/Ascend/driver
+  /usr/local/Ascend/driver/lib64/common
+  /usr/local/Ascend/driver/lib64/driver
+  /usr/local/dcmi
+  /usr/local/bin/npu-smi
+  /usr/local/sbin
   /usr/share/zoneinfo/Asia/Shanghai
-  do
+)
+if [ "${machine_type_input:-}" != "A5" ]; then
+  required_paths=(/dev/devmm_svm "${required_paths[@]:0}")
+fi
+for p in "${required_paths[@]}"; do
   [ -e "$p" ] || missing+=("$p")
 done
 if [ "${#missing[@]}" -gt 0 ]; then
@@ -1921,6 +1936,13 @@ else
   done
 
   emit_progress "container" "running" "creating managed container" 45
+  device_args=(
+    --device=/dev/davinci_manager
+    --device=/dev/hisi_hdc
+  )
+  if [ -e /dev/devmm_svm ]; then
+    device_args+=(--device=/dev/devmm_svm)
+  fi
   docker run --name "$container" -it -d --network host --shm-size=500g \
     --privileged=true \
     --label com.vaws.managed=true \
@@ -1931,9 +1953,7 @@ else
     --label com.vaws.container_type="$machine_type" \
     --label com.vaws.soc="$soc" \
     -w "$workdir" \
-    --device=/dev/davinci_manager \
-    --device=/dev/hisi_hdc \
-    --device=/dev/devmm_svm \
+    "${device_args[@]}" \
     --entrypoint=bash \
     -v /usr/local/Ascend/driver:/usr/local/Ascend/driver \
     -v /usr/local/dcmi:/usr/local/dcmi \
@@ -1954,6 +1974,19 @@ if [ -z "$machine_type" ]; then
   machine_type="$(infer_type_from_image "$selected_image" || true)"
 fi
 container_type="$machine_type"
+if [ "$machine_type" = "A5" ] && [ -f /usr/lib64/liburma.so.0.0.3 ] && [ -f /usr/lib64/liburma_common.so.0.0.1 ]; then
+  if ! docker exec "$container" test -e /usr/local/lib/liburma.so.0; then
+    emit_progress "container-runtime" "running" "installing host URMA runtime libraries for A5" 30
+    docker exec "$container" mkdir -p /usr/local/lib
+    docker cp /usr/lib64/liburma.so.0.0.3 "$container:/usr/local/lib/liburma.so.0.0.3" >/dev/null
+    docker cp /usr/lib64/liburma_common.so.0.0.1 "$container:/usr/local/lib/liburma_common.so.0.0.1" >/dev/null
+    docker exec "$container" ln -sfn liburma.so.0.0.3 /usr/local/lib/liburma.so.0
+    docker exec "$container" ln -sfn liburma.so.0.0.3 /usr/local/lib/liburma.so
+    docker exec "$container" ln -sfn liburma_common.so.0.0.1 /usr/local/lib/liburma_common.so.0
+    docker exec "$container" ln -sfn liburma_common.so.0.0.1 /usr/local/lib/liburma_common.so
+    actions+=("configured-a5-urma-libs")
+  fi
+fi
 write_host_state "$machine_type" "$container_type" "$soc" "$selected_image"
 
 if ! docker exec "$container" bash -lc 'command -v sshd >/dev/null 2>&1 && command -v ssh >/dev/null 2>&1'; then
@@ -2138,7 +2171,7 @@ fi
 
 emit_progress "env" "running" "preparing Ascend and python environment"
 export PATH="/usr/local/bin:/usr/local/sbin:${PATH:-}"
-export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:${LD_LIBRARY_PATH:-}"
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
