@@ -180,3 +180,13 @@
 
 - 更新 `.agents/skills/grill/SKILL.md`：将逐题提问改为一次列出最多 10 个高影响问题，再集中讨论；补充环境事实查询、批量追问和行动确认规则。
 - Skill 元数据校验与 `git diff --check` 通过。
+
+### 08-12 20:48
+
+- 在 `vllm-ascend` 执行 `ruff format`、`ruff check` 和 `markdownlint`，并保留自动格式化结果。
+- 修复 `platform.py` worker 选择逻辑的缩进语法错误及 `model_runner_v1.py` 超长注释；三项检查均通过。
+
+### 08-12 20:57
+
+- 新增 `scripts/lint_ruff_markdown.sh`，固定在 `vllm-ascend` 中运行 `ruff-format`、`ruff-check` 和 `markdownlint`。
+- 脚本对自动修复型 hook 自动复跑一次，其他 pre-commit hook 不会被调用。
