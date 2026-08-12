@@ -27,3 +27,5 @@ SP+PP
     结合代码读SP、flashcomm流程
     
 ### 已知问题
+防呆：设置里如果开启flashcomm，提示deprecated
+当前源码已有 SP split，但 npugraph_ex 编译图仍将 64 个 input_ids 传给 32-row router logits，需要后续单独修复
