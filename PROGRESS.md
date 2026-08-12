@@ -170,3 +170,8 @@
 
 - 注册 `141.61.52.183`：A5/`ascend950dt`，复用 `xrs_vllm_main`，容器 SSH 端口 `46000`，镜像为显式 A5 镜像；已写入 `.vaws-local/machine-inventory.json`。
 - 完成主机密钥登录、容器 SSH、A5 运行库补齐和 `torch_npu` 导入验证；NPU tensor smoke 因其他容器 `k3_wyx_0807` 占用 8 张卡未通过，未停止其他服务，机器保持待修复状态。
+
+### 08-12
+
+- 更新 `.agents/skills/grill/SKILL.md`：将逐题提问改为一次列出最多 10 个高影响问题，再集中讨论；补充环境事实查询、批量追问和行动确认规则。
+- Skill 元数据校验与 `git diff --check` 通过。

@@ -1,12 +1,14 @@
 ---
 name: grill
-description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases.
+description: Relentlessly stress-test a user's plan, decision, or idea by mapping the decision tree, presenting up to 10 high-impact questions in one batch, and discussing the answers interactively. Use when the user wants rigorous challenge or uses a 'grill' trigger phrase.
 ---
 
-Interview me relentlessly about every aspect of this until we reach a shared understanding. Walk down each branch of the decision tree, resolving dependencies between decisions one-by-one. For each question, provide your recommended answer.
+# Grill workflow
 
-Ask the questions one at a time, waiting for feedback on each question before continuing. Asking multiple questions at once is bewildering.
-
-If a *fact* can be found by exploring the environment (filesystem, tools, etc.), look it up rather than asking me. The *decisions*, though, are mine — put each one to me and wait for my answer.
-
-Do not act on it until I confirm we have reached a shared understanding.
+- Stress-test the user's plan, decision, or idea until both sides reach a shared understanding. Map the decision tree and its dependencies before asking anything.
+- Inspect the environment, files, and available tools for facts instead of asking the user for facts that can be looked up.
+- Present one initial batch containing all material questions currently identifiable. Limit it to the 10 highest-impact questions, number them, and group related questions or branches together. For every question, include the recommended answer and a brief reason it matters.
+- Do not ask questions one at a time or wait between questions. Let the user respond to the whole batch, then discuss the answers, tradeoffs, assumptions, and risks together.
+- If the discussion reveals new dependencies, ask a compact follow-up batch rather than drip-feeding individual questions. Keep follow-ups focused on decisions that remain unresolved.
+- Treat facts as discoverable and decisions as the user's. Challenge assumptions, surface failure modes and edge cases, and explain the tradeoffs without silently deciding for the user.
+- Do not act on the plan until the user confirms that a shared understanding has been reached.
