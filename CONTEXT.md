@@ -62,8 +62,6 @@ vllm-ascend/worker/model_runner_v1.py
 
 ### 当前主要修改文件
 
-- [`.agents/skills/vllm-ascend-serving/scripts/_common.py`](.agents/skills/vllm-ascend-serving/scripts/_common.py)：`select_devices` 支持 2 chip/物理卡机器的逻辑卡 id 校验（请求 id 超出物理范围时整体按 `physical = logical // 2` 映射）。
-- [`.agents/skills/vllm-ascend-benchmark/scripts/_common.py`](.agents/skills/vllm-ascend-benchmark/scripts/_common.py) 和 [`bench_run.py`](.agents/skills/vllm-ascend-benchmark/scripts/bench_run.py)：新增 `--health-timeout` 透传 serve_start；bench 客户端输出强制 UTF-8（修 Windows GBK reader 崩溃）并落盘 `.vaws-local/benchmark/<machine>/client_output_*.log`。
 - [`vllm-ascend/vllm_ascend/ops/fused_moe/fused_moe.py`](vllm-ascend/vllm_ascend/ops/fused_moe/fused_moe.py)：`AscendMoERunner._maybe_reduce_final_output()` 在原生 MoE SP 时跳过最终 TP all-reduce，保留 token-sharded 结果给 Qwen3 MoE 后续 all-gather。
 - [`vllm-ascend/vllm_ascend/ops/register_custom_ops.py`](vllm-ascend/vllm_ascend/ops/register_custom_ops.py)：SP+EP 的 all-gather 后按 DP local sizes 去除无效尾部，reduce-scatter 前恢复等长 padding；fake shape 使用 EP group world size。
 - [`vllm-ascend/tests/ut/ops/test_fused_moe.py`](vllm-ascend/tests/ut/ops/test_fused_moe.py)：回归测试 SP 时不调用最终 all-reduce、非 SP 时保留 all-reduce。

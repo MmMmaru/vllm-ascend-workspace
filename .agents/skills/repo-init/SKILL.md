@@ -22,7 +22,7 @@ This skill is optional. Do not treat it as a prerequisite for unrelated work.
 
 - the task is ordinary coding, debugging, docs, serving, or benchmarking
 - the task is generic Git work unrelated to initial setup
-- the user only wants remote machine attach / repair; use `machine-management` instead
+- the user only wants remote machine attach / repair; use `remote-plugin` instead
 
 ## Critical rules
 

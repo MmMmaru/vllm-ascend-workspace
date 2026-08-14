@@ -2,7 +2,7 @@
 
 **[中文](README.md)** | **English**
 
-A composable local development scaffold for working on [vLLM](https://github.com/vllm-project/vllm) and [vLLM Ascend Plugin](https://github.com/vllm-project/vllm-ascend) in a single workspace, with built-in AI Agent skills for automated environment setup, remote NPU machine management, and code synchronization.
+A composable local development scaffold for working on [vLLM](https://github.com/vllm-project/vllm) and [vLLM Ascend Plugin](https://github.com/vllm-project/vllm-ascend) in a single workspace, with built-in AI Agent skills and a `remote` CLI for environment setup, remote NPU machine operations, and code synchronization.
 
 ## What problem does this solve
 
@@ -32,17 +32,12 @@ The Agent will detect your environment, install required tools, and configure Gi
 
 | Skill                  | Purpose                                                                                      | When to use                                                |
 | ---------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **remote-plugin**      | Operate remote machines/containers via the `remote` CLI: check occupancy, sync code, build, and run jobs | When a task needs a remote NPU machine for development, build verification, or smoke tests |
 | **repo-init**          | Install GitHub CLI, authenticate, initialize submodules, configure forks and remote topology | After first clone                                          |
-| **machine-management** | Add, verify, repair, or remove a remote Ascend NPU server and its managed container          | When setting up a remote NPU dev machine                   |
-| **session-management** | Create, inspect, and clean isolated sessions: local worktree, remote container, state namespace, and resource leases | For parallel remote work or multiple agents |
-| **remote-toolbox**    | Structured target/probe/exec/job/sync/service/artifact/cleanup tools for remote containers | When agents need local-tool-like control of a remote session container |
-| **remote-code-parity** | Sync the full local workspace state (including uncommitted changes) to a remote container    | Triggered automatically before remote test or service runs |
 | **modelscope**       | Download, resume, status-check, and SHA256-verify ModelScope model weights                  | When model weights need to be downloaded into an explicit local directory |
-| **vllm-ascend-serving** | Launch a vLLM Ascend inference service on a remote container, with NPU probing, auto card selection, and incremental restart | When you need an inference service on a remote machine |
-| **vllm-ascend-benchmark** | Run `vllm bench serve` performance benchmarks on a remote container, with multi-run warmup and statistical aggregation | When you need throughput/latency benchmarks or performance regression checks |
-| **ascend-memory-profiling** | Profile and attribute HBM memory usage on Ascend NPU, with per-component breakdown and evidence chains | When you need to analyze memory consumption of a vLLM serving workload |
-| **ascend-profiling-collection** | Collect Ascend torch-profiler data: start service, bracket profile window, run workload, remote analyse, and write a manifest | When you need kernel_details/trace_view captures |
-| **ascend-profiling-analysis** | Analyze collected profiler roots/manifests and generate step/layer/operator/cross-rank reports | When you need to analyze profiling output |
+| **handoff-context**  | Read/build CONTEXT.md for project context handoff                                          | When a new agent takes over or context needs refreshing    |
+| **concise-code-explanation** | Explain code mechanisms and call chains in Chinese, structured overview-to-detail    | For code reading and module design analysis                |
+| **grill**            | Stress-test a plan or decision with high-impact questions                                  | When a plan needs rigorous challenge                       |
 
 
 All skills are **optional**. Use any subset, or none at all.
@@ -56,26 +51,14 @@ When talking to an Agent:
 "Help me initialize this repo"
 "Help me set up this repo"
 
-# Machine management
-"Add these two servers, IPs are x.x.x.1 and x.x.x.2, password is xxxx"
-"Set up this server for me, IP is x.x.x.x, password is xxxx"
-"Remove the x.x.x.x server"
-
-# Code sync
+# Remote operations (via remote-plugin's remote CLI)
+"Show me which machines are idle"
 "Sync my code to the server and rebuild"
+"Run a smoke test on x.x.x.x"
 
 # Model weight download
 "Download Qwen/Qwen3-32B from ModelScope to /root/Qwen/Qwen3-32B and show progress"
 "Verify the ModelScope weights under /root/Qwen/Qwen3-32B"
-
-# Serving (--model must point to weights already present on the remote container)
-"Launch a 4-card inference service on x.x.x.x using /home/weights/Qwen3-32B-W8A8 with W8A8 quantization"
-"Check the service status on x.x.x.x"
-"Stop the service on x.x.x.x"
-
-# Benchmarking
-"Run a benchmark on x.x.x.x with Qwen3.5-35B, 4 cards, 5 runs keep last 4"
-"Compare throughput between main and this PR"
 ```
 
 ## Repository layout
@@ -85,20 +68,13 @@ When talking to an Agent:
 ├── vllm/                  # Upstream vLLM (Git submodule)
 ├── vllm-ascend/           # vLLM Ascend Plugin (Git submodule)
 ├── .agents/
-│   ├── skills/
-│   │   ├── repo-init/         # Workspace initialization skill
-│   │   ├── machine-management/    # Remote machine management skill
-│   │   ├── session-management/    # Parallel session isolation skill
-│   │   ├── remote-toolbox/        # Structured remote toolbox
-│   │   ├── remote-code-parity/    # Code synchronization skill
-│   │   ├── modelscope/            # ModelScope weight download and verification skill
-│   │   ├── vllm-ascend-serving/   # Inference serving skill
-│   │   ├── vllm-ascend-benchmark/ # Performance benchmarking skill
-│   │   ├── ascend-memory-profiling/ # Memory profiling skill
-│   │   ├── ascend-profiling-collection/ # Torch profiler collection skill
-│   │   └── ascend-profiling-analysis/ # Profiling analysis/report skill
-│   ├── lib/               # Shared local-state library
-│   └── scripts/           # Shared helper scripts
+│   └── skills/
+│       ├── remote-plugin/         # remote CLI remote-development plugin
+│       ├── repo-init/             # Workspace initialization skill
+│       ├── modelscope/            # ModelScope weight download and verification skill
+│       ├── handoff-context/       # Project context handoff skill
+│       ├── concise-code-explanation/ # Code explanation skill
+│       └── grill/                 # Plan stress-testing skill
 ├── .cursor/rules/         # Cursor IDE specific rules
 ├── .trae/                 # TRAE IDE specific rules and skills
 ├── AGENTS.md              # Cross-tool Agent instructions (Agents read this)
@@ -109,9 +85,8 @@ When talking to an Agent:
 ## Design principles
 
 - **Nothing is mandatory** — All skills are optional. Developers choose what to use.
-- **Local state stays untracked** — User-specific remotes, auth, and machine config live only in the untracked `.vaws-local/` directory.
-- **Parallel tasks stay isolated** — Remote parallel work should use sessions: each task gets its own local worktree, remote container, state namespace, and resource leases.
-- **Remote operations are structured** — Agents should prefer the remote toolbox for JSON results, observable logs, resumable artifact manifests, and cleanup-capable state.
+- **Local state stays untracked** — User-specific remotes, auth, and machine config live only in untracked local files (machine registry is hand-maintained in remote-plugin's `.remote/machines.json`).
+- **Remote operations go through the remote CLI** — All remote work (occupancy checks, sync, builds, jobs) goes through remote-plugin's `remote` CLI, never raw ssh.
 - **Submodules point to community** — `.gitmodules` always targets `vllm-project` official repos. Personal forks are a local runtime concern.
 - **Agent-driven, not Agent-dependent** — Everything can be done manually. Agent skills just make it more convenient.
 
@@ -145,11 +120,7 @@ This repository supports mainstream AI coding tools:
 ### Done
 
 - **repo-init** — Workspace initialization: GitHub CLI install, auth, submodules, fork & remote topology
-- **machine-management** — Remote machine management: add, verify, repair, remove Ascend NPU servers and managed containers
-- **remote-code-parity** — Code sync: push full local workspace state (including uncommitted changes) to remote containers
-- **vllm-ascend-serving** — Service launch: idle NPU detection, idle port detection, one-click vLLM Ascend inference serving
-- **vllm-ascend-benchmark** — Online performance benchmarking: single-run / multi-run (warm-service) mode, warmup exclusion, statistical aggregation; multi-state regression comparisons orchestrated by the Agent
-- **ascend-memory-profiling** — Memory profiling: collect and analyze HBM usage, per-component breakdown (fixed overhead, weights, KV cache, HCCL, activations, runtime), with msprof component-level attribution
+- **remote-plugin** — Remote development: the `remote` CLI unifies machine occupancy checks, code sync, remote builds, and job execution
 
 ### Planned
 

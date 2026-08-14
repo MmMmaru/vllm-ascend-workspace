@@ -2,7 +2,7 @@
 
 **中文** | **[English](README.en.md)**
 
-一个可组合的本地开发脚手架，让你在同一个工作区里同时开发 [vLLM](https://github.com/vllm-project/vllm) 和 [vLLM Ascend 插件](https://github.com/vllm-project/vllm-ascend)，并通过内置的 AI Agent 技能自动完成环境初始化、远程 NPU 机器管理、代码同步和服务拉起。
+一个可组合的本地开发脚手架，让你在同一个工作区里同时开发 [vLLM](https://github.com/vllm-project/vllm) 和 [vLLM Ascend 插件](https://github.com/vllm-project/vllm-ascend)，并通过内置的 AI Agent 技能和 `remote` CLI 完成环境初始化、远程 NPU 机器操作、代码同步和编译验证。
 
 ## 这个项目解决什么问题
 
@@ -32,17 +32,12 @@ Agent 会自动检测你的环境、安装所需工具、配置 Git 远程仓库
 
 | 技能                       | 用途                                             | 何时使用               |
 | ------------------------ | ---------------------------------------------- | ------------------ |
+| **remote-plugin**        | 经 `remote` CLI 在远程机器/容器上查占用、同步代码、编译与跑任务      | 需要操作远程 NPU 机器完成开发、编译验证、冒烟测试时 |
 | **repo-init**            | 安装 GitHub CLI、登录 GitHub、初始化子模块、配置 Fork 和远程仓库拓扑 | 首次 clone 后初始化工作区   |
-| **machine-management**   | 添加、验证、修复或移除远程昇腾 NPU 服务器及其托管容器                  | 需要配置远程 NPU 开发机时    |
-| **session-management**   | 创建/检查/清理隔离 session：本地 worktree、远端容器、状态目录和资源 lease | 多 agent 或多任务并行远端执行时 |
-| **remote-toolbox**       | 结构化解析/探测/执行/长任务/同步/服务/产物传输/清理远端容器              | Agent 需要像使用本地工具一样操作远端 session container 时 |
-| **remote-code-parity**   | 将本地工作区的完整状态（含未提交的修改）同步到远程容器                    | 在远程机器上运行测试或服务前自动触发 |
 | **modelscope**           | 下载、续传、查看进度并 SHA256 校验 ModelScope 模型权重                  | 需要把模型权重下载到明确目录时 |
-| **vllm-ascend-serving**  | 在远程容器上一键拉起 vLLM Ascend 推理服务，支持 NPU 探测、自动选卡、增量重启 | 需要在远程机器上起推理服务时     |
-| **vllm-ascend-benchmark** | 在远程容器上运行 `vllm bench serve` 性能基准测试，支持多轮预热和统计聚合     | 需要跑吞吐/延迟基准测试或性能回归对比时 |
-| **ascend-memory-profiling** | 采集并分析昇腾 NPU 的 HBM 显存占用，按组件拆分并溯源 | 需要分析 vLLM 推理服务的显存占用时 |
-| **ascend-profiling-collection** | 采集 Ascend torch profiler：起服务、控制 profile 窗口、运行 workload、远端 analyse 并写 manifest | 需要采集 kernel_details/trace_view 时 |
-| **ascend-profiling-analysis** | 分析已采集的 profiler root/manifest，生成 step/layer/operator/cross-rank 诊断报告 | 需要分析 profiling 结果或生成报告时 |
+| **handoff-context**      | 读取/构建 CONTEXT.md，完成项目上下文交接                  | 新 agent 接手或需要更新上下文时 |
+| **concise-code-explanation** | 用中文"总—分—总"结构解释代码机制与调用链                | 需要代码阅读、模块设计分析时 |
+| **grill**                | 对计划/决策做高压质询，绘制决策树并批量提出高影响问题             | 需要严格挑战一个方案时 |
 
 
 所有技能都是**可选的**。你可以只用其中的一部分，也可以完全不用。
@@ -56,27 +51,14 @@ Agent 会自动检测你的环境、安装所需工具、配置 Git 远程仓库
 "帮我初始化一下这个仓库"
 "帮我配置一下这个仓库"
 
-# 机器管理
-"帮我添加一下这两台服务器，ip 是 x.x.x.1 和 x.x.x.2，密码是 xxxx"
-"帮我配置一下这台服务器，ip 是 x.x.x.x，密码是 xxxx"
-"帮我删除 x.x.x.x 服务器"
-
-# 代码同步
+# 远程操作（经 remote-plugin 的 remote CLI）
+"看下哪台机器空闲"
 "帮我同步代码到服务器上并重新编译"
+"在 x.x.x.x 上跑一下冒烟测试"
 
 # 模型权重下载
 "帮我把 Qwen/Qwen3-32B 从 ModelScope 下载到 /root/Qwen/Qwen3-32B，并查看进度"
 "校验一下 /root/Qwen/Qwen3-32B 的 ModelScope 权重"
-
-# 服务拉起（--model 需要指定远程容器上已存在的权重路径，不支持自动下载）
-"在 x.x.x.x 上用 /home/weights/Qwen3-32B-W8A8 拉一个 4 卡的推理服务，开 W8A8 量化"
-"帮我重启一下 x.x.x.x 的服务，把 max-model-len 改成 8192"
-"看下 x.x.x.x 上的服务状态"
-"停掉 x.x.x.x 上的服务"
-
-# 性能基准测试
-"在 x.x.x.x 上用 Qwen3.5-35B 跑个 benchmark，4 卡，跑 5 组取后 4 组"
-"对比一下 main 和这个 PR 的吞吐差异"
 ```
 
 ## 仓库结构
@@ -86,20 +68,13 @@ Agent 会自动检测你的环境、安装所需工具、配置 Git 远程仓库
 ├── vllm/                  # vLLM 上游（Git 子模块）
 ├── vllm-ascend/           # vLLM Ascend 插件（Git 子模块）
 ├── .agents/
-│   ├── skills/
-│   │   ├── repo-init/             # 工作区初始化技能
-│   │   ├── machine-management/    # 远程机器管理技能
-│   │   ├── session-management/    # 并行 Session 隔离技能
-│   │   ├── remote-toolbox/        # 远端结构化工具面
-│   │   ├── remote-code-parity/    # 代码同步技能
-│   │   ├── modelscope/            # ModelScope 权重下载与校验技能
-│   │   ├── vllm-ascend-serving/   # 服务拉起技能
-│   │   ├── vllm-ascend-benchmark/ # 性能基准测试技能
-│   │   ├── ascend-memory-profiling/ # 显存 profiling 技能
-│   │   ├── ascend-profiling-collection/ # torch profiler 采集技能
-│   │   └── ascend-profiling-analysis/ # profiling 分析报告技能
-│   ├── lib/               # 共享本地状态库
-│   └── scripts/           # 共享辅助脚本
+│   └── skills/
+│       ├── remote-plugin/         # remote CLI 远程开发插件
+│       ├── repo-init/             # 工作区初始化技能
+│       ├── modelscope/            # ModelScope 权重下载与校验技能
+│       ├── handoff-context/       # 项目上下文交接技能
+│       ├── concise-code-explanation/ # 代码机制解释技能
+│       └── grill/                 # 方案质询技能
 ├── .cursor/rules/         # Cursor IDE 专用规则
 ├── .trae/                 # TRAE IDE 专用规则与技能
 ├── AGENTS.md              # 跨工具 Agent 指令（AI Agent 读这个）
@@ -110,9 +85,8 @@ Agent 会自动检测你的环境、安装所需工具、配置 Git 远程仓库
 ## 设计原则
 
 - **不强制任何流程** — 所有技能都可选，开发者自由选择使用哪些部分。
-- **本地状态不入库** — 用户特定的远程仓库、认证信息、机器配置等只存在于本地未跟踪的 `.vaws-local/` 目录中。
-- **并行任务隔离** — 远端并行执行优先使用 session：每个任务有独立本地 worktree、远端容器、状态目录和资源 lease。
-- **远端操作结构化** — Agent 面向远端容器优先使用 remote toolbox，产出 JSON、可观测日志、可恢复 artifact manifest 和可清理状态。
+- **本地状态不入库** — 用户特定的远程仓库、认证信息、机器配置等只存在于本地未跟踪的目录中（机器注册信息手写维护在 remote-plugin 的 `.remote/machines.json`）。
+- **远端操作走 remote CLI** — 一切远程操作（查占用、同步、编译、跑任务）统一经 remote-plugin 的 `remote` CLI，不裸用 ssh。
 - **子模块指向社区** — `.gitmodules` 始终指向 `vllm-project` 的官方仓库，个人 Fork 是本地运行时配置。
 - **Agent 驱动，但不依赖 Agent** — 所有操作都可以手动完成，Agent 只是让流程更方便。
 
@@ -146,11 +120,7 @@ Agent 会自动检测你的环境、安装所需工具、配置 Git 远程仓库
 ### 已完成
 
 - [x] **repo-init** — 工作区初始化：GitHub CLI 安装、认证、子模块、Fork 与远程仓库拓扑配置
-- [x] **machine-management** — 远程机器管理：添加、验证、修复、移除昇腾 NPU 服务器及托管容器
-- [x] **remote-code-parity** — 代码同步：将本地完整工作区状态（含未提交修改）同步到远程容器
-- [x] **vllm-ascend-serving** — 服务拉起：支持空闲 NPU 检测、空闲端口检测，一键拉起 vLLM Ascend 推理服务
-- [x] **vllm-ascend-benchmark** — 在线性能基准测试：支持单轮/多轮（warm-service）模式、预热轮剔除、统计聚合，多状态回归对比由 Agent 编排
-- [x] **ascend-memory-profiling** — 显存 profiling：采集并分析 HBM 显存占用，按固定开销、模型权重、KV cache、HCCL、激活、runtime 拆分，支持 msprof 组件级归因
+- [x] **remote-plugin** — 远程开发：`remote` CLI 统一完成机器占用查询、代码同步、远程编译与任务执行
 
 ### 计划中
 
