@@ -41,7 +41,9 @@ class PatchOpsTests(unittest.TestCase):
 *** End Patch
 """
         ops = parse_codex_patch(patch)
-        self.assertEqual(ops, [{"kind": "add", "path": "new.py", "content": 'print("hi")\n'}])
+        self.assertEqual(
+            ops, [{"kind": "add", "path": "new.py", "content": 'print("hi")\n'}]
+        )
 
     def test_parse_codex_move_patch(self) -> None:
         patch = """*** Begin Patch
@@ -50,7 +52,10 @@ class PatchOpsTests(unittest.TestCase):
 *** End Patch
 """
         ops = parse_codex_patch(patch)
-        self.assertEqual(ops, [{"kind": "update", "path": "old.py", "hunks": [], "move_to": "new.py"}])
+        self.assertEqual(
+            ops,
+            [{"kind": "update", "path": "old.py", "hunks": [], "move_to": "new.py"}],
+        )
 
     def test_parse_codex_end_of_file_marker(self) -> None:
         patch = """*** Begin Patch
@@ -105,12 +110,14 @@ class PatchOpsTests(unittest.TestCase):
             payload = {
                 "root": str(root),
                 "cwd": str(root),
-                "ops": [{
-                    "kind": "update",
-                    "path": "old.py",
-                    "move_to": "new.py",
-                    "hunks": [{"old": "old\n", "new": "new\n"}],
-                }],
+                "ops": [
+                    {
+                        "kind": "update",
+                        "path": "old.py",
+                        "move_to": "new.py",
+                        "hunks": [{"old": "old\n", "new": "new\n"}],
+                    }
+                ],
             }
             proc = subprocess.run(
                 [sys.executable, "-c", patch_ops.REMOTE_CODEX_PATCH_PY],
@@ -156,7 +163,9 @@ class PatchOpsTests(unittest.TestCase):
             self.assertFalse(source.exists())
             self.assertEqual(target.read_text(encoding="utf-8"), "new\n")
 
-    def test_codex_patch_is_atomic_across_multiple_files_on_late_context_mismatch(self) -> None:
+    def test_codex_patch_is_atomic_across_multiple_files_on_late_context_mismatch(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             first = root / "a.py"
@@ -167,8 +176,16 @@ class PatchOpsTests(unittest.TestCase):
                 "root": str(root),
                 "cwd": str(root),
                 "ops": [
-                    {"kind": "update", "path": "a.py", "hunks": [{"old": "old a\n", "new": "new a\n"}]},
-                    {"kind": "update", "path": "b.py", "hunks": [{"old": "missing\n", "new": "new b\n"}]},
+                    {
+                        "kind": "update",
+                        "path": "a.py",
+                        "hunks": [{"old": "old a\n", "new": "new a\n"}],
+                    },
+                    {
+                        "kind": "update",
+                        "path": "b.py",
+                        "hunks": [{"old": "missing\n", "new": "new b\n"}],
+                    },
                 ],
             }
             proc = subprocess.run(
@@ -195,7 +212,11 @@ class PatchOpsTests(unittest.TestCase):
                 "cwd": str(root),
                 "ops": [
                     {"kind": "add", "path": "new.py", "content": "created\n"},
-                    {"kind": "update", "path": "target.py", "hunks": [{"old": "missing\n", "new": "new\n"}]},
+                    {
+                        "kind": "update",
+                        "path": "target.py",
+                        "hunks": [{"old": "missing\n", "new": "new\n"}],
+                    },
                 ],
             }
             proc = subprocess.run(
@@ -223,8 +244,17 @@ class PatchOpsTests(unittest.TestCase):
                 "root": str(root),
                 "cwd": str(root),
                 "ops": [
-                    {"kind": "update", "path": "old.py", "move_to": "new.py", "hunks": []},
-                    {"kind": "update", "path": "other.py", "hunks": [{"old": "missing\n", "new": "new\n"}]},
+                    {
+                        "kind": "update",
+                        "path": "old.py",
+                        "move_to": "new.py",
+                        "hunks": [],
+                    },
+                    {
+                        "kind": "update",
+                        "path": "other.py",
+                        "hunks": [{"old": "missing\n", "new": "new\n"}],
+                    },
                 ],
             }
             proc = subprocess.run(
@@ -250,11 +280,20 @@ class PatchOpsTests(unittest.TestCase):
                 target = repo / "a.py"
                 target.write_text("old\n", encoding="utf-8")
                 expected_before = hashlib.sha256(target.read_bytes()).hexdigest()
-                script_endpoint = Endpoint(host="1.2.3.4", port=46000, root=str(repo), cwd=str(repo))
+                script_endpoint = Endpoint(
+                    host="1.2.3.4", port=46000, root=str(repo), cwd=str(repo)
+                )
                 from core.ssh_transport import RemoteCompleted
 
                 def fake_run_script(_endpoint, script, **_kwargs):
-                    proc = subprocess.run(["bash", "-s"], input=script, cwd=repo, capture_output=True, text=True, check=False)
+                    proc = subprocess.run(
+                        ["bash", "-s"],
+                        input=script,
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
                     return RemoteCompleted(proc.returncode, proc.stdout, proc.stderr)
 
                 patch_ops.run_script = fake_run_script  # type: ignore[assignment]
@@ -265,8 +304,12 @@ class PatchOpsTests(unittest.TestCase):
 -old
 +new
 """
-                payload = patch_ops.remote_apply_patch(script_endpoint, patch=patch, cwd=str(repo))
-                self.assertEqual(payload["result"]["outcome"], "success", payload["text"])
+                payload = patch_ops.remote_apply_patch(
+                    script_endpoint, patch=patch, cwd=str(repo)
+                )
+                self.assertEqual(
+                    payload["result"]["outcome"], "success", payload["text"]
+                )
                 changed = payload["result"]["changed_files"][0]
                 self.assertEqual(changed["before_sha256"], expected_before)
                 self.assertIsNotNone(changed["after_sha256"])
@@ -283,11 +326,20 @@ class PatchOpsTests(unittest.TestCase):
                 link = repo / "link.py"
                 real.write_text("old\n", encoding="utf-8")
                 link.symlink_to(real)
-                endpoint = Endpoint(host="1.2.3.4", port=46000, root=str(repo), cwd=str(repo))
+                endpoint = Endpoint(
+                    host="1.2.3.4", port=46000, root=str(repo), cwd=str(repo)
+                )
                 from core.ssh_transport import RemoteCompleted
 
                 def fake_run_script(_endpoint, script, **_kwargs):
-                    proc = subprocess.run(["bash", "-s"], input=script, cwd=repo, capture_output=True, text=True, check=False)
+                    proc = subprocess.run(
+                        ["bash", "-s"],
+                        input=script,
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
                     return RemoteCompleted(proc.returncode, proc.stdout, proc.stderr)
 
                 patch_ops.run_script = fake_run_script  # type: ignore[assignment]
@@ -298,8 +350,12 @@ class PatchOpsTests(unittest.TestCase):
 -old
 +new
 """
-                payload = patch_ops.remote_apply_patch(endpoint, patch=patch, cwd=str(repo))
-                self.assertEqual(payload["result"]["outcome"], "blocked", payload["text"])
+                payload = patch_ops.remote_apply_patch(
+                    endpoint, patch=patch, cwd=str(repo)
+                )
+                self.assertEqual(
+                    payload["result"]["outcome"], "blocked", payload["text"]
+                )
                 self.assertEqual(payload["result"]["status"], "symlink_not_allowed")
                 self.assertEqual(real.read_text(encoding="utf-8"), "old\n")
         finally:

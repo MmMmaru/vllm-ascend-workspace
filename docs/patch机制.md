@@ -104,6 +104,7 @@ import vllm_ascend.patch.worker.patch_cudagraph
 
 ```python
 from vllm_ascend.utils import adapt_patch
+
 adapt_patch()
 ```
 
@@ -128,8 +129,8 @@ register_ascend_customop(vllm_config)
 最直接的方式是给上游类重新绑定方法。例如 [`patch_qwen3vl.py`](../vllm-ascend/vllm_ascend/patch/worker/patch_qwen3vl.py#L35)：
 
 ```python
-def forward_with_split_qkv_rmsnorm_mrope(self, positions, hidden_states):
-    ...
+def forward_with_split_qkv_rmsnorm_mrope(self, positions, hidden_states): ...
+
 
 Qwen3Attention.forward = forward_with_split_qkv_rmsnorm_mrope
 Qwen3MoeAttention.forward = forward_with_split_qkv_rmsnorm_mrope
@@ -275,9 +276,7 @@ Qwen3MoeSparseMoeBlock
 Ascend Linear 构造时调用 [`linear.py`](../vllm-ascend/vllm_ascend/ops/linear.py#L159)：
 
 ```python
-self.custom_op, _, tp_size = get_parallel_op(
-    disable_tp, prefix, self, "column"
-)
+self.custom_op, _, tp_size = get_parallel_op(disable_tp, prefix, self, "column")
 ```
 
 真正的执行在：
@@ -304,9 +303,7 @@ o_proj / down_proj
 [`linear_op.py`](../vllm-ascend/vllm_ascend/ops/linear_op.py#L423) 中的 `SequenceColumnParallelOp`：
 
 ```python
-input_ = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(
-    input_, label=need_all_gather
-)
+input_ = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(input_, label=need_all_gather)
 output_parallel = self.quant_method.apply(self.layer, input_, bias)
 ```
 
@@ -378,8 +375,7 @@ Qwen3VLForConditionalGeneration._get_deepstack_input_embeds
 
 ```python
 deepstack_input_embeds.tensors = {
-    k: v.chunk(tp_size)[tp_rank]
-    for k, v in deepstack_input_embeds.tensors.items()
+    k: v.chunk(tp_size)[tp_rank] for k, v in deepstack_input_embeds.tensors.items()
 }
 ```
 
@@ -399,12 +395,8 @@ Qwen3-VL-MoE 的 `start_layer`、`end_layer` 位于内部语言模型对象，�
 patch 因此在外层增加转发属性：
 
 ```python
-Qwen3MoeLLMForCausalLM.start_layer = property(
-    lambda self: self.model.start_layer
-)
-Qwen3MoeLLMForCausalLM.end_layer = property(
-    lambda self: self.model.end_layer
-)
+Qwen3MoeLLMForCausalLM.start_layer = property(lambda self: self.model.start_layer)
+Qwen3MoeLLMForCausalLM.end_layer = property(lambda self: self.model.end_layer)
 ```
 
 ## 6. `torch.ops.vllm.*` 与 patch 的关系
@@ -413,6 +405,7 @@ Worker 初始化时：
 
 ```python
 from vllm_ascend import ops
+
 ops.register_dummy_fusion_op()
 register_ascend_customop(vllm_config)
 ```
@@ -429,9 +422,7 @@ register_ascend_customop(vllm_config)
 
 ```python
 def apply(self, layer, x, bias=None):
-    return torch.ops.vllm.unquantized_gemm(
-        x, layer.weight, bias
-    )
+    return torch.ops.vllm.unquantized_gemm(x, layer.weight, bias)
 ```
 
 所以完整调用关系是：

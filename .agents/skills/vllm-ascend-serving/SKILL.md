@@ -148,7 +148,7 @@ Unless `--skip-parity` is passed, `parity_sync.py` is called to ensure the conta
 
 NPU availability is checked via `npu-smi info` on the **bare-metal host** (not the container). Host-level probing sees processes from all containers, bypassing PID namespace isolation. Devices with HBM usage above 4 GB are also marked busy to catch cross-container occupancy:
 
-- If `--devices` is specified, those devices are verified to be free. If any are busy, start is blocked with the conflict details.
+- If `--devices` is specified, those devices are verified to be free. If any are busy, start is blocked with the conflict details. On boards with 2 chips per physical NPU (e.g. Atlas 800 A3, `logical = physical * 2 + chip`), `--devices` takes **logical** ids (0-15) and validation maps them to physical NPUs automatically.
 - If `--devices` is not specified but `--tp` is given, the first N free devices are automatically selected, where N = TP × DP (defaults to TP when DP is not set).
 - If NPU probe fails (e.g. driver issue), it is treated as a non-fatal warning and launch continues with user-specified devices.
 

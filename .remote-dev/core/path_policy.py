@@ -20,12 +20,16 @@ def assert_under_root(path: str, root: str) -> str:
     if normalized == normalized_root:
         return normalized
     if not normalized.startswith(normalized_root.rstrip("/") + "/"):
-        raise PathPolicyError(f"remote path is outside root: {normalized} not under {normalized_root}")
+        raise PathPolicyError(
+            f"remote path is outside root: {normalized} not under {normalized_root}"
+        )
     return normalized
 
 
 def join_under_root(root: str, cwd: str, rel_or_abs: str) -> str:
-    candidate = rel_or_abs if rel_or_abs.startswith("/") else posixpath.join(cwd, rel_or_abs)
+    candidate = (
+        rel_or_abs if rel_or_abs.startswith("/") else posixpath.join(cwd, rel_or_abs)
+    )
     return assert_under_root(candidate, root)
 
 

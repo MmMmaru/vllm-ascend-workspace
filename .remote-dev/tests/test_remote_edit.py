@@ -28,14 +28,24 @@ class RemoteEditTests(unittest.TestCase):
                     captured.update(payload)
                     return {
                         "status": "edited",
-                        "file": {"path": "/vllm-workspace/foo.py", "sha256": "after", "size": 3, "mtime_ns": 2},
+                        "file": {
+                            "path": "/vllm-workspace/foo.py",
+                            "sha256": "after",
+                            "size": 3,
+                            "mtime_ns": 2,
+                        },
                         "before_sha256": "before",
                         "after_sha256": "after",
                         "diff_preview": "@@\n-a\n+b\n",
                     }
 
                 file_ops.run_remote_python = fake_run_remote_python  # type: ignore[assignment]
-                payload = file_ops.remote_edit(endpoint, file_path="/vllm-workspace/foo.py", old_string="a", new_string="b")
+                payload = file_ops.remote_edit(
+                    endpoint,
+                    file_path="/vllm-workspace/foo.py",
+                    old_string="a",
+                    new_string="b",
+                )
                 self.assertEqual(payload["result"]["outcome"], "success")
                 self.assertIsNone(captured["expected_sha256"])
         finally:
@@ -49,22 +59,44 @@ class RemoteEditTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 state_store.substrate_root = lambda: Path(tmp)  # type: ignore[assignment]
-                state_store.write_read_ledger(endpoint, {"path": "/vllm-workspace/foo.py", "sha256": "before", "size": 3, "mtime_ns": 1})
+                state_store.write_read_ledger(
+                    endpoint,
+                    {
+                        "path": "/vllm-workspace/foo.py",
+                        "sha256": "before",
+                        "size": 3,
+                        "mtime_ns": 1,
+                    },
+                )
                 file_ops.run_remote_python = lambda *_args, **_kwargs: {  # type: ignore[assignment]
                     "status": "edited",
-                    "file": {"path": "/vllm-workspace/foo.py", "sha256": "after", "size": 3, "mtime_ns": 2},
+                    "file": {
+                        "path": "/vllm-workspace/foo.py",
+                        "sha256": "after",
+                        "size": 3,
+                        "mtime_ns": 2,
+                    },
                     "before_sha256": "before",
                     "after_sha256": "after",
                     "diff_preview": "@@\n-a\n+b\n",
                 }
-                payload = file_ops.remote_edit(endpoint, file_path="/vllm-workspace/foo.py", old_string="a", new_string="b")
+                payload = file_ops.remote_edit(
+                    endpoint,
+                    file_path="/vllm-workspace/foo.py",
+                    old_string="a",
+                    new_string="b",
+                )
                 self.assertEqual(payload["result"]["outcome"], "success")
-                self.assertEqual(payload["result"]["changed_files"][0]["after_sha256"], "after")
+                self.assertEqual(
+                    payload["result"]["changed_files"][0]["after_sha256"], "after"
+                )
         finally:
             state_store.substrate_root = original_state_root  # type: ignore[assignment]
             file_ops.run_remote_python = original_runner  # type: ignore[assignment]
 
-    def test_remote_edit_ignores_read_ledger_from_different_client_context(self) -> None:
+    def test_remote_edit_ignores_read_ledger_from_different_client_context(
+        self,
+    ) -> None:
         endpoint = Endpoint(host="1.2.3.4", port=46000)
         original_state_root = state_store.substrate_root
         original_runner = file_ops.run_remote_python
@@ -74,7 +106,12 @@ class RemoteEditTests(unittest.TestCase):
                 state_store.substrate_root = lambda: Path(tmp)  # type: ignore[assignment]
                 state_store.write_read_ledger(
                     endpoint,
-                    {"path": "/vllm-workspace/foo.py", "sha256": "before", "size": 3, "mtime_ns": 1},
+                    {
+                        "path": "/vllm-workspace/foo.py",
+                        "sha256": "before",
+                        "size": 3,
+                        "mtime_ns": 1,
+                    },
                     client_context_id="agent-a",
                 )
 
@@ -82,7 +119,12 @@ class RemoteEditTests(unittest.TestCase):
                     captured.update(payload)
                     return {
                         "status": "edited",
-                        "file": {"path": "/vllm-workspace/foo.py", "sha256": "after", "size": 3, "mtime_ns": 2},
+                        "file": {
+                            "path": "/vllm-workspace/foo.py",
+                            "sha256": "after",
+                            "size": 3,
+                            "mtime_ns": 2,
+                        },
                         "before_sha256": "before",
                         "after_sha256": "after",
                         "diff_preview": "@@\n-a\n+b\n",

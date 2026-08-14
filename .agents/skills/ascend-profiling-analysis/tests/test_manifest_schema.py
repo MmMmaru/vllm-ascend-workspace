@@ -2,6 +2,7 @@
 ``hard_error_count`` / ``interior_island_total`` so the skill launcher
 can validate segmentation health without parsing the list form.
 """
+
 from __future__ import annotations
 
 import json
@@ -12,7 +13,9 @@ import conftest  # noqa: F401 — registers sys.path
 from ascend_profile import segment
 
 
-def _manifest_skeleton(tmp_path: Path, hard_errors: list[dict], interior_total: int) -> dict:
+def _manifest_skeleton(
+    tmp_path: Path, hard_errors: list[dict], interior_total: int
+) -> dict:
     """Build the manifest dict the way segment.py does in
     ``segment_profile``, but bypass full pipeline to keep the test
     cheap. We assert the *schema* — values supplied by the caller.
@@ -58,9 +61,13 @@ def test_manifest_has_scalar_health_fields(tmp_path: Path) -> None:
     loaded = json.loads(out.read_text())
     assert isinstance(loaded["hard_error_count"], int), "hard_error_count must be int"
     assert loaded["hard_error_count"] == 0
-    assert isinstance(loaded["interior_island_total"], int), "interior_island_total must be int"
+    assert isinstance(loaded["interior_island_total"], int), (
+        "interior_island_total must be int"
+    )
     assert loaded["interior_island_total"] == 0
-    assert isinstance(loaded["hard_errors"], list), "hard_errors stays as list for debugging"
+    assert isinstance(loaded["hard_errors"], list), (
+        "hard_errors stays as list for debugging"
+    )
 
 
 def test_launcher_validation_passes_on_clean_manifest(tmp_path: Path) -> None:
@@ -115,6 +122,7 @@ def test_launcher_backcompat_with_legacy_manifest() -> None:
 
 if __name__ == "__main__":
     import tempfile
+
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         test_manifest_has_scalar_health_fields(tmp)

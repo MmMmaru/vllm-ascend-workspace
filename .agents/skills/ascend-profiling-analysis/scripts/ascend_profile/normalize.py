@@ -125,8 +125,14 @@ def event_csv_row(event: NormalizedEvent) -> dict[str, Any]:
         "op_categories": tuple_json_text(event.op_categories),
         "op_roles": tuple_json_text(event.op_roles),
         "shape_signature": event.shape_signature or "",
-        "shape_features": "{}" if not event.shape_features else json.dumps(event.shape_features, ensure_ascii=False, separators=(",", ":")),
-        "pipeline_us": "{}" if not event.pipeline_us else json.dumps(event.pipeline_us, ensure_ascii=False, separators=(",", ":")),
+        "shape_features": "{}"
+        if not event.shape_features
+        else json.dumps(
+            event.shape_features, ensure_ascii=False, separators=(",", ":")
+        ),
+        "pipeline_us": "{}"
+        if not event.pipeline_us
+        else json.dumps(event.pipeline_us, ensure_ascii=False, separators=(",", ":")),
         "op_type": event.op_type,
     }
 
@@ -174,7 +180,9 @@ def normalize_profile(
                         path=str(path),
                         sha256=maybe_sha256(path, hash_sources),
                         rank_id=rank_id,
-                        row_base="not_applicable" if kind != "op_summary_csv" else "zero_based",
+                        row_base="not_applicable"
+                        if kind != "op_summary_csv"
+                        else "zero_based",
                     )
                 )
             rank_event_count = 0
@@ -189,7 +197,9 @@ def normalize_profile(
                 stream_id = stream_from_row(row)
                 start_us, end_us, duration_us, wait_us = event_time_from_row(row)
                 categories, roles = categories_and_roles(name, task, core)
-                if set(roles).intersection({"attention", "moe", "compute", "communication"}):
+                if set(roles).intersection(
+                    {"attention", "moe", "compute", "communication"}
+                ):
                     shape_sig, _shape_features = shape_signature(row)
                 else:
                     shape_sig = None
@@ -231,11 +241,23 @@ def normalize_profile(
                 )
                 writer.writerow(event_csv_row(event))
                 if jsonl_handle is not None:
-                    jsonl_handle.write(json.dumps(to_plain(event), ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+                    jsonl_handle.write(
+                        json.dumps(
+                            to_plain(event),
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                        + "\n"
+                    )
                 rank_event_count += 1
                 event_count += 1
-                rank_start_us = start_us if rank_start_us is None else min(rank_start_us, start_us)
-                rank_end_us = end_us if rank_end_us is None else max(rank_end_us, end_us)
+                rank_start_us = (
+                    start_us if rank_start_us is None else min(rank_start_us, start_us)
+                )
+                rank_end_us = (
+                    end_us if rank_end_us is None else max(rank_end_us, end_us)
+                )
                 last_row_idx = row_idx
             source = SourceRef(
                 source_id=source.source_id,
@@ -268,7 +290,9 @@ def normalize_profile(
         if jsonl_handle is not None:
             jsonl_handle.close()
 
-    pipeline_event_count = sum(int(item.get("pipeline_event_count") or 0) for item in rank_summaries)
+    pipeline_event_count = sum(
+        int(item.get("pipeline_event_count") or 0) for item in rank_summaries
+    )
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "tool_version": TOOL_VERSION,
@@ -280,12 +304,16 @@ def normalize_profile(
         "rank_count": len(rank_summaries),
         "event_count": event_count,
         "pipeline_event_count": pipeline_event_count,
-        "pipeline_coverage": round(pipeline_event_count / event_count, 6) if event_count else 0.0,
+        "pipeline_coverage": round(pipeline_event_count / event_count, 6)
+        if event_count
+        else 0.0,
         "hash_sources": hash_sources,
         "write_jsonl": write_jsonl,
         "files": {
             "normalized_event_index": "normalized_event_index.csv",
-            "normalized_event_index_jsonl": "normalized_event_index.jsonl" if write_jsonl else None,
+            "normalized_event_index_jsonl": "normalized_event_index.jsonl"
+            if write_jsonl
+            else None,
             "source_index": "source_index.json",
             "normalize_manifest": "normalize_manifest.json",
         },

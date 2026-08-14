@@ -113,7 +113,9 @@ def _candidate_from_origin(cwd: pathlib.Path | None = None) -> dict[str, Any] | 
     }
 
 
-def _candidate_from_git_config(cwd: pathlib.Path | None = None) -> dict[str, Any] | None:
+def _candidate_from_git_config(
+    cwd: pathlib.Path | None = None,
+) -> dict[str, Any] | None:
     rc, user_name, _ = run(["git", "config", "--get", "user.name"], cwd=cwd)
     if rc == 0 and user_name:
         candidate = _normalize_candidate(user_name)
@@ -140,7 +142,11 @@ def _candidate_from_git_config(cwd: pathlib.Path | None = None) -> dict[str, Any
 
 
 def detect_git_username_candidate(cwd: pathlib.Path | None = None) -> dict[str, Any]:
-    for resolver in (_candidate_from_gh, lambda: _candidate_from_origin(cwd), lambda: _candidate_from_git_config(cwd)):
+    for resolver in (
+        _candidate_from_gh,
+        lambda: _candidate_from_origin(cwd),
+        lambda: _candidate_from_git_config(cwd),
+    ):
         result = resolver()
         if result is not None:
             return result

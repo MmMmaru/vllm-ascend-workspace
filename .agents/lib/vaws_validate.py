@@ -51,7 +51,9 @@ def parse_device_csv(value: str | None, *, label: str = "devices") -> list[int] 
     if value is None:
         return None
     if not isinstance(value, str) or not value.strip():
-        raise ValidationError(f"{label} must be a non-empty comma-separated device list")
+        raise ValidationError(
+            f"{label} must be a non-empty comma-separated device list"
+        )
     devices: list[int] = []
     seen: set[int] = set()
     for raw in value.split(","):
@@ -61,7 +63,9 @@ def parse_device_csv(value: str | None, *, label: str = "devices") -> list[int] 
         try:
             device = int(token, 10)
         except ValueError as exc:
-            raise ValidationError(f"{label} contains a non-integer device id: {token!r}") from exc
+            raise ValidationError(
+                f"{label} contains a non-integer device id: {token!r}"
+            ) from exc
         if device < 0:
             raise ValidationError(f"{label} contains a negative device id: {device}")
         if device in seen:

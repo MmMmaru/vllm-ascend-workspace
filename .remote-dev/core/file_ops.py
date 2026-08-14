@@ -11,7 +11,7 @@ from .result import make_result, new_invocation_id, utc_now_iso
 from .ssh_transport import run_remote_python
 from .state_store import load_read_ledger, resolve_ledger_scope, write_read_ledger
 
-REMOTE_FILE_PY = r'''
+REMOTE_FILE_PY = r"""
 import difflib
 import hashlib
 import json
@@ -252,7 +252,7 @@ if op in {"edit", "multi_edit"}:
     raise SystemExit(0)
 
 fail("unsupported_op", f"unsupported file op: {op}")
-'''
+"""
 
 
 def _duration_ms(start: float) -> int:
@@ -262,7 +262,14 @@ def _duration_ms(start: float) -> int:
 def _status_to_outcome(status: str) -> str:
     if status in {"ok", "partial", "written", "edited"}:
         return "success"
-    if status in {"read_required", "file_changed_since_read", "old_string_not_unique", "path_outside_root", "symlink_not_allowed", "file_exists"}:
+    if status in {
+        "read_required",
+        "file_changed_since_read",
+        "old_string_not_unique",
+        "path_outside_root",
+        "symlink_not_allowed",
+        "file_exists",
+    }:
         return "blocked"
     if status in {"path_required", "invalid_pagination", "parent_not_found"}:
         return "needs_input"
@@ -290,7 +297,9 @@ def remote_read(
     try:
         path = join_under_root(endpoint.root, endpoint.effective_cwd, file_path)
     except PathPolicyError as exc:
-        return _path_blocked_result(endpoint, "remote.read", file_path, str(exc), started, start)
+        return _path_blocked_result(
+            endpoint, "remote.read", file_path, str(exc), started, start
+        )
     data = run_remote_python(
         endpoint,
         REMOTE_FILE_PY,
@@ -313,7 +322,9 @@ def remote_read(
         ledger = write_read_ledger(endpoint, data["file"], client_context_id)
         refs["read_ledger"] = str(ledger)
     file_info = data.get("file", {}) if isinstance(data.get("file"), dict) else {}
-    warnings.extend(data.get("warnings", []) if isinstance(data.get("warnings"), list) else [])
+    warnings.extend(
+        data.get("warnings", []) if isinstance(data.get("warnings"), list) else []
+    )
     result = make_result(
         tool="remote.read",
         target=endpoint.to_result_target(),
@@ -322,10 +333,17 @@ def remote_read(
         summary=f"RemoteRead {status} for {path}",
         started_at=started,
         duration_ms=_duration_ms(start),
-        preview={"content": compact_text(str(file_info.get("content", ""))), "partial": file_info.get("partial", False)},
+        preview={
+            "content": compact_text(str(file_info.get("content", ""))),
+            "partial": file_info.get("partial", False),
+        },
         refs=refs,
         warnings=warnings,
-        extra={"file": {k: v for k, v in file_info.items() if k != "content"}, "error": data.get("error"), "ledger_scope": ledger_scope},
+        extra={
+            "file": {k: v for k, v in file_info.items() if k != "content"},
+            "error": data.get("error"),
+            "ledger_scope": ledger_scope,
+        },
     )
     text = _format_read_text(endpoint, result, file_info)
     return {"text": text, "result": result}
@@ -345,11 +363,20 @@ def remote_ls(
     try:
         resolved = join_under_root(endpoint.root, endpoint.effective_cwd, raw_path)
     except PathPolicyError as exc:
-        return _path_blocked_result(endpoint, "remote.ls", raw_path, str(exc), started, start)
+        return _path_blocked_result(
+            endpoint, "remote.ls", raw_path, str(exc), started, start
+        )
     data = run_remote_python(
         endpoint,
         REMOTE_FILE_PY,
-        {"op": "ls", "root": endpoint.root, "cwd": endpoint.effective_cwd, "path": resolved, "limit": limit, "all": all},
+        {
+            "op": "ls",
+            "root": endpoint.root,
+            "cwd": endpoint.effective_cwd,
+            "path": resolved,
+            "limit": limit,
+            "all": all,
+        },
         timeout_ms=timeout_ms,
     )
     status = str(data.get("status", "failed"))
@@ -363,7 +390,12 @@ def remote_ls(
         started_at=started,
         duration_ms=_duration_ms(start),
         preview={"entries": entries, "truncated": bool(data.get("truncated", False))},
-        extra={"path": data.get("path", resolved), "entries": entries, "truncated": bool(data.get("truncated", False)), "error": data.get("error")},
+        extra={
+            "path": data.get("path", resolved),
+            "entries": entries,
+            "truncated": bool(data.get("truncated", False)),
+            "error": data.get("error"),
+        },
     )
     return {"text": _format_ls_text(endpoint, result), "result": result}
 
@@ -383,7 +415,9 @@ def remote_write(
     try:
         path = join_under_root(endpoint.root, endpoint.effective_cwd, file_path)
     except PathPolicyError as exc:
-        return _path_blocked_result(endpoint, "remote.write", file_path, str(exc), started, start)
+        return _path_blocked_result(
+            endpoint, "remote.write", file_path, str(exc), started, start
+        )
     ledger = load_read_ledger(endpoint, path, client_context_id)
     data = run_remote_python(
         endpoint,
@@ -400,7 +434,15 @@ def remote_write(
         },
         timeout_ms=timeout_ms,
     )
-    return _write_like_result(endpoint, "remote.write", path, data, started, start, client_context_id=client_context_id)
+    return _write_like_result(
+        endpoint,
+        "remote.write",
+        path,
+        data,
+        started,
+        start,
+        client_context_id=client_context_id,
+    )
 
 
 def remote_edit(
@@ -418,7 +460,9 @@ def remote_edit(
     try:
         path = join_under_root(endpoint.root, endpoint.effective_cwd, file_path)
     except PathPolicyError as exc:
-        return _path_blocked_result(endpoint, "remote.edit", file_path, str(exc), started, start)
+        return _path_blocked_result(
+            endpoint, "remote.edit", file_path, str(exc), started, start
+        )
     ledger = load_read_ledger(endpoint, path, client_context_id)
     data = run_remote_python(
         endpoint,
@@ -435,7 +479,15 @@ def remote_edit(
         },
         timeout_ms=timeout_ms,
     )
-    return _write_like_result(endpoint, "remote.edit", path, data, started, start, client_context_id=client_context_id)
+    return _write_like_result(
+        endpoint,
+        "remote.edit",
+        path,
+        data,
+        started,
+        start,
+        client_context_id=client_context_id,
+    )
 
 
 def remote_multi_edit(
@@ -451,7 +503,9 @@ def remote_multi_edit(
     try:
         path = join_under_root(endpoint.root, endpoint.effective_cwd, file_path)
     except PathPolicyError as exc:
-        return _path_blocked_result(endpoint, "remote.multi_edit", file_path, str(exc), started, start)
+        return _path_blocked_result(
+            endpoint, "remote.multi_edit", file_path, str(exc), started, start
+        )
     ledger = load_read_ledger(endpoint, path, client_context_id)
     data = run_remote_python(
         endpoint,
@@ -466,7 +520,15 @@ def remote_multi_edit(
         },
         timeout_ms=timeout_ms,
     )
-    return _write_like_result(endpoint, "remote.multi_edit", path, data, started, start, client_context_id=client_context_id)
+    return _write_like_result(
+        endpoint,
+        "remote.multi_edit",
+        path,
+        data,
+        started,
+        start,
+        client_context_id=client_context_id,
+    )
 
 
 def _write_like_result(
@@ -484,15 +546,19 @@ def _write_like_result(
     refs: dict[str, Any] = {}
     ledger_scope = resolve_ledger_scope(client_context_id)
     if status in {"written", "edited"} and file_info:
-        refs["read_ledger"] = str(write_read_ledger(endpoint, file_info, client_context_id))
+        refs["read_ledger"] = str(
+            write_read_ledger(endpoint, file_info, client_context_id)
+        )
     changed = []
     if file_info:
-        changed.append({
-            "path": file_info.get("path", path),
-            "before_sha256": data.get("before_sha256"),
-            "after_sha256": data.get("after_sha256") or file_info.get("sha256"),
-            "size": file_info.get("size"),
-        })
+        changed.append(
+            {
+                "path": file_info.get("path", path),
+                "before_sha256": data.get("before_sha256"),
+                "after_sha256": data.get("after_sha256") or file_info.get("sha256"),
+                "size": file_info.get("size"),
+            }
+        )
     result = make_result(
         tool=tool,
         target=endpoint.to_result_target(),
@@ -504,7 +570,11 @@ def _write_like_result(
         preview={"diff": data.get("diff_preview", "")},
         refs=refs,
         changed_files=changed,
-        extra={"file": file_info, "error": data.get("error"), "ledger_scope": ledger_scope},
+        extra={
+            "file": file_info,
+            "error": data.get("error"),
+            "ledger_scope": ledger_scope,
+        },
     )
     return {"text": _format_write_text(endpoint, result, data), "result": result}
 
@@ -535,7 +605,9 @@ def _format_endpoint(endpoint: Endpoint) -> str:
     return f"{endpoint.user}@{endpoint.host}:{endpoint.port}"
 
 
-def _format_read_text(endpoint: Endpoint, result: dict[str, Any], file_info: dict[str, Any]) -> str:
+def _format_read_text(
+    endpoint: Endpoint, result: dict[str, Any], file_info: dict[str, Any]
+) -> str:
     lines = [
         f"RemoteRead on {_format_endpoint(endpoint)}",
         f"file: {file_info.get('path', '')}",
@@ -551,9 +623,15 @@ def _format_read_text(endpoint: Endpoint, result: dict[str, Any], file_info: dic
 
 def _format_ls_text(endpoint: Endpoint, result: dict[str, Any]) -> str:
     entries = result.get("entries", [])
-    lines = [f"RemoteLS on {_format_endpoint(endpoint)}", f"path: {result.get('path')}", ""]
+    lines = [
+        f"RemoteLS on {_format_endpoint(endpoint)}",
+        f"path: {result.get('path')}",
+        "",
+    ]
     for entry in entries:
-        lines.append(f"{entry.get('type', 'unknown'):10} {entry.get('size', 0):>10} {entry.get('name', '')}")
+        lines.append(
+            f"{entry.get('type', 'unknown'):10} {entry.get('size', 0):>10} {entry.get('name', '')}"
+        )
     if result.get("truncated"):
         lines.append("<truncated>")
     if result.get("error"):
@@ -561,7 +639,9 @@ def _format_ls_text(endpoint: Endpoint, result: dict[str, Any]) -> str:
     return compact_text("\n".join(lines).rstrip() + "\n")
 
 
-def _format_write_text(endpoint: Endpoint, result: dict[str, Any], data: dict[str, Any]) -> str:
+def _format_write_text(
+    endpoint: Endpoint, result: dict[str, Any], data: dict[str, Any]
+) -> str:
     lines = [
         f"{result['tool']} {result['status']} on {_format_endpoint(endpoint)}",
         f"file: {data.get('file', {}).get('path', '')}",
@@ -571,7 +651,14 @@ def _format_write_text(endpoint: Endpoint, result: dict[str, Any], data: dict[st
         lines.append("Changed:")
         for item in result["changed_files"]:
             lines.append(f"  M {item.get('path')}")
-        lines.extend(["", f"Before sha256: {data.get('before_sha256')}", f"After sha256:  {data.get('after_sha256')}", ""])
+        lines.extend(
+            [
+                "",
+                f"Before sha256: {data.get('before_sha256')}",
+                f"After sha256:  {data.get('after_sha256')}",
+                "",
+            ]
+        )
     if data.get("diff_preview"):
         lines.append("Diff preview:")
         lines.append(str(data["diff_preview"]))

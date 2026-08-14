@@ -18,7 +18,9 @@ import core.state_store as state_store  # noqa: E402
 class ArtifactTests(unittest.TestCase):
     def test_artifact_manifest_path_escape_returns_blocked_result(self) -> None:
         endpoint = Endpoint(host="1.2.3.4", port=46000, root="/vllm-workspace")
-        payload = artifact_ops.remote_artifact_manifest(endpoint, remote_path="/etc/passwd")
+        payload = artifact_ops.remote_artifact_manifest(
+            endpoint, remote_path="/etc/passwd"
+        )
         self.assertEqual(payload["result"]["outcome"], "blocked")
         self.assertEqual(payload["result"]["status"], "path_outside_root")
 
@@ -38,10 +40,15 @@ class ArtifactTests(unittest.TestCase):
                     "total_bytes": 7,
                     "files": [],
                 }
-                payload = artifact_ops.remote_artifact_manifest(endpoint, remote_path="/vllm-workspace/out")
+                payload = artifact_ops.remote_artifact_manifest(
+                    endpoint, remote_path="/vllm-workspace/out"
+                )
                 manifest_ref = payload["result"]["refs"]["local_manifest"]
                 self.assertTrue(Path(manifest_ref).exists())
-                self.assertEqual(payload["result"]["artifacts"][0]["endpoint_id"], endpoint.endpoint_id)
+                self.assertEqual(
+                    payload["result"]["artifacts"][0]["endpoint_id"],
+                    endpoint.endpoint_id,
+                )
                 self.assertIn("artifact_id", payload["result"]["artifacts"][0])
         finally:
             state_store.substrate_root = original_state_root  # type: ignore[assignment]
@@ -73,8 +80,15 @@ class ArtifactTests(unittest.TestCase):
                 expected = artifact_ops._sha256_file(local)
 
                 def fake_run_bytes(_endpoint, command, *, stdin=None, timeout_ms=None):
-                    observed_calls.append({"command": command, "stdin": stdin, "timeout_ms": timeout_ms})
-                    return subprocess.CompletedProcess(args=["ssh"], returncode=0, stdout=(expected + "\n").encode(), stderr=b"")
+                    observed_calls.append(
+                        {"command": command, "stdin": stdin, "timeout_ms": timeout_ms}
+                    )
+                    return subprocess.CompletedProcess(
+                        args=["ssh"],
+                        returncode=0,
+                        stdout=(expected + "\n").encode(),
+                        stderr=b"",
+                    )
 
                 artifact_ops.run_bytes = fake_run_bytes  # type: ignore[assignment]
                 payload = artifact_ops.remote_artifact_push(
@@ -83,7 +97,9 @@ class ArtifactTests(unittest.TestCase):
                     remote_path="/vllm-workspace/out/artifact.txt",
                 )
                 self.assertEqual(payload["result"]["outcome"], "success")
-                self.assertEqual(payload["result"]["artifacts"][0]["pushed"][0]["sha256"], expected)
+                self.assertEqual(
+                    payload["result"]["artifacts"][0]["pushed"][0]["sha256"], expected
+                )
                 self.assertEqual(observed_calls[0]["stdin"], b"payload\n")
                 self.assertIn("mv -f", observed_calls[0]["command"])
         finally:
@@ -98,12 +114,14 @@ class ArtifactTests(unittest.TestCase):
                 "result": {
                     "manifest": {
                         "status": "ok",
-                        "files": [{
-                            "relpath": "../escape.txt",
-                            "path": "/vllm-workspace/out/file.txt",
-                            "sha256": "0" * 64,
-                            "size": 1,
-                        }],
+                        "files": [
+                            {
+                                "relpath": "../escape.txt",
+                                "path": "/vllm-workspace/out/file.txt",
+                                "sha256": "0" * 64,
+                                "size": 1,
+                            }
+                        ],
                     }
                 },
             }

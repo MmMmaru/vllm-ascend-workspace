@@ -73,9 +73,7 @@ def build_scp_command(args: argparse.Namespace) -> list[str]:
     )
     if args.identity_file is not None:
         command.extend(["-i", str(args.identity_file)])
-    command.extend(
-        [str(args.source), f"{args.user}@{args.host}:{args.remote_path}"]
-    )
+    command.extend([str(args.source), f"{args.user}@{args.host}:{args.remote_path}"])
     return command
 
 
@@ -91,8 +89,7 @@ def main() -> int:
     result = subprocess.run(command, check=False)
     if result.returncode == 0:
         print(
-            f"Transferred {args.source} to "
-            f"{args.user}@{args.host}:{args.remote_path}"
+            f"Transferred {args.source} to {args.user}@{args.host}:{args.remote_path}"
         )
     return result.returncode
 

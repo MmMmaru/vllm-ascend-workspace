@@ -58,14 +58,19 @@ def detect_target() -> tuple[str, str, str]:
 def latest_release() -> dict:
     req = urllib.request.Request(
         API_URL,
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "repo-init-fallback"},
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "repo-init-fallback",
+        },
     )
     with urllib.request.urlopen(req) as resp:
         return json.load(resp)
 
 
 def select_asset(release: dict, os_token: str, arch: str, ext: str) -> dict:
-    pattern = re.compile(rf"^gh_(?P<version>[^_]+)_{re.escape(os_token)}_{re.escape(arch)}\.{re.escape(ext)}$")
+    pattern = re.compile(
+        rf"^gh_(?P<version>[^_]+)_{re.escape(os_token)}_{re.escape(arch)}\.{re.escape(ext)}$"
+    )
     for asset in release.get("assets", []):
         name = asset.get("name", "")
         if pattern.match(name):
@@ -142,7 +147,7 @@ def main() -> None:
     if str(link_bin_dir) not in path_entries:
         print("")
         print("Add this directory to PATH if needed:")
-        print(f"  export PATH=\"{link_bin_dir}:$PATH\"")
+        print(f'  export PATH="{link_bin_dir}:$PATH"')
 
     print("")
     print("Verify with:")

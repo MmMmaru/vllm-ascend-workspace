@@ -496,9 +496,7 @@ def test_mla_decode_with_fia_still_resolves_to_mla():
     ]
     assert _resolve_attention_family(bag) == "mla"
     block = _FakeBlock(events=_events_for(bag))
-    assert (
-        html_report.detect_attention_subtype(block, 0, len(bag), "rank0") == "mla"
-    )
+    assert html_report.detect_attention_subtype(block, 0, len(bag), "rank0") == "mla"
 
 
 def test_metadata_only_sparse_block_does_not_satisfy_sparse_signature():
@@ -621,29 +619,35 @@ def test_block_head_hc_prefix_does_not_pollute_attention_family():
 
 def test_shape_refine_mha_when_q_kv_heads_match():
     """num_q_heads == num_kv_heads → MHA. Example: GPT-2 small (q=12, kv=12)."""
-    events = _events_for_with_shapes([
-        # CANN ABI: (query, key, value, ...). Shapes are
-        # ``;``-separated tensors, dims comma-separated within.
-        ("FusedInferAttentionScore", "1,12,64;1,512,12,64;1,512,12,64"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            # CANN ABI: (query, key, value, ...). Shapes are
+            # ``;``-separated tensors, dims comma-separated within.
+            ("FusedInferAttentionScore", "1,12,64;1,512,12,64;1,512,12,64"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "mha"
 
 
 def test_shape_refine_gqa_when_q_heads_multiple_of_kv():
     """num_q > num_kv with integer ratio → GQA. Example: Llama-3 8B
     (q=32, kv=8)."""
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScoreV2", "1,32,128;1,1024,8,128;1,1024,8,128"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScoreV2", "1,32,128;1,1024,8,128;1,1024,8,128"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "gqa"
 
 
 def test_shape_refine_mqa_when_kv_heads_eq_one():
     """num_kv_heads == 1 with num_q > 1 → MQA. Example: PaLM-style MQA
     (q=16, kv=1)."""
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScore", "1,16,128;1,512,1,128;1,512,1,128"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScore", "1,16,128;1,512,1,128;1,512,1,128"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "mqa"
 
 
@@ -661,10 +665,12 @@ def test_shape_refine_falls_back_on_invalid_head_dim():
     value, drop the candidate (we probably latched onto a mask / pse /
     scale tensor) and return the umbrella label.
     """
-    events = _events_for_with_shapes([
-        # head_dim = 7 is not in the valid set → refinement must give up.
-        ("FusedInferAttentionScore", "1,32,7;1,1024,8,7"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            # head_dim = 7 is not in the valid set → refinement must give up.
+            ("FusedInferAttentionScore", "1,32,7;1,1024,8,7"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "gqa_or_mha"
 
 
@@ -672,9 +678,11 @@ def test_shape_refine_falls_back_on_mismatched_qk_head_dim():
     """Q.head_dim and K.head_dim must agree on FIA / UnpadFA; if they
     don't we picked up the wrong tensors and bail out.
     """
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScore", "1,32,128;1,1024,8,64"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScore", "1,32,128;1,1024,8,64"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "gqa_or_mha"
 
 
@@ -683,10 +691,12 @@ def test_shape_refine_majority_vote_across_events():
     sub-blocks), the refinement votes across them. Two GQA-shape events
     + one shape-missing event → GQA.
     """
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScore",   "1,32,128;1,1024,8,128"),
-        ("FusedInferAttentionScoreV2", "1,32,128;1,1024,8,128"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScore", "1,32,128;1,1024,8,128"),
+            ("FusedInferAttentionScoreV2", "1,32,128;1,1024,8,128"),
+        ]
+    )
     events.append(_FakeEvent(name="FusedInferAttentionScore", row_idx=99))  # no shape
     assert common.refine_dense_attention_from_shapes(events) == "gqa"
 
@@ -695,10 +705,12 @@ def test_shape_refine_ignores_non_flash_score_events():
     """Only FIA / UnpadFA events feed the vote — other kernels in the
     block are ignored, even if they happen to carry input shapes.
     """
-    events = _events_for_with_shapes([
-        ("NpuRotaryEmbedding",   "1,32,128;1,32,128"),  # ignored
-        ("NormalizationKernel",  "1,4096"),             # ignored
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("NpuRotaryEmbedding", "1,32,128;1,32,128"),  # ignored
+            ("NormalizationKernel", "1,4096"),  # ignored
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "gqa_or_mha"
 
 
@@ -723,9 +735,11 @@ def test_shape_refine_bails_when_kv_heads_exceed_q_heads():
     Pin the explicit bail-out so future refinement-rule changes can't
     accidentally turn the silent skip into a wrong-answer label.
     """
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScore", "32768,8,256;1950,128,256;1950,128,256"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScore", "32768,8,256;1950,128,256;1950,128,256"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "gqa_or_mha"
 
 
@@ -741,14 +755,18 @@ def test_shape_refine_recognises_pagedattentionmask_kernel():
     fall back gracefully.
     """
     # Non-paged MHA shapes: should refine to ``mha``.
-    events = _events_for_with_shapes([
-        ("PagedAttentionMaskNdKernel", "1,12,64;1,512,12,64;1,512,12,64"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("PagedAttentionMaskNdKernel", "1,12,64;1,512,12,64;1,512,12,64"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "mha"
     # Paged-K layout: must still fall back (no kv_heads visible).
-    events = _events_for_with_shapes([
-        ("PagedAttentionMaskNdKernel", "32768,8,256;1950,128,256"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("PagedAttentionMaskNdKernel", "32768,8,256;1950,128,256"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "gqa_or_mha"
 
 
@@ -759,9 +777,11 @@ def test_shape_refine_handles_unpad_flash_attention_bf16_nd_kernel():
     matching token in ``_FLASH_SCORE_NAME_TOKENS`` keeps catching the
     kernel after future refactors.
     """
-    events = _events_for_with_shapes([
-        ("UnpadFlashAttentionBF16NdKernel", "4888,16,128;4888,16,128;4888,16,128"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("UnpadFlashAttentionBF16NdKernel", "4888,16,128;4888,16,128;4888,16,128"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "mha"
 
 
@@ -791,7 +811,7 @@ def test_events_in_row_range_is_inclusive_on_both_ends():
     # first, then the closing FIA score on the final row.
     events = [
         _FakeEvent(name="NpuRotaryEmbedding", rank_id="rank0", row_idx=106),
-        _FakeEvent(name="ReshapeAndCache",    rank_id="rank0", row_idx=107),
+        _FakeEvent(name="ReshapeAndCache", rank_id="rank0", row_idx=107),
         _FakeEvent(
             name="aclnnFlashAttentionVarLenScore_FlashAttentionScore_FlashAttentionScore",
             rank_id="rank0",
@@ -812,9 +832,7 @@ def test_events_in_row_range_is_inclusive_on_both_ends():
     # 2. End-to-end: the closing FIA on the last row must drive the
     # category resolver, and shape refinement must lift the umbrella
     # ``gqa_or_mha`` to ``mha`` (Q[0]==K[0]==1620, num_q==num_kv==4).
-    assert (
-        html_report.detect_attention_subtype(block, 106, 121, "rank0") == "mha"
-    )
+    assert html_report.detect_attention_subtype(block, 106, 121, "rank0") == "mha"
 
 
 def test_detect_attention_subtype_refines_gqa_or_mha_to_mha():
@@ -822,14 +840,14 @@ def test_detect_attention_subtype_refines_gqa_or_mha_to_mha():
     dense FIA block with MHA shapes should report ``mha``, NOT
     ``gqa_or_mha``.
     """
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScore", "1,12,64;1,512,12,64;1,512,12,64"),
-        ("NpuRotaryEmbedding",       ""),
-    ])
-    block = _FakeBlock(events=events)
-    assert (
-        html_report.detect_attention_subtype(block, 0, len(events), "rank0") == "mha"
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScore", "1,12,64;1,512,12,64;1,512,12,64"),
+            ("NpuRotaryEmbedding", ""),
+        ]
     )
+    block = _FakeBlock(events=events)
+    assert html_report.detect_attention_subtype(block, 0, len(events), "rank0") == "mha"
 
 
 def test_detect_attention_subtype_keeps_gqa_or_mha_when_shapes_missing():
@@ -851,15 +869,18 @@ def test_shape_refinement_does_not_override_mla_decision():
     order puts category-based MLA detection first.
     """
     # category-side: MLA companions present → resolver returns "mla"
-    events = _events_for_with_shapes([
-        ("MlaPreprocess",                ""),
-        ("KvRmsNormRopeCache",           ""),
-        ("FusedInferAttentionScoreV2",   "1,16,128;1,512,1,128"),  # would refine to mqa
-    ])
-    block = _FakeBlock(events=events)
-    assert (
-        html_report.detect_attention_subtype(block, 0, len(events), "rank0") == "mla"
+    events = _events_for_with_shapes(
+        [
+            ("MlaPreprocess", ""),
+            ("KvRmsNormRopeCache", ""),
+            (
+                "FusedInferAttentionScoreV2",
+                "1,16,128;1,512,1,128",
+            ),  # would refine to mqa
+        ]
     )
+    block = _FakeBlock(events=events)
+    assert html_report.detect_attention_subtype(block, 0, len(events), "rank0") == "mla"
 
 
 def test_shape_refine_rejects_paged_kv_cache_layout():
@@ -875,9 +896,11 @@ def test_shape_refine_rejects_paged_kv_cache_layout():
         Q = [4, 4, 256]       (4 decode tokens, 4 q heads/rank, head_dim=256)
         K = [10000, 128, 256] (10000 blocks, block_size=128, head_dim=256)
     """
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScoreV2", "4,4,256;10000,128,256;10000,128,256"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScoreV2", "4,4,256;10000,128,256;10000,128,256"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "gqa_or_mha"
 
 
@@ -890,9 +913,11 @@ def test_shape_refine_accepts_non_paged_3d_with_matching_batch_axes():
     Real shape pulled from kernel_details.csv:
         Q = K = V = [1620, 4, 128]   (1620 tokens, 4 heads/rank, head_dim=128)
     """
-    events = _events_for_with_shapes([
-        ("FlashAttentionScore", "1620,4,128;1620,4,128;1620,4,128"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FlashAttentionScore", "1620,4,128;1620,4,128;1620,4,128"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "mha"
 
 
@@ -900,9 +925,11 @@ def test_shape_refine_rejects_5d_unknown_layout():
     """5D+ tensors don't match any layout we know how to read; bail
     out rather than guess.
     """
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScore", "2,4,8,16,128;2,4,8,16,128"),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScore", "2,4,8,16,128;2,4,8,16,128"),
+        ]
+    )
     assert common.refine_dense_attention_from_shapes(events) == "gqa_or_mha"
 
 
@@ -910,10 +937,12 @@ def test_shape_refinement_preserves_kvc_suffix():
     """The ``+kvc`` suffix from KVComp overlay must survive shape
     refinement. ``gqa_or_mha+kvc`` with GQA shapes → ``gqa+kvc``.
     """
-    events = _events_for_with_shapes([
-        ("FusedInferAttentionScore", "1,32,128;1,1024,8,128"),
-        ("NpuHammingDistTopK",       ""),
-    ])
+    events = _events_for_with_shapes(
+        [
+            ("FusedInferAttentionScore", "1,32,128;1,1024,8,128"),
+            ("NpuHammingDistTopK", ""),
+        ]
+    )
     block = _FakeBlock(events=events)
     assert (
         html_report.detect_attention_subtype(block, 0, len(events), "rank0")

@@ -291,7 +291,9 @@ def _class_id(
     """
 
     if not pairs:
-        digest = hashlib.blake2b(fallback_member_id.encode("utf-8"), digest_size=6).hexdigest()
+        digest = hashlib.blake2b(
+            fallback_member_id.encode("utf-8"), digest_size=6
+        ).hexdigest()
         return f"{prefix}_unknown_shape_{digest}", False
     payload = json.dumps(
         [structure_sig or "", scope_label or "", list(pairs)],
@@ -305,7 +307,10 @@ def _class_id(
 def _row_indexes_by_rank(
     events_by_rank: Mapping[str, Sequence[NormalizedEvent]],
 ) -> dict[str, list[int]]:
-    return {rank: [event.row_idx for event in events] for rank, events in events_by_rank.items()}
+    return {
+        rank: [event.row_idx for event in events]
+        for rank, events in events_by_rank.items()
+    }
 
 
 def classify_profile(output_dir: Path) -> dict[str, Any]:
@@ -330,7 +335,9 @@ def classify_profile(output_dir: Path) -> dict[str, Any]:
     for layer in layers:
         rank_events = events_by_rank.get(layer.rank_id, [])
         rank_rows = row_indexes.get(layer.rank_id, [])
-        events_in_layer = _event_slice(rank_events, rank_rows, layer.row_start, layer.row_end)
+        events_in_layer = _event_slice(
+            rank_events, rank_rows, layer.row_start, layer.row_end
+        )
         layer_events[layer.layer_id] = events_in_layer
         raw_blocks = decompose_layer_into_blocks(layer, events_in_layer)
         layer_blocks = _build_block_segments(layer, raw_blocks)
@@ -378,7 +385,9 @@ def classify_profile(output_dir: Path) -> dict[str, Any]:
         evs = layer_events.get(layer.layer_id, [])
         pairs = _shape_pairs(evs)
         block_kinds = tuple(b.block_kind for b in layer_blocks)
-        block_class_ids = tuple(block_class_by_id.get(b.block_id, "") for b in layer_blocks)
+        block_class_ids = tuple(
+            block_class_by_id.get(b.block_id, "") for b in layer_blocks
+        )
         scope = f"{'->'.join(block_kinds) or 'empty'}|companion={int(any(b.companion_layer for b in layer_blocks))}"
         class_id, has_shape = _class_id(
             "lyr_cls",
@@ -409,7 +418,9 @@ def classify_profile(output_dir: Path) -> dict[str, Any]:
         rank_rows = row_indexes.get(step.rank_id, [])
         evs = _event_slice(rank_events, rank_rows, step.row_start, step.row_end)
         pairs = _shape_pairs(evs)
-        layer_ids = [lyr.layer_id for lyr in layers_by_step.get(str(step.segment_id), [])]
+        layer_ids = [
+            lyr.layer_id for lyr in layers_by_step.get(str(step.segment_id), [])
+        ]
         layer_class_ids = tuple(layer_class_by_id.get(lid, "") for lid in layer_ids)
         scope = f"layers={len(layer_ids)}|main={step.main_layer_count or 0}"
         class_id, has_shape = _class_id(
@@ -477,7 +488,11 @@ def classify_profile(output_dir: Path) -> dict[str, Any]:
     write_json(output_dir / "class_signatures.json", class_signatures_payload)
 
     # ---- Manifest ---------------------------------------------------------
-    companion_layer_count = sum(1 for layer_blocks in blocks_by_layer.values() if layer_blocks and any(b.companion_layer for b in layer_blocks))
+    companion_layer_count = sum(
+        1
+        for layer_blocks in blocks_by_layer.values()
+        if layer_blocks and any(b.companion_layer for b in layer_blocks)
+    )
     block_kind_counts: dict[str, int] = defaultdict(int)
     for block in block_segments:
         block_kind_counts[block.block_kind] += 1
@@ -502,11 +517,17 @@ def classify_profile(output_dir: Path) -> dict[str, Any]:
             "block_kind_counts": dict(sorted(block_kind_counts.items())),
         },
         "shape_coverage": {
-            "step_classes_with_shape": sum(1 for v in step_classes.values() if not v.get("has_unknown_shape")),
+            "step_classes_with_shape": sum(
+                1 for v in step_classes.values() if not v.get("has_unknown_shape")
+            ),
             "step_classes_total": len(step_classes),
-            "layer_classes_with_shape": sum(1 for v in layer_classes.values() if not v.get("has_unknown_shape")),
+            "layer_classes_with_shape": sum(
+                1 for v in layer_classes.values() if not v.get("has_unknown_shape")
+            ),
             "layer_classes_total": len(layer_classes),
-            "block_classes_with_shape": sum(1 for v in block_classes.values() if not v.get("has_unknown_shape")),
+            "block_classes_with_shape": sum(
+                1 for v in block_classes.values() if not v.get("has_unknown_shape")
+            ),
             "block_classes_total": len(block_classes),
         },
     }

@@ -72,7 +72,10 @@ def repo_root() -> Path:
 
 def _read_endpoint_aliases() -> dict[str, Any]:
     merged: dict[str, Any] = {}
-    for path in (substrate_root() / "endpoints.json", substrate_root() / "endpoints.local.json"):
+    for path in (
+        substrate_root() / "endpoints.json",
+        substrate_root() / "endpoints.local.json",
+    ):
         if not path.exists():
             continue
         try:
@@ -100,11 +103,15 @@ def _direct_endpoint(payload: dict[str, Any]) -> Endpoint:
         root=str(payload.get("root") or DEFAULT_ROOT),
         cwd=str(payload["cwd"]) if payload.get("cwd") else None,
         runtime_env=bool(payload.get("runtime_env", True)),
-        identity_file=str(payload["identity_file"]) if payload.get("identity_file") else None,
+        identity_file=str(payload["identity_file"])
+        if payload.get("identity_file")
+        else None,
         connect_timeout_ms=int(payload.get("connect_timeout_ms") or 10000),
         kind=str(payload.get("kind") or "direct-endpoint"),
         alias=str(payload["alias"]) if payload.get("alias") else None,
-        source=payload.get("source") if isinstance(payload.get("source"), dict) else None,
+        source=payload.get("source")
+        if isinstance(payload.get("source"), dict)
+        else None,
     )
 
 
@@ -135,9 +142,13 @@ def _endpoint_from_managed(payload: dict[str, Any]) -> Endpoint:
         root=str(payload.get("root") or DEFAULT_ROOT),
         cwd=str(payload.get("cwd") or target.runtime_root),
         runtime_env=bool(payload.get("runtime_env", True)),
-        identity_file=str(payload["identity_file"]) if payload.get("identity_file") else None,
+        identity_file=str(payload["identity_file"])
+        if payload.get("identity_file")
+        else None,
         connect_timeout_ms=int(payload.get("connect_timeout_ms") or 10000),
-        kind="managed-session" if payload.get("session_id") or payload.get("session_file") else "managed-machine",
+        kind="managed-session"
+        if payload.get("session_id") or payload.get("session_file")
+        else "managed-machine",
         alias=str(payload.get("session_id") or payload.get("machine") or target.alias),
         source={"vaws_target": target.to_dict()},
     )
@@ -154,6 +165,10 @@ def resolve_endpoint(payload: dict[str, Any]) -> Endpoint:
         merged = {**aliases[alias], **payload}
         merged["alias"] = alias
         return _direct_endpoint(merged)
-    if payload.get("session_id") or payload.get("session_file") or payload.get("machine"):
+    if (
+        payload.get("session_id")
+        or payload.get("session_file")
+        or payload.get("machine")
+    ):
         return _endpoint_from_managed(payload)
     raise EndpointError("provide host+port, alias, session_id/session_file, or machine")

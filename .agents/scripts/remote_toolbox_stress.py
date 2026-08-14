@@ -52,7 +52,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-exec", action="store_true")
     parser.add_argument("--skip-jobs", action="store_true")
     parser.add_argument("--skip-artifacts", action="store_true")
-    parser.add_argument("--cleanup-remote", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--cleanup-remote", action=argparse.BooleanOptionalAction, default=True
+    )
     return parser
 
 
@@ -77,7 +79,11 @@ def run_stress(args: argparse.Namespace) -> dict[str, Any]:
     cases: dict[str, Any] = {}
 
     if not args.skip_exec:
-        emit_progress("stress-exec", "running concurrent remote_exec checks", count=args.exec_count)
+        emit_progress(
+            "stress-exec",
+            "running concurrent remote_exec checks",
+            count=args.exec_count,
+        )
 
         def exec_worker(i: int) -> dict[str, Any]:
             result = remote_exec(
@@ -95,14 +101,23 @@ def run_stress(args: argparse.Namespace) -> dict[str, Any]:
                 "logs": result["logs"],
             }
 
-        exec_results = _run_parallel(list(range(args.exec_count)), exec_worker, parallelism=args.parallelism)
+        exec_results = _run_parallel(
+            list(range(args.exec_count)), exec_worker, parallelism=args.parallelism
+        )
         cases["remote_exec"] = _case(
-            "ok" if all(item["status"] == "ok" and item["stdout_tail"].startswith("exec-") for item in exec_results) else "failed",
+            "ok"
+            if all(
+                item["status"] == "ok" and item["stdout_tail"].startswith("exec-")
+                for item in exec_results
+            )
+            else "failed",
             results=sorted(exec_results, key=lambda item: item["index"]),
         )
 
     if not args.skip_jobs:
-        emit_progress("stress-jobs", "starting and observing remote jobs", count=args.job_count)
+        emit_progress(
+            "stress-jobs", "starting and observing remote jobs", count=args.job_count
+        )
         job_starts = []
         for i in range(args.job_count):
             job_starts.append(
@@ -139,14 +154,27 @@ def run_stress(args: argparse.Namespace) -> dict[str, Any]:
                 }
             )
         cases["remote_jobs"] = _case(
-            "ok" if all(item["status"] == "succeeded" and "job-" in item["tail"] for item in job_observed) else "failed",
+            "ok"
+            if all(
+                item["status"] == "succeeded" and "job-" in item["tail"]
+                for item in job_observed
+            )
+            else "failed",
             results=job_observed,
         )
 
     if not args.skip_artifacts:
-        emit_progress("stress-artifacts", "creating and pulling artifact directory", files=args.artifact_files)
-        remote_dir = f"{target.remote_toolbox_root()}/stress/artifacts-{int(time.time())}"
-        local_dir = ARTIFACT_STATE_DIR / "stress" / target.target_id / Path(remote_dir).name
+        emit_progress(
+            "stress-artifacts",
+            "creating and pulling artifact directory",
+            files=args.artifact_files,
+        )
+        remote_dir = (
+            f"{target.remote_toolbox_root()}/stress/artifacts-{int(time.time())}"
+        )
+        local_dir = (
+            ARTIFACT_STATE_DIR / "stress" / target.target_id / Path(remote_dir).name
+        )
         make_script = [
             f"rm -rf {shlex.quote(remote_dir)}",
             f"mkdir -p {shlex.quote(remote_dir)}",
@@ -178,14 +206,26 @@ def run_stress(args: argparse.Namespace) -> dict[str, Any]:
                 log_kind="stress-artifact-cleanup",
             )
         cases["artifacts"] = _case(
-            "ok" if create_result["status"] == "ok" and pull_result["status"] == "ok" and pull_result["artifacts"]["manifest"]["file_count"] == args.artifact_files else "failed",
+            "ok"
+            if create_result["status"] == "ok"
+            and pull_result["status"] == "ok"
+            and pull_result["artifacts"]["manifest"]["file_count"]
+            == args.artifact_files
+            else "failed",
             remote_dir=remote_dir,
             local_dir=str(local_dir),
             create_status=create_result["status"],
             pull_status=pull_result["status"],
-            file_count=pull_result.get("artifacts", {}).get("manifest", {}).get("file_count"),
+            file_count=pull_result.get("artifacts", {})
+            .get("manifest", {})
+            .get("file_count"),
             pulled=len(pull_result.get("artifacts", {}).get("pulled", [])),
-            transports=sorted({item.get("transport") for item in pull_result.get("artifacts", {}).get("pulled", [])}),
+            transports=sorted(
+                {
+                    item.get("transport")
+                    for item in pull_result.get("artifacts", {}).get("pulled", [])
+                }
+            ),
             cleanup_status=cleanup_result["status"] if cleanup_result else "skipped",
         )
 
@@ -218,15 +258,17 @@ def main(argv: list[str] | None = None) -> int:
         print_json(payload)
         return 0 if payload["status"] == "ok" else 1
     except Exception as exc:  # noqa: BLE001
-        print_json({
-            "status": "failed",
-            "started_at": started_at,
-            "duration_ms": duration_ms(start),
-            "error": str(exc),
-            "error_tail": tail_text(str(exc), 2000),
-            "target": None,
-            "logs": {},
-        })
+        print_json(
+            {
+                "status": "failed",
+                "started_at": started_at,
+                "duration_ms": duration_ms(start),
+                "error": str(exc),
+                "error_tail": tail_text(str(exc), 2000),
+                "target": None,
+                "logs": {},
+            }
+        )
         return 2
 
 

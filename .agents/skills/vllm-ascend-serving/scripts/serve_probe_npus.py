@@ -57,11 +57,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     except Exception as exc:
-        print_json({
-            "status": "failed",
-            "error": str(exc),
-            "machine": getattr(args, "machine", None),
-        })
+        print_json(
+            {
+                "status": "failed",
+                "error": str(exc),
+                "machine": getattr(args, "machine", None),
+            }
+        )
         return 2
 
 

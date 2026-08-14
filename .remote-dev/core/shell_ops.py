@@ -97,9 +97,13 @@ def remote_bash(
     started = utc_now_iso()
     start = time.monotonic()
     log_dir = new_log_dir(endpoint, "bash", invocation_id)
-    runtime_lines = [
-        "if [ -f /etc/profile.d/vaws-ascend-env.sh ]; then set +u; . /etc/profile.d/vaws-ascend-env.sh; set -u; fi"
-    ] if runtime_enabled else []
+    runtime_lines = (
+        [
+            "if [ -f /etc/profile.d/vaws-ascend-env.sh ]; then set +u; . /etc/profile.d/vaws-ascend-env.sh; set -u; fi"
+        ]
+        if runtime_enabled
+        else []
+    )
     validation = "\n".join(
         [
             "python3 - <<'REMOTE_DEV_VALIDATE'",
@@ -163,12 +167,20 @@ def remote_bash(
         started_at=started,
         duration_ms=_duration_ms(start),
         preview=stdout_stderr_preview(completed.stdout, completed.stderr),
-        refs={"stdout": str(stdout_path), "stderr": str(stderr_path), "metadata": str(result_path)},
+        refs={
+            "stdout": str(stdout_path),
+            "stderr": str(stderr_path),
+            "metadata": str(result_path),
+        },
         extra={
             "exit_code": completed.returncode,
             "timed_out": completed.timed_out,
             "command_preview": command[:500],
-            "environment": {"runtime_env": runtime_enabled, "env_keys": sorted(env), "timeout_ms": timeout_ms},
+            "environment": {
+                "runtime_env": runtime_enabled,
+                "env_keys": sorted(env),
+                "timeout_ms": timeout_ms,
+            },
         },
     )
     atomic_write_json(result_path, result)

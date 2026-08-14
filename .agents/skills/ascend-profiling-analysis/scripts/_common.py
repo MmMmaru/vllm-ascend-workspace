@@ -156,6 +156,7 @@ LIGHTWEIGHT_PULL_PATHS = (
 # SSH endpoint
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class SshEndpoint:
     host: str
@@ -229,7 +230,9 @@ def resolve_execution_target(
             "session": lookup.session,
         }
     if not machine:
-        raise ValueError("--machine is required unless --session-id or --session-file is used")
+        raise ValueError(
+            "--machine is required unless --session-id or --session-file is used"
+        )
     record = resolve_machine(machine)
     return {
         "mode": "legacy",
@@ -245,6 +248,7 @@ def resolve_execution_target(
 # ---------------------------------------------------------------------------
 # Progress / output
 # ---------------------------------------------------------------------------
+
 
 def progress(phase: str, message: str, **extra: Any) -> None:
     payload: dict[str, Any] = {"phase": phase, "message": message}
@@ -263,15 +267,22 @@ def print_json(data: dict[str, Any]) -> None:
 # Remote command execution
 # ---------------------------------------------------------------------------
 
+
 def _ssh_base_cmd(endpoint: SshEndpoint) -> list[str]:
     return [
         "ssh",
-        "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "ServerAliveInterval=30",
-        "-o", "ServerAliveCountMax=10",
-        "-o", "LogLevel=ERROR",
-        "-p", str(endpoint.port),
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "ServerAliveInterval=30",
+        "-o",
+        "ServerAliveCountMax=10",
+        "-o",
+        "LogLevel=ERROR",
+        "-p",
+        str(endpoint.port),
         endpoint.destination(),
     ]
 
@@ -331,8 +342,7 @@ def ssh_stream(
         # command's real exit code on success.
         margin = max(int(timeout) - 5, 1)
         remote_payload = (
-            f"timeout --preserve-status {margin}s bash -lc "
-            f"{shlex.quote(script)}"
+            f"timeout --preserve-status {margin}s bash -lc {shlex.quote(script)}"
         )
 
     cmd = [*_ssh_base_cmd(endpoint), "bash", "-c", shlex.quote(remote_payload)]
@@ -366,7 +376,9 @@ def ssh_stream(
                 if not line:
                     break
                 sys.stderr.write(
-                    forward_prefix + line if not line.startswith(forward_prefix) else line
+                    forward_prefix + line
+                    if not line.startswith(forward_prefix)
+                    else line
                 )
                 sys.stderr.flush()
             else:
@@ -389,14 +401,19 @@ def ssh_stream(
 # tar-over-ssh sync helpers (rsync is not always installed in Ascend containers)
 # ---------------------------------------------------------------------------
 
+
 def _ssh_pipe_cmd(endpoint: SshEndpoint, remote_cmd: str) -> list[str]:
     """SSH command that runs a remote shell snippet, suitable for tar piping."""
     return [
         "ssh",
-        "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "LogLevel=ERROR",
-        "-p", str(endpoint.port),
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "LogLevel=ERROR",
+        "-p",
+        str(endpoint.port),
         endpoint.destination(),
         remote_cmd,
     ]
@@ -436,7 +453,9 @@ def sync_to_remote(
     tar_args.extend(["-C", str(local_path), "."])
     remote_unpack = f"tar -xz -C {shlex.quote(remote_path)}"
 
-    tar_proc = subprocess.Popen(tar_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    tar_proc = subprocess.Popen(
+        tar_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     ssh_proc = subprocess.Popen(
         _ssh_pipe_cmd(endpoint, remote_unpack),
         stdin=tar_proc.stdout,
@@ -477,7 +496,9 @@ def sync_from_remote(
     fail the whole pull because of one missing optional file).
     """
     local_path.mkdir(parents=True, exist_ok=True)
-    progress("artifact_pull", "tar remote -> local", src=remote_path, dst=str(local_path))
+    progress(
+        "artifact_pull", "tar remote -> local", src=remote_path, dst=str(local_path)
+    )
 
     if include_paths is None:
         # Pull the whole directory.
@@ -490,11 +511,11 @@ def sync_from_remote(
         remote_pack = (
             f"cd {shlex.quote(remote_path)} && "
             f"present=(); for p in {existing}; do "
-            f"  if [ -e \"$p\" ]; then present+=(\"$p\"); else "
-            f"    echo \"skip missing: $p\" 1>&2; fi; "
+            f'  if [ -e "$p" ]; then present+=("$p"); else '
+            f'    echo "skip missing: $p" 1>&2; fi; '
             f"done; "
             f"if [ ${{#present[@]}} -eq 0 ]; then exit 0; fi; "
-            f"tar -cz \"${{present[@]}}\""
+            f'tar -cz "${{present[@]}}"'
         )
 
     ssh_proc = subprocess.Popen(
@@ -532,6 +553,7 @@ def sync_from_remote(
 # ---------------------------------------------------------------------------
 # Run dir / manifest helpers
 # ---------------------------------------------------------------------------
+
 
 def ensure_run_dir(
     tag: str = "",
@@ -594,9 +616,7 @@ def load_collection_manifest(manifest_path: Path) -> dict[str, Any]:
 
     remote_root = data.get("remote_profile_root")
     if not isinstance(remote_root, str) or not remote_root.strip():
-        raise RuntimeError(
-            f"manifest missing remote_profile_root: {manifest_path}"
-        )
+        raise RuntimeError(f"manifest missing remote_profile_root: {manifest_path}")
     return data
 
 

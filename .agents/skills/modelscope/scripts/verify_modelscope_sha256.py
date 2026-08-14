@@ -240,7 +240,9 @@ def verify_model(
         "ok": sum(1 for check in checks if check.status == "ok"),
         "missing": sum(1 for check in checks if check.status == "missing"),
         "size_mismatch": sum(1 for check in checks if check.status == "size_mismatch"),
-        "sha256_mismatch": sum(1 for check in checks if check.status == "sha256_mismatch"),
+        "sha256_mismatch": sum(
+            1 for check in checks if check.status == "sha256_mismatch"
+        ),
         "extra_file_count": len(extra_files),
         "extra_files": extra_files,
     }

@@ -155,7 +155,9 @@ class RemoteTarget:
             "artifacts": str(ARTIFACT_STATE_DIR),
         }
         if self.session_id:
-            state_paths["session_file"] = str(self.session_file) if self.session_file else None
+            state_paths["session_file"] = (
+                str(self.session_file) if self.session_file else None
+            )
             state_paths["serving_state"] = str(
                 session_serving_state_path(self.session_id, self.state_repo_root)
             )
@@ -200,7 +202,11 @@ def emit_progress(phase: str, message: str | None = None, **extra: Any) -> None:
     if message is not None:
         payload["message"] = message
     payload.update({key: value for key, value in extra.items() if value is not None})
-    sys.stderr.write(PROGRESS_SENTINEL + json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+    sys.stderr.write(
+        PROGRESS_SENTINEL
+        + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        + "\n"
+    )
     sys.stderr.flush()
 
 
@@ -225,7 +231,9 @@ def _write_text(path: Path, value: str) -> None:
 
 def _atomic_write_json(path: Path, data: Any) -> None:
     ensure_state_dir(path.parent)
-    handle, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    handle, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as fh:
             fh.write(json_dumps(data) + "\n")
@@ -250,7 +258,9 @@ def _new_log_dir(kind: str, token: str | None = None) -> Path:
 
 
 def derive_workspace_id(repo_root: Path) -> str:
-    base = "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in repo_root.name.lower()).strip(".-")
+    base = "".join(
+        ch if ch.isalnum() or ch in "._-" else "-" for ch in repo_root.name.lower()
+    ).strip(".-")
     digest = hashlib.sha1(str(repo_root.resolve()).encode("utf-8")).hexdigest()[:8]
     return f"{base or 'workspace'}-{digest}"
 
@@ -271,7 +281,9 @@ def _load_inventory(repo_root: Path = ROOT) -> tuple[dict[str, Any], Path]:
     return _load_json(path), path
 
 
-def _find_machine_record(identifier: str, repo_root: Path = ROOT) -> tuple[dict[str, Any], Path]:
+def _find_machine_record(
+    identifier: str, repo_root: Path = ROOT
+) -> tuple[dict[str, Any], Path]:
     inventory, path = _load_inventory(repo_root)
     matches: list[dict[str, Any]] = []
     for record in inventory.get("machines", []):
@@ -281,9 +293,13 @@ def _find_machine_record(identifier: str, repo_root: Path = ROOT) -> tuple[dict[
         if identifier in {alias, ip}:
             matches.append(record)
     if not matches:
-        raise RemoteToolboxError(f"machine {identifier!r} not found in inventory {path}")
+        raise RemoteToolboxError(
+            f"machine {identifier!r} not found in inventory {path}"
+        )
     if len(matches) > 1:
-        raise RemoteToolboxError(f"machine {identifier!r} matched multiple inventory records")
+        raise RemoteToolboxError(
+            f"machine {identifier!r} matched multiple inventory records"
+        )
     return matches[0], path
 
 
@@ -291,11 +307,15 @@ def _container_endpoint(record: dict[str, Any]) -> SshEndpoint:
     host = record.get("host", {})
     container = record.get("container", {})
     if not isinstance(host, dict) or not isinstance(container, dict):
-        raise RemoteToolboxError("machine record must contain host and container objects")
+        raise RemoteToolboxError(
+            "machine record must contain host and container objects"
+        )
     port = container.get("ssh_port")
     if not isinstance(port, int):
         raise RemoteToolboxError("machine record is missing container.ssh_port")
-    return SshEndpoint(host=str(host["ip"]), port=port, user=str(container.get("user", "root")))
+    return SshEndpoint(
+        host=str(host["ip"]), port=port, user=str(container.get("user", "root"))
+    )
 
 
 def _host_endpoint(record: dict[str, Any]) -> SshEndpoint:
@@ -318,7 +338,9 @@ def resolve_remote_target(
 ) -> RemoteTarget:
     repo_root = repo_root.expanduser().resolve()
     if machine and (session_id or session_file):
-        raise RemoteToolboxError("use exactly one target surface: --machine or --session-id/--session-file")
+        raise RemoteToolboxError(
+            "use exactly one target surface: --machine or --session-id/--session-file"
+        )
     if session_id or session_file:
         lookup = load_session_lookup(
             session_id=session_id,
@@ -343,7 +365,9 @@ def resolve_remote_target(
             workspace_root=workspace_root,
             runtime_root=runtime_root,
             container_name=str(container.get("name") or session_container["name"]),
-            container_image=str(container.get("image") or session_container.get("image") or ""),
+            container_image=str(
+                container.get("image") or session_container.get("image") or ""
+            ),
             container_endpoint=_container_endpoint(record),
             host_endpoint=_host_endpoint(record),
             state_repo_root=lookup.state_repo_root,
@@ -351,14 +375,20 @@ def resolve_remote_target(
             session_id=session["session_id"],
             session_file=lookup.session_file,
             session=session,
-            leased_devices=[int(item) for item in session.get("leases", {}).get("npu_devices", [])],
+            leased_devices=[
+                int(item) for item in session.get("leases", {}).get("npu_devices", [])
+            ],
         )
 
     if not machine:
-        raise RemoteToolboxError("--machine is required unless --session-id or --session-file is used")
+        raise RemoteToolboxError(
+            "--machine is required unless --session-id or --session-file is used"
+        )
     record, _ = _find_machine_record(machine, repo_root)
     container = record["container"]
-    runtime_root = container.get("runtime_root") or container.get("workdir") or "/vllm-workspace"
+    runtime_root = (
+        container.get("runtime_root") or container.get("workdir") or "/vllm-workspace"
+    )
     alias = str(record.get("alias") or machine)
     return RemoteTarget(
         mode="legacy",
@@ -400,7 +430,9 @@ def ssh_exec_raw(
     check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     cmd = [*_ssh_base_cmd(endpoint), "bash", "-c", shlex.quote(script)]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=timeout, check=False
+    )
     if check and result.returncode != 0:
         raise RemoteToolboxError(
             f"remote command failed (rc={result.returncode}): {tail_text(result.stderr, 2000)}"
@@ -456,7 +488,7 @@ def _probe_effective_environment(
             *_remote_env_exports(env),
             f"cd {shlex.quote(cwd)} 2>/dev/null || true",
             "PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)",
-            "if [ -z \"$PYTHON\" ]; then printf '%s\\n' '{\"status\":\"ok\",\"python\":{\"available\":false}}'; exit 0; fi",
+            'if [ -z "$PYTHON" ]; then printf \'%s\\n\' \'{"status":"ok","python":{"available":false}}\'; exit 0; fi',
             "\"$PYTHON\" - <<'PY'",
             "import json, os, sys",
             "print(json.dumps({",
@@ -504,7 +536,9 @@ def remote_exec(
     status = "failed"
     timed_out = False
     try:
-        result = ssh_exec_raw(target.container_endpoint, script, timeout=timeout, check=False)
+        result = ssh_exec_raw(
+            target.container_endpoint, script, timeout=timeout, check=False
+        )
         stdout = result.stdout or ""
         stderr = result.stderr or ""
         exit_code = result.returncode
@@ -532,7 +566,13 @@ def remote_exec(
         "duration_ms": duration_ms(start),
         "exit_code": exit_code,
         "timed_out": timed_out,
-        "error": "remote command timed out" if timed_out else (f"remote command exited with code {exit_code}" if exit_code not in (0, None) else None),
+        "error": "remote command timed out"
+        if timed_out
+        else (
+            f"remote command exited with code {exit_code}"
+            if exit_code not in (0, None)
+            else None
+        ),
         "command": command,
         "cwd": cwd,
         "environment": {
@@ -578,7 +618,9 @@ def known_hosts_status(endpoint: SshEndpoint) -> dict[str, Any]:
     }
 
 
-def _remote_json(endpoint: SshEndpoint, script: str, *, timeout: float | None = 60) -> dict[str, Any]:
+def _remote_json(
+    endpoint: SshEndpoint, script: str, *, timeout: float | None = 60
+) -> dict[str, Any]:
     try:
         result = ssh_exec_raw(endpoint, script, timeout=timeout, check=False)
     except subprocess.TimeoutExpired as exc:
@@ -615,7 +657,9 @@ def _remote_json(endpoint: SshEndpoint, script: str, *, timeout: float | None = 
 def probe_remote(target: RemoteTarget, *, timeout: float | None = 90) -> dict[str, Any]:
     started_at = now_iso()
     start = time.monotonic()
-    emit_progress("probe-host", "checking host/container image facts", target=target.target_id)
+    emit_progress(
+        "probe-host", "checking host/container image facts", target=target.target_id
+    )
     host_script = f"""
 set +e
 if command -v docker >/dev/null 2>&1; then
@@ -642,7 +686,9 @@ fi
 """
     host_facts = _remote_json(target.host_endpoint, host_script, timeout=timeout)
 
-    emit_progress("probe-container", "checking runtime inside container", target=target.target_id)
+    emit_progress(
+        "probe-container", "checking runtime inside container", target=target.target_id
+    )
     runtime_path = json.dumps(target.runtime_root)
     container_script = f"""
 set +e
@@ -737,7 +783,9 @@ payload = {{
 print(json.dumps(payload, sort_keys=True))
 PY
 """
-    container_facts = _remote_json(target.container_endpoint, container_script, timeout=timeout)
+    container_facts = _remote_json(
+        target.container_endpoint, container_script, timeout=timeout
+    )
     service_facts = probe_service_state(target)
     return {
         "status": "ok" if container_facts.get("status") == "ok" else "needs_repair",
@@ -761,11 +809,15 @@ PY
     }
 
 
-def _load_serving_state_for_target(target: RemoteTarget) -> tuple[dict[str, Any] | None, Path]:
+def _load_serving_state_for_target(
+    target: RemoteTarget,
+) -> tuple[dict[str, Any] | None, Path]:
     if target.session_id:
         path = session_serving_state_path(target.session_id, target.state_repo_root)
     else:
-        path = target.state_repo_root / ".vaws-local" / "serving" / f"{target.alias}.json"
+        path = (
+            target.state_repo_root / ".vaws-local" / "serving" / f"{target.alias}.json"
+        )
     if not path.exists():
         return None, path
     try:
@@ -779,11 +831,27 @@ def probe_service_state(target: RemoteTarget) -> dict[str, Any]:
     payload: dict[str, Any] = {"state_path": str(path), "recorded": state is not None}
     if not state:
         return payload
-    payload["state"] = {k: state.get(k) for k in ("status", "pid", "port", "base_url", "model", "runtime_dir", "log_stdout", "log_stderr")}
+    payload["state"] = {
+        k: state.get(k)
+        for k in (
+            "status",
+            "pid",
+            "port",
+            "base_url",
+            "model",
+            "runtime_dir",
+            "log_stdout",
+            "log_stderr",
+        )
+    }
     pid = state.get("pid")
     port = state.get("port")
     if pid:
-        alive = ssh_exec_raw(target.container_endpoint, f"kill -0 {int(pid)} 2>/dev/null && echo alive || echo dead", check=False)
+        alive = ssh_exec_raw(
+            target.container_endpoint,
+            f"kill -0 {int(pid)} 2>/dev/null && echo alive || echo dead",
+            check=False,
+        )
         payload["pid_alive"] = (alive.stdout or "").strip() == "alive"
     if port:
         health = ssh_exec_raw(
@@ -844,7 +912,8 @@ def start_remote_job(
     started_at = now_iso()
     start = time.monotonic()
     job_id = require_safe_id(
-        job_id or f"job-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}",
+        job_id
+        or f"job-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}",
         label="job id",
     )
     if _job_record_exists(job_id):
@@ -860,7 +929,9 @@ def start_remote_job(
     remote_dir = _remote_job_dir(target, job_id)
     cwd = cwd or target.runtime_root
     env = env or {}
-    status_json = json.dumps({"status": "running", "job_id": job_id, "started_at": started_at})
+    status_json = json.dumps(
+        {"status": "running", "job_id": job_id, "started_at": started_at}
+    )
     meta = {
         "schema_version": 1,
         "job_id": job_id,
@@ -885,17 +956,21 @@ def start_remote_job(
             f"cd {shlex.quote(cwd)}",
             *env_lines,
             f"printf '%s\\n' {shlex.quote(status_json)} > \"$JOB_DIR/status.json\"",
-            "date -u +%Y-%m-%dT%H:%M:%SZ > \"$JOB_DIR/started_at\"",
-            f"{timeout_prefix}bash -c {shlex.quote(command)} > \"$JOB_DIR/stdout.log\" 2> \"$JOB_DIR/stderr.log\"",
+            'date -u +%Y-%m-%dT%H:%M:%SZ > "$JOB_DIR/started_at"',
+            f'{timeout_prefix}bash -c {shlex.quote(command)} > "$JOB_DIR/stdout.log" 2> "$JOB_DIR/stderr.log"',
             "rc=$?",
             "finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "status=failed",
-            "[ \"$rc\" -eq 0 ] && status=succeeded",
-            "if [ \"$rc\" -eq 124 ] || [ \"$rc\" -eq 137 ]; then status=timeout; fi",
-            "cat > \"$JOB_DIR/status.json\" <<EOF",
-            '{"status":"'"$status"'","job_id":"'
-            + job_id
-            + '","exit_code":'"$rc"',"finished_at":"'"$finished"'"}',
+            '[ "$rc" -eq 0 ] && status=succeeded',
+            'if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then status=timeout; fi',
+            'cat > "$JOB_DIR/status.json" <<EOF',
+            '{"status":"'
+            "$status"
+            '","job_id":"' + job_id + '","exit_code":'
+            "$rc"
+            ',"finished_at":"'
+            "$finished"
+            '"}',
             "EOF",
             "exit 0",
         ]
@@ -947,13 +1022,21 @@ printf '{{"pid":%s}}\\n' "$pid"
     }
 
 
-def _resolve_job_target(job_id: str, args: argparse.Namespace | None = None) -> tuple[RemoteTarget, dict[str, Any]]:
+def _resolve_job_target(
+    job_id: str, args: argparse.Namespace | None = None
+) -> tuple[RemoteTarget, dict[str, Any]]:
     job_id = require_safe_id(job_id, label="job id")
     record = _load_job_record(job_id)
     record_job_id = require_safe_id(str(record.get("job_id", "")), label="job id")
     if record_job_id != job_id:
-        raise RemoteToolboxError(f"job record id mismatch: requested {job_id!r}, record has {record_job_id!r}")
-    if args and (getattr(args, "machine", None) or getattr(args, "session_id", None) or getattr(args, "session_file", None)):
+        raise RemoteToolboxError(
+            f"job record id mismatch: requested {job_id!r}, record has {record_job_id!r}"
+        )
+    if args and (
+        getattr(args, "machine", None)
+        or getattr(args, "session_id", None)
+        or getattr(args, "session_file", None)
+    ):
         target = resolve_remote_target(
             machine=getattr(args, "machine", None),
             session_id=getattr(args, "session_id", None),
@@ -962,7 +1045,9 @@ def _resolve_job_target(job_id: str, args: argparse.Namespace | None = None) -> 
     else:
         t = record.get("target", {})
         if t.get("session_id"):
-            target = resolve_remote_target(session_id=t["session_id"], session_file=t.get("session_file"))
+            target = resolve_remote_target(
+                session_id=t["session_id"], session_file=t.get("session_file")
+            )
         else:
             target = resolve_remote_target(machine=t.get("alias") or t.get("target_id"))
     return target, record
@@ -991,7 +1076,9 @@ if [ -f "$pid_path" ]; then pid=$(cat "$pid_path"); if kill -0 "$pid" 2>/dev/nul
             pid_alive = line.endswith("1")
     if status_data.get("status") == "running" and pid_alive is False:
         status_data["status"] = "failed"
-        status_data["reason"] = "pid is no longer alive but job status was not finalized"
+        status_data["reason"] = (
+            "pid is no longer alive but job status was not finalized"
+        )
     top_status = status_data.get("status", "needs_repair")
     if top_status == "unknown":
         top_status = "needs_repair"
@@ -1000,7 +1087,9 @@ if [ -f "$pid_path" ]; then pid=$(cat "$pid_path"); if kill -0 "$pid" 2>/dev/nul
         "target": target.to_dict(),
         "started_at": started_at,
         "duration_ms": duration_ms(start),
-        "error": status_data.get("reason") if top_status in {"failed", "timeout", "needs_repair", "cancelled"} else None,
+        "error": status_data.get("reason")
+        if top_status in {"failed", "timeout", "needs_repair", "cancelled"}
+        else None,
         "job": {**record, "remote_status": status_data, "pid_alive": pid_alive},
         "logs": {
             "stdout": str(PurePosixPath(record["remote_dir"]) / "stdout.log"),
@@ -1009,16 +1098,28 @@ if [ -f "$pid_path" ]; then pid=$(cat "$pid_path"); if kill -0 "$pid" 2>/dev/nul
     }
 
 
-def remote_job_tail(target: RemoteTarget, record: dict[str, Any], *, lines: int = 80, stream: str = "both") -> dict[str, Any]:
+def remote_job_tail(
+    target: RemoteTarget,
+    record: dict[str, Any],
+    *,
+    lines: int = 80,
+    stream: str = "both",
+) -> dict[str, Any]:
     started_at = now_iso()
     start = time.monotonic()
     remote_dir = PurePosixPath(record["remote_dir"])
     commands: list[str] = []
     if stream in {"stdout", "both"}:
-        commands.append(f"echo __STDOUT__; tail -n {int(lines)} {shlex.quote(str(remote_dir / 'stdout.log'))} 2>/dev/null || true")
+        commands.append(
+            f"echo __STDOUT__; tail -n {int(lines)} {shlex.quote(str(remote_dir / 'stdout.log'))} 2>/dev/null || true"
+        )
     if stream in {"stderr", "both"}:
-        commands.append(f"echo __STDERR__; tail -n {int(lines)} {shlex.quote(str(remote_dir / 'stderr.log'))} 2>/dev/null || true")
-    result = ssh_exec_raw(target.container_endpoint, "\n".join(commands), timeout=20, check=False)
+        commands.append(
+            f"echo __STDERR__; tail -n {int(lines)} {shlex.quote(str(remote_dir / 'stderr.log'))} 2>/dev/null || true"
+        )
+    result = ssh_exec_raw(
+        target.container_endpoint, "\n".join(commands), timeout=20, check=False
+    )
     return {
         "status": "ok" if result.returncode == 0 else "failed",
         "target": target.to_dict(),
@@ -1034,7 +1135,9 @@ def remote_job_tail(target: RemoteTarget, record: dict[str, Any], *, lines: int 
     }
 
 
-def remote_job_stop(target: RemoteTarget, record: dict[str, Any], *, force: bool = False) -> dict[str, Any]:
+def remote_job_stop(
+    target: RemoteTarget, record: dict[str, Any], *, force: bool = False
+) -> dict[str, Any]:
     started_at = now_iso()
     start = time.monotonic()
     remote_dir = PurePosixPath(record["remote_dir"])
@@ -1070,7 +1173,9 @@ printf '{{"alive":%s}}\\n' "$alive"
     }
 
 
-def remote_manifest(target: RemoteTarget, remote_path: str, *, timeout: float | None = 120) -> dict[str, Any]:
+def remote_manifest(
+    target: RemoteTarget, remote_path: str, *, timeout: float | None = 120
+) -> dict[str, Any]:
     started_at = now_iso()
     start = time.monotonic()
     remote_json_path = json.dumps(remote_path)
@@ -1166,10 +1271,20 @@ def artifact_pull(
         local_path = local_dir / ("artifact" if relpath == "." else relpath)
         ensure_state_dir(local_path.parent)
         if local_path.exists() and _sha256_file(local_path) == file_info["sha256"]:
-            skipped.append({"relpath": relpath, "local_path": str(local_path), "reason": "hash-match"})
+            skipped.append(
+                {
+                    "relpath": relpath,
+                    "local_path": str(local_path),
+                    "reason": "hash-match",
+                }
+            )
             continue
         pending.append(file_info)
-    if pending and manifest.get("is_dir") and _remote_tar_available(target, timeout=timeout):
+    if (
+        pending
+        and manifest.get("is_dir")
+        and _remote_tar_available(target, timeout=timeout)
+    ):
         batch_result = _artifact_pull_tar_batch(
             target,
             remote_path=remote_path,
@@ -1187,14 +1302,24 @@ def artifact_pull(
         pulled.extend(batch_result["artifacts"]["pulled"])
     else:
         for file_info in pending:
-            single = _artifact_pull_single(target, remote_path=remote_path, local_dir=local_dir, file_info=file_info, timeout=timeout)
+            single = _artifact_pull_single(
+                target,
+                remote_path=remote_path,
+                local_dir=local_dir,
+                file_info=file_info,
+                timeout=timeout,
+            )
             if single["status"] != "ok":
                 return {
                     **single,
                     "target": target.to_dict(),
                     "started_at": started_at,
                     "duration_ms": duration_ms(start),
-                    "artifacts": {"manifest": manifest, "pulled": pulled, "skipped": skipped},
+                    "artifacts": {
+                        "manifest": manifest,
+                        "pulled": pulled,
+                        "skipped": skipped,
+                    },
                     "logs": {},
                 }
             pulled.append(single["artifact"])
@@ -1217,8 +1342,15 @@ def artifact_pull(
     }
 
 
-def _remote_tar_available(target: RemoteTarget, *, timeout: float | None = None) -> bool:
-    result = ssh_exec_raw(target.container_endpoint, "command -v tar >/dev/null 2>&1", timeout=timeout, check=False)
+def _remote_tar_available(
+    target: RemoteTarget, *, timeout: float | None = None
+) -> bool:
+    result = ssh_exec_raw(
+        target.container_endpoint,
+        "command -v tar >/dev/null 2>&1",
+        timeout=timeout,
+        check=False,
+    )
     return result.returncode == 0
 
 
@@ -1274,7 +1406,11 @@ def _artifact_pull_tar_batch(
     files: list[dict[str, Any]],
     timeout: float | None,
 ) -> dict[str, Any]:
-    relpaths = [str(file_info["relpath"]) for file_info in files if file_info.get("relpath") != "."]
+    relpaths = [
+        str(file_info["relpath"])
+        for file_info in files
+        if file_info.get("relpath") != "."
+    ]
     if not relpaths:
         return {
             "status": "failed",
@@ -1306,7 +1442,9 @@ def _artifact_pull_tar_batch(
             for member in tf:
                 if not member.isfile():
                     continue
-                relpath = member.name[2:] if member.name.startswith("./") else member.name
+                relpath = (
+                    member.name[2:] if member.name.startswith("./") else member.name
+                )
                 if relpath not in expected_by_rel:
                     return {
                         "status": "failed",
@@ -1335,13 +1473,15 @@ def _artifact_pull_tar_batch(
                         "logs": {},
                     }
                 os.replace(tmp, local_path)
-                pulled.append({
-                    "relpath": relpath,
-                    "local_path": str(local_path),
-                    "sha256": observed,
-                    "size": expected["size"],
-                    "transport": "tar",
-                })
+                pulled.append(
+                    {
+                        "relpath": relpath,
+                        "local_path": str(local_path),
+                        "sha256": observed,
+                        "size": expected["size"],
+                        "transport": "tar",
+                    }
+                )
     except tarfile.TarError as exc:
         return {
             "status": "failed",
@@ -1369,18 +1509,32 @@ def _local_manifest(local_path: Path) -> dict[str, Any]:
     if not local_path.exists():
         raise RemoteToolboxError(f"local path does not exist: {local_path}")
     files: list[dict[str, Any]] = []
-    roots = [local_path] if local_path.is_file() else sorted(p for p in local_path.rglob("*") if p.is_file())
+    roots = (
+        [local_path]
+        if local_path.is_file()
+        else sorted(p for p in local_path.rglob("*") if p.is_file())
+    )
     for path in roots:
         if path.is_symlink():
-            raise RemoteToolboxError(f"symlinks are not allowed by artifact_push: {path}")
+            raise RemoteToolboxError(
+                f"symlinks are not allowed by artifact_push: {path}"
+            )
         relpath = "." if path == local_path else path.relative_to(local_path).as_posix()
-        files.append({
-            "relpath": relpath,
-            "path": str(path),
-            "size": path.stat().st_size,
-            "sha256": _sha256_file(path),
-        })
-    return {"status": "ok", "local_path": str(local_path), "is_dir": local_path.is_dir(), "file_count": len(files), "files": files}
+        files.append(
+            {
+                "relpath": relpath,
+                "path": str(path),
+                "size": path.stat().st_size,
+                "sha256": _sha256_file(path),
+            }
+        )
+    return {
+        "status": "ok",
+        "local_path": str(local_path),
+        "is_dir": local_path.is_dir(),
+        "file_count": len(files),
+        "files": files,
+    }
 
 
 def artifact_push(
@@ -1400,7 +1554,9 @@ def artifact_push(
         remote_file = _remote_join(remote_path, relpath)
         remote_tmp = f"{remote_file}.tmp-{uuid.uuid4().hex[:8]}"
         mkdir_script = f"mkdir -p {shlex.quote(str(PurePosixPath(remote_file).parent))}"
-        mkdir_result = ssh_exec_raw(target.container_endpoint, mkdir_script, timeout=timeout, check=False)
+        mkdir_result = ssh_exec_raw(
+            target.container_endpoint, mkdir_script, timeout=timeout, check=False
+        )
         if mkdir_result.returncode != 0:
             return {
                 "status": "failed",
@@ -1419,9 +1575,15 @@ def artifact_push(
                 stdin=fh,
                 timeout=timeout,
             )
-        observed = upload.stdout.decode("utf-8", errors="replace").strip().split()[:1] or [""]
+        observed = upload.stdout.decode("utf-8", errors="replace").strip().split()[
+            :1
+        ] or [""]
         if upload.returncode != 0 or observed[0] != file_info["sha256"]:
-            ssh_exec_raw(target.container_endpoint, f"rm -f {shlex.quote(remote_tmp)}", check=False)
+            ssh_exec_raw(
+                target.container_endpoint,
+                f"rm -f {shlex.quote(remote_tmp)}",
+                check=False,
+            )
             return {
                 "status": "failed",
                 "target": target.to_dict(),
@@ -1434,7 +1596,12 @@ def artifact_push(
                 "artifacts": {"manifest": manifest, "pushed": pushed},
                 "logs": {},
             }
-        mv = ssh_exec_raw(target.container_endpoint, f"mv -f {shlex.quote(remote_tmp)} {shlex.quote(remote_file)}", timeout=timeout, check=False)
+        mv = ssh_exec_raw(
+            target.container_endpoint,
+            f"mv -f {shlex.quote(remote_tmp)} {shlex.quote(remote_file)}",
+            timeout=timeout,
+            check=False,
+        )
         if mv.returncode != 0:
             return {
                 "status": "failed",
@@ -1446,18 +1613,31 @@ def artifact_push(
                 "artifacts": {"manifest": manifest, "pushed": pushed},
                 "logs": {},
             }
-        pushed.append({"relpath": relpath, "remote_path": remote_file, "sha256": file_info["sha256"], "size": file_info["size"]})
+        pushed.append(
+            {
+                "relpath": relpath,
+                "remote_path": remote_file,
+                "sha256": file_info["sha256"],
+                "size": file_info["size"],
+            }
+        )
     return {
         "status": "ok",
         "target": target.to_dict(),
         "started_at": started_at,
         "duration_ms": duration_ms(start),
-        "artifacts": {"remote_path": remote_path, "manifest": manifest, "pushed": pushed},
+        "artifacts": {
+            "remote_path": remote_path,
+            "manifest": manifest,
+            "pushed": pushed,
+        },
         "logs": {},
     }
 
 
-def _run_json_command(cmd: list[str], *, cwd: Path = ROOT, relay_stderr: bool = True) -> tuple[int, dict[str, Any], str, str]:
+def _run_json_command(
+    cmd: list[str], *, cwd: Path = ROOT, relay_stderr: bool = True
+) -> tuple[int, dict[str, Any], str, str]:
     proc = subprocess.Popen(
         cmd,
         cwd=str(cwd),
@@ -1488,12 +1668,25 @@ def _run_json_command(cmd: list[str], *, cwd: Path = ROOT, relay_stderr: bool = 
     try:
         payload = json.loads(stdout) if stdout.strip() else {}
     except json.JSONDecodeError:
-        payload = {"status": "failed", "error": "subcommand returned non-JSON stdout", "stdout_tail": tail_text(stdout)}
+        payload = {
+            "status": "failed",
+            "error": "subcommand returned non-JSON stdout",
+            "stdout_tail": tail_text(stdout),
+        }
     return rc, payload, stdout, stderr
 
 
-def parity_derived_args(target: RemoteTarget, *, force_reinstall: bool = False) -> dict[str, Any]:
-    script = ROOT / ".agents" / "skills" / "remote-code-parity" / "scripts" / "parity_sync.py"
+def parity_derived_args(
+    target: RemoteTarget, *, force_reinstall: bool = False
+) -> dict[str, Any]:
+    script = (
+        ROOT
+        / ".agents"
+        / "skills"
+        / "remote-code-parity"
+        / "scripts"
+        / "parity_sync.py"
+    )
     cmd = [sys.executable, str(script), "--print-derived-args"]
     if target.session_file:
         cmd.extend(["--session-file", str(target.session_file)])
@@ -1505,12 +1698,21 @@ def parity_derived_args(target: RemoteTarget, *, force_reinstall: bool = False) 
         cmd.append("--force-reinstall")
     rc, payload, stdout, stderr = _run_json_command(cmd, relay_stderr=True)
     if rc != 0:
-        raise RemoteToolboxError(f"failed to derive parity args: stdout={tail_text(stdout)} stderr={tail_text(stderr)}")
+        raise RemoteToolboxError(
+            f"failed to derive parity args: stdout={tail_text(stdout)} stderr={tail_text(stderr)}"
+        )
     return payload
 
 
 def _parity_plan_manifest(derived: dict[str, Any]) -> dict[str, Any]:
-    script = ROOT / ".agents" / "skills" / "remote-code-parity" / "scripts" / "remote_code_parity.py"
+    script = (
+        ROOT
+        / ".agents"
+        / "skills"
+        / "remote-code-parity"
+        / "scripts"
+        / "remote_code_parity.py"
+    )
     cmd = [
         sys.executable,
         str(script),
@@ -1532,13 +1734,19 @@ def _parity_plan_manifest(derived: dict[str, Any]) -> dict[str, Any]:
         cmd.extend(["--preserve-path", preserve])
     rc, payload, stdout, stderr = _run_json_command(cmd, relay_stderr=True)
     if rc != 0:
-        raise RemoteToolboxError(f"failed to build parity plan: stdout={tail_text(stdout)} stderr={tail_text(stderr)}")
+        raise RemoteToolboxError(
+            f"failed to build parity plan: stdout={tail_text(stdout)} stderr={tail_text(stderr)}"
+        )
     return payload
 
 
 def _repo_install_reasons(repo: dict[str, Any]) -> list[str]:
     relpath = repo.get("relpath", "")
-    patterns = VLLM_ASCEND_REINSTALL_PATTERNS if relpath == "vllm-ascend" else VLLM_REINSTALL_PATTERNS
+    patterns = (
+        VLLM_ASCEND_REINSTALL_PATTERNS
+        if relpath == "vllm-ascend"
+        else VLLM_REINSTALL_PATTERNS
+    )
     reasons = []
     for path in repo.get("changed_paths", []):
         if any(fnmatch.fnmatch(path, pattern) for pattern in patterns):
@@ -1565,12 +1773,16 @@ def _consent_state(derived: dict[str, Any]) -> dict[str, Any]:
     return {
         "status": "ok",
         "decision": record.get("decision") if isinstance(record, dict) else "unknown",
-        "sync_mode": resolve_sync_mode(state, derived["server_name"], derived["container_identity"]),
+        "sync_mode": resolve_sync_mode(
+            state, derived["server_name"], derived["container_identity"]
+        ),
         "record": record,
     }
 
 
-def sync_plan(target: RemoteTarget, *, mode: str, force_reinstall: bool = False) -> dict[str, Any]:
+def sync_plan(
+    target: RemoteTarget, *, mode: str, force_reinstall: bool = False
+) -> dict[str, Any]:
     started_at = now_iso()
     start = time.monotonic()
     derived = parity_derived_args(target, force_reinstall=force_reinstall)
@@ -1633,10 +1845,23 @@ def sync_plan(target: RemoteTarget, *, mode: str, force_reinstall: bool = False)
     }
 
 
-def sync_apply(target: RemoteTarget, *, mode: str, force_reinstall: bool = False, dry_run: bool = False) -> dict[str, Any]:
+def sync_apply(
+    target: RemoteTarget,
+    *,
+    mode: str,
+    force_reinstall: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
     started_at = now_iso()
     start = time.monotonic()
-    script = ROOT / ".agents" / "skills" / "remote-code-parity" / "scripts" / "parity_sync.py"
+    script = (
+        ROOT
+        / ".agents"
+        / "skills"
+        / "remote-code-parity"
+        / "scripts"
+        / "parity_sync.py"
+    )
     cmd = [sys.executable, str(script)]
     if target.session_file:
         cmd.extend(["--session-file", str(target.session_file)])
@@ -1651,7 +1876,13 @@ def sync_apply(target: RemoteTarget, *, mode: str, force_reinstall: bool = False
     cmd.extend(["--apply-mode", mode])
     rc, payload, stdout, stderr = _run_json_command(cmd, relay_stderr=True)
     status = payload.get("status", "failed")
-    if rc != 0 and status not in {"blocked", "needs_input", "needs_repair", "timeout", "failed"}:
+    if rc != 0 and status not in {
+        "blocked",
+        "needs_input",
+        "needs_repair",
+        "timeout",
+        "failed",
+    }:
         status = "failed"
     return {
         "status": status,
@@ -1671,7 +1902,9 @@ def sync_apply(target: RemoteTarget, *, mode: str, force_reinstall: bool = False
     }
 
 
-def call_service(action: str, target: RemoteTarget, extra_args: list[str]) -> dict[str, Any]:
+def call_service(
+    action: str, target: RemoteTarget, extra_args: list[str]
+) -> dict[str, Any]:
     started_at = now_iso()
     start = time.monotonic()
     scripts = ROOT / ".agents" / "skills" / "vllm-ascend-serving" / "scripts"
@@ -1692,7 +1925,14 @@ def call_service(action: str, target: RemoteTarget, extra_args: list[str]) -> di
     cmd.extend(extra_args)
     rc, payload, stdout, stderr = _run_json_command(cmd, relay_stderr=True)
     status = payload.get("status", "failed")
-    if rc != 0 and status not in {"needs_input", "blocked", "failed", "timeout", "needs_repair", "cancelled"}:
+    if rc != 0 and status not in {
+        "needs_input",
+        "blocked",
+        "failed",
+        "timeout",
+        "needs_repair",
+        "cancelled",
+    }:
         status = "failed"
     logs: dict[str, Any] = {}
     for key in ("log_stdout", "log_stderr", "runtime_dir"):
@@ -1730,10 +1970,16 @@ def service_logs(target: RemoteTarget, *, lines: int = 120) -> dict[str, Any]:
     stderr_path = state.get("log_stderr")
     chunks: list[str] = []
     if stdout_path:
-        chunks.append(f"echo __STDOUT__; tail -n {int(lines)} {shlex.quote(stdout_path)} 2>/dev/null || true")
+        chunks.append(
+            f"echo __STDOUT__; tail -n {int(lines)} {shlex.quote(stdout_path)} 2>/dev/null || true"
+        )
     if stderr_path:
-        chunks.append(f"echo __STDERR__; tail -n {int(lines)} {shlex.quote(stderr_path)} 2>/dev/null || true")
-    result = ssh_exec_raw(target.container_endpoint, "\n".join(chunks), timeout=30, check=False)
+        chunks.append(
+            f"echo __STDERR__; tail -n {int(lines)} {shlex.quote(stderr_path)} 2>/dev/null || true"
+        )
+    result = ssh_exec_raw(
+        target.container_endpoint, "\n".join(chunks), timeout=30, check=False
+    )
     return {
         "status": "ok" if result.returncode == 0 else "failed",
         "target": target.to_dict(),
@@ -1775,72 +2021,155 @@ def cleanup(
         else:
             service_result = call_service("stop", target, ["--force"] if force else [])
             actions.append({"action": "service-stop", "result": service_result})
-            service_release_ok = (
-                service_result.get("returncode") == 0
-                and service_result.get("status") in {"stopped", "not_found"}
-            )
+            service_release_ok = service_result.get(
+                "returncode"
+            ) == 0 and service_result.get("status") in {"stopped", "not_found"}
     if jobs or remote_temp:
         remote_paths = []
         if jobs:
             if job_ids:
                 remote_paths.extend(
-                    str(PurePosixPath(target.remote_toolbox_root()) / "jobs" / require_remote_leaf(job_id, label="job id"))
+                    str(
+                        PurePosixPath(target.remote_toolbox_root())
+                        / "jobs"
+                        / require_remote_leaf(job_id, label="job id")
+                    )
                     for job_id in job_ids
                 )
             else:
-                remote_paths.append(str(PurePosixPath(target.remote_toolbox_root()) / "jobs"))
+                remote_paths.append(
+                    str(PurePosixPath(target.remote_toolbox_root()) / "jobs")
+                )
         if remote_temp:
-            remote_paths.append(str(PurePosixPath(target.remote_toolbox_root()) / "tmp"))
+            remote_paths.append(
+                str(PurePosixPath(target.remote_toolbox_root()) / "tmp")
+            )
         if dry_run:
-            actions.append({"action": "remote-rm", "paths": remote_paths, "dry_run": True})
+            actions.append(
+                {"action": "remote-rm", "paths": remote_paths, "dry_run": True}
+            )
         elif remote_paths:
             script = "rm -rf " + " ".join(shlex.quote(path) for path in remote_paths)
-            result = ssh_exec_raw(target.container_endpoint, script, timeout=60, check=False)
-            actions.append({"action": "remote-rm", "paths": remote_paths, "returncode": result.returncode, "stderr_tail": tail_text(result.stderr)})
+            result = ssh_exec_raw(
+                target.container_endpoint, script, timeout=60, check=False
+            )
+            actions.append(
+                {
+                    "action": "remote-rm",
+                    "paths": remote_paths,
+                    "returncode": result.returncode,
+                    "stderr_tail": tail_text(result.stderr),
+                }
+            )
     if session_container:
         if not target.session_id:
-            actions.append({"action": "session-remove", "skipped": True, "reason": "target is not a session"})
+            actions.append(
+                {
+                    "action": "session-remove",
+                    "skipped": True,
+                    "reason": "target is not a session",
+                }
+            )
         elif dry_run:
-            actions.append({"action": "session-remove", "session_id": target.session_id, "dry_run": True})
+            actions.append(
+                {
+                    "action": "session-remove",
+                    "session_id": target.session_id,
+                    "dry_run": True,
+                }
+            )
         else:
-            script = ROOT / ".agents" / "skills" / "session-management" / "scripts" / "session_remove.py"
-            cmd = [sys.executable, str(script), "--session-file", str(target.session_file), "--remove-container"]
+            script = (
+                ROOT
+                / ".agents"
+                / "skills"
+                / "session-management"
+                / "scripts"
+                / "session_remove.py"
+            )
+            cmd = [
+                sys.executable,
+                str(script),
+                "--session-file",
+                str(target.session_file),
+                "--remove-container",
+            ]
             if leases:
                 cmd.append("--release-leases")
             if force:
                 cmd.append("--force")
             rc, payload, stdout, stderr = _run_json_command(cmd, relay_stderr=True)
-            actions.append({"action": "session-remove", "returncode": rc, "result": payload, "stdout_tail": tail_text(stdout), "stderr_tail": tail_text(stderr)})
+            actions.append(
+                {
+                    "action": "session-remove",
+                    "returncode": rc,
+                    "result": payload,
+                    "stdout_tail": tail_text(stdout),
+                    "stderr_tail": tail_text(stderr),
+                }
+            )
     elif leases and target.session_id:
         if not service:
-            actions.append({
-                "action": "release-leases",
-                "session_id": target.session_id,
-                "blocked": True,
-                "reason": "lease release requires --service, --session-container, or --all for session targets",
-            })
+            actions.append(
+                {
+                    "action": "release-leases",
+                    "session_id": target.session_id,
+                    "blocked": True,
+                    "reason": "lease release requires --service, --session-container, or --all for session targets",
+                }
+            )
             status = "blocked"
         elif dry_run:
-            actions.append({"action": "release-leases", "session_id": target.session_id, "dry_run": True})
+            actions.append(
+                {
+                    "action": "release-leases",
+                    "session_id": target.session_id,
+                    "dry_run": True,
+                }
+            )
         elif not service_release_ok:
-            actions.append({
-                "action": "release-leases",
-                "session_id": target.session_id,
-                "blocked": True,
-                "reason": "service stop did not prove resources are safe to release",
-            })
+            actions.append(
+                {
+                    "action": "release-leases",
+                    "session_id": target.session_id,
+                    "blocked": True,
+                    "reason": "service stop did not prove resources are safe to release",
+                }
+            )
             status = "blocked"
         else:
-            release_all_session_leases(repo_root=target.state_repo_root, session_id=target.session_id)
-            actions.append({"action": "release-leases", "session_id": target.session_id, "released": True})
+            release_all_session_leases(
+                repo_root=target.state_repo_root, session_id=target.session_id
+            )
+            actions.append(
+                {
+                    "action": "release-leases",
+                    "session_id": target.session_id,
+                    "released": True,
+                }
+            )
     if known_hosts:
         for endpoint in (target.host_endpoint, target.container_endpoint):
             key = endpoint.known_hosts_key()
             if dry_run:
-                actions.append({"action": "known-hosts-remove", "key": key, "dry_run": True})
+                actions.append(
+                    {"action": "known-hosts-remove", "key": key, "dry_run": True}
+                )
             else:
-                result = subprocess.run(["ssh-keygen", "-R", key], capture_output=True, text=True, check=False)
-                actions.append({"action": "known-hosts-remove", "key": key, "returncode": result.returncode, "stderr_tail": tail_text(result.stderr)})
+                result = subprocess.run(
+                    ["ssh-keygen", "-R", key],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                actions.append(
+                    {
+                        "action": "known-hosts-remove",
+                        "key": key,
+                        "returncode": result.returncode,
+                        "stderr_tail": tail_text(result.stderr),
+                    }
+                )
     proof = {
         "target_after_cleanup": target.to_dict(),
         "known_hosts": {
@@ -1880,37 +2209,54 @@ def target_from_args(args: argparse.Namespace) -> RemoteTarget:
 
 def _cli_error(exc: BaseException, *, started_at: str, start: float) -> int:
     status = "failed"
-    if isinstance(exc, (RemoteToolboxError, WorkspaceStateError, ValidationError, FileNotFoundError)):
+    if isinstance(
+        exc,
+        (RemoteToolboxError, WorkspaceStateError, ValidationError, FileNotFoundError),
+    ):
         status = "needs_input"
     if isinstance(exc, subprocess.TimeoutExpired):
         status = "timeout"
-    print_json({
-        "status": status,
-        "started_at": started_at,
-        "duration_ms": duration_ms(start),
-        "error": str(exc),
-        "target": None,
-        "logs": {},
-    })
+    print_json(
+        {
+            "status": status,
+            "started_at": started_at,
+            "duration_ms": duration_ms(start),
+            "error": str(exc),
+            "target": None,
+            "logs": {},
+        }
+    )
     return 2 if status == "failed" else 1
 
 
 def cli_target_resolve(argv: Sequence[str] | None = None) -> int:
     started_at = now_iso()
     start = time.monotonic()
-    parser = argparse.ArgumentParser(description="Resolve a VAWS remote target.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Resolve a VAWS remote target.", allow_abbrev=False
+    )
     add_target_args(parser)
     args = parser.parse_args(argv)
     try:
         target = target_from_args(args)
-        print_json({"status": "ok", "target": target.to_dict(), "started_at": started_at, "duration_ms": duration_ms(start), "logs": {}})
+        print_json(
+            {
+                "status": "ok",
+                "target": target.to_dict(),
+                "started_at": started_at,
+                "duration_ms": duration_ms(start),
+                "logs": {},
+            }
+        )
         return 0
     except Exception as exc:  # noqa: BLE001
         return _cli_error(exc, started_at=started_at, start=start)
 
 
 def cli_probe(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Probe a VAWS remote target.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Probe a VAWS remote target.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--timeout", type=float, default=90)
     args = parser.parse_args(argv)
@@ -1924,7 +2270,10 @@ def cli_probe(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_exec(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Execute a shell command on a VAWS remote target.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Execute a shell command on a VAWS remote target.",
+        allow_abbrev=False,
+    )
     add_target_args(parser)
     parser.add_argument("--cwd")
     parser.add_argument("--env", action="append", default=[])
@@ -1934,7 +2283,9 @@ def cli_exec(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="do not source /etc/profile.d/vaws-ascend-env.sh before running the command",
     )
-    parser.add_argument("--command", help="shell command to execute; alternatively pass after --")
+    parser.add_argument(
+        "--command", help="shell command to execute; alternatively pass after --"
+    )
     parser.add_argument("command_args", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     started_at = now_iso()
@@ -1964,7 +2315,9 @@ def cli_exec(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_job_start(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Start a long-running remote job.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Start a long-running remote job.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--cwd")
     parser.add_argument("--env", action="append", default=[])
@@ -2000,7 +2353,9 @@ def cli_job_start(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_job_status(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Inspect a remote job.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Inspect a remote job.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--job-id", required=True)
     args = parser.parse_args(argv)
@@ -2016,24 +2371,32 @@ def cli_job_status(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_job_tail(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Tail a remote job log.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Tail a remote job log.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--job-id", required=True)
     parser.add_argument("--lines", type=int, default=80)
-    parser.add_argument("--stream", choices=("stdout", "stderr", "both"), default="both")
+    parser.add_argument(
+        "--stream", choices=("stdout", "stderr", "both"), default="both"
+    )
     args = parser.parse_args(argv)
     started_at = now_iso()
     start = time.monotonic()
     try:
         target, record = _resolve_job_target(args.job_id, args)
-        print_json(remote_job_tail(target, record, lines=args.lines, stream=args.stream))
+        print_json(
+            remote_job_tail(target, record, lines=args.lines, stream=args.stream)
+        )
         return 0
     except Exception as exc:  # noqa: BLE001
         return _cli_error(exc, started_at=started_at, start=start)
 
 
 def cli_job_stop(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Stop a remote job.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Stop a remote job.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--job-id", required=True)
     parser.add_argument("--force", action="store_true")
@@ -2050,7 +2413,9 @@ def cli_job_stop(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_job_collect(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Collect a remote job directory.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Collect a remote job directory.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--job-id", required=True)
     parser.add_argument("--local-dir", type=Path)
@@ -2060,40 +2425,67 @@ def cli_job_collect(argv: Sequence[str] | None = None) -> int:
     try:
         target, record = _resolve_job_target(args.job_id, args)
         local_dir = args.local_dir or (ARTIFACT_STATE_DIR / "jobs" / args.job_id)
-        print_json(artifact_pull(target, remote_path=record["remote_dir"], local_dir=local_dir))
+        print_json(
+            artifact_pull(target, remote_path=record["remote_dir"], local_dir=local_dir)
+        )
         return 0
     except Exception as exc:  # noqa: BLE001
         return _cli_error(exc, started_at=started_at, start=start)
 
 
 def cli_sync_plan(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Plan remote code sync without mutating runtime.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Plan remote code sync without mutating runtime.",
+        allow_abbrev=False,
+    )
     add_target_args(parser)
-    parser.add_argument("--mode", choices=("source-only", "materialize", "install"), required=True)
+    parser.add_argument(
+        "--mode", choices=("source-only", "materialize", "install"), required=True
+    )
     parser.add_argument("--force-reinstall", action="store_true")
     args = parser.parse_args(argv)
     started_at = now_iso()
     start = time.monotonic()
     try:
-        print_json(sync_plan(target_from_args(args), mode=args.mode, force_reinstall=args.force_reinstall))
+        print_json(
+            sync_plan(
+                target_from_args(args),
+                mode=args.mode,
+                force_reinstall=args.force_reinstall,
+            )
+        )
         return 0
     except Exception as exc:  # noqa: BLE001
         return _cli_error(exc, started_at=started_at, start=start)
 
 
 def cli_sync_apply(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Apply remote code sync in a selected mode.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Apply remote code sync in a selected mode.", allow_abbrev=False
+    )
     add_target_args(parser)
-    parser.add_argument("--mode", choices=("source-only", "materialize", "install"), required=True)
+    parser.add_argument(
+        "--mode", choices=("source-only", "materialize", "install"), required=True
+    )
     parser.add_argument("--force-reinstall", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     started_at = now_iso()
     start = time.monotonic()
     try:
-        payload = sync_apply(target_from_args(args), mode=args.mode, force_reinstall=args.force_reinstall, dry_run=args.dry_run)
+        payload = sync_apply(
+            target_from_args(args),
+            mode=args.mode,
+            force_reinstall=args.force_reinstall,
+            dry_run=args.dry_run,
+        )
         print_json(payload)
-        return 0 if payload["status"] in {"ready", "source-only", "materialized", "dry-run", "ok", "skipped"} else 1
+        return (
+            0
+            if payload["status"]
+            in {"ready", "source-only", "materialized", "dry-run", "ok", "skipped"}
+            else 1
+        )
     except Exception as exc:  # noqa: BLE001
         return _cli_error(exc, started_at=started_at, start=start)
 
@@ -2120,7 +2512,10 @@ def cli_service_start(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_service_status(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Check vLLM service status through the remote toolbox.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Check vLLM service status through the remote toolbox.",
+        allow_abbrev=False,
+    )
     add_target_args(parser)
     args = parser.parse_args(argv)
     started_at = now_iso()
@@ -2128,13 +2523,21 @@ def cli_service_status(argv: Sequence[str] | None = None) -> int:
     try:
         payload = call_service("status", target_from_args(args), [])
         print_json(payload)
-        return 0 if payload["status"] in {"ready", "alive", "alive_healthy", "stopped", "not_found"} else 1
+        return (
+            0
+            if payload["status"]
+            in {"ready", "alive", "alive_healthy", "stopped", "not_found"}
+            else 1
+        )
     except Exception as exc:  # noqa: BLE001
         return _cli_error(exc, started_at=started_at, start=start)
 
 
 def cli_service_logs(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Tail vLLM service logs through the remote toolbox.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Tail vLLM service logs through the remote toolbox.",
+        allow_abbrev=False,
+    )
     add_target_args(parser)
     parser.add_argument("--lines", type=int, default=120)
     args = parser.parse_args(argv)
@@ -2149,14 +2552,18 @@ def cli_service_logs(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_service_stop(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Stop vLLM service through the remote toolbox.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Stop vLLM service through the remote toolbox.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     started_at = now_iso()
     start = time.monotonic()
     try:
-        payload = call_service("stop", target_from_args(args), ["--force"] if args.force else [])
+        payload = call_service(
+            "stop", target_from_args(args), ["--force"] if args.force else []
+        )
         print_json(payload)
         return 0 if payload["status"] in {"stopped", "not_found"} else 1
     except Exception as exc:  # noqa: BLE001
@@ -2164,7 +2571,9 @@ def cli_service_stop(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_artifact_manifest(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build a remote artifact manifest.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Build a remote artifact manifest.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--remote-path", required=True)
     args = parser.parse_args(argv)
@@ -2179,7 +2588,9 @@ def cli_artifact_manifest(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_artifact_pull(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Pull remote artifacts through SSH streaming.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Pull remote artifacts through SSH streaming.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--remote-path", required=True)
     parser.add_argument("--local-dir", type=Path, required=True)
@@ -2187,7 +2598,11 @@ def cli_artifact_pull(argv: Sequence[str] | None = None) -> int:
     started_at = now_iso()
     start = time.monotonic()
     try:
-        payload = artifact_pull(target_from_args(args), remote_path=args.remote_path, local_dir=args.local_dir)
+        payload = artifact_pull(
+            target_from_args(args),
+            remote_path=args.remote_path,
+            local_dir=args.local_dir,
+        )
         print_json(payload)
         return 0 if payload["status"] == "ok" else 1
     except Exception as exc:  # noqa: BLE001
@@ -2195,7 +2610,9 @@ def cli_artifact_pull(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_artifact_push(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Push local artifacts through SSH streaming.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Push local artifacts through SSH streaming.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--local-path", type=Path, required=True)
     parser.add_argument("--remote-path", required=True)
@@ -2203,7 +2620,11 @@ def cli_artifact_push(argv: Sequence[str] | None = None) -> int:
     started_at = now_iso()
     start = time.monotonic()
     try:
-        payload = artifact_push(target_from_args(args), local_path=args.local_path, remote_path=args.remote_path)
+        payload = artifact_push(
+            target_from_args(args),
+            local_path=args.local_path,
+            remote_path=args.remote_path,
+        )
         print_json(payload)
         return 0 if payload["status"] == "ok" else 1
     except Exception as exc:  # noqa: BLE001
@@ -2211,11 +2632,18 @@ def cli_artifact_push(argv: Sequence[str] | None = None) -> int:
 
 
 def cli_cleanup(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Clean remote toolbox/session state.", allow_abbrev=False)
+    parser = argparse.ArgumentParser(
+        description="Clean remote toolbox/session state.", allow_abbrev=False
+    )
     add_target_args(parser)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--jobs", action="store_true")
-    parser.add_argument("--job-id", action="append", default=[], help="cleanup only this remote-toolbox job id (repeatable)")
+    parser.add_argument(
+        "--job-id",
+        action="append",
+        default=[],
+        help="cleanup only this remote-toolbox job id (repeatable)",
+    )
     parser.add_argument("--service", action="store_true")
     parser.add_argument("--session-container", action="store_true")
     parser.add_argument("--leases", action="store_true")

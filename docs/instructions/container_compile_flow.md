@@ -9,6 +9,7 @@ rm -rf csrc/build
 ## 第二步
 只需要编译vllm-ascend，使用PYTHONPATH启动vllm
 cd vllm-ascend
+export COMPILE_CUSTOM_KERNELS=0
 pip install --no-cache-dir --no-deps --no-build-isolation -ve .
 
 如果失败，尝试:
@@ -21,5 +22,5 @@ pip install --no-cache-dir --no-deps --no-build-isolation -ve .
 
 ## 如果遇到算子报错尝试编译算子
 遇到aclrmsnorm not found等等的问题，尝试：
-export COMPILE_CUSTOM_OP=1
+export COMPILE_CUSTOM_KERNELS=1
 如果不成功需要换镜像。

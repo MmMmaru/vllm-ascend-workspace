@@ -14,7 +14,12 @@ LIB_DIR = ROOT / ".agents" / "lib"
 if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
-from vaws_session_state import load_index, load_leases, load_session_lookup, release_all_session_leases  # noqa: E402
+from vaws_session_state import (
+    load_index,
+    load_leases,
+    load_session_lookup,
+    release_all_session_leases,
+)  # noqa: E402
 
 
 def print_json(data: dict[str, Any]) -> None:
@@ -48,7 +53,9 @@ def lease_owner_session_ids(leases: dict[str, Any]) -> set[str]:
             if not isinstance(records, dict):
                 continue
             for record in records.values():
-                if isinstance(record, dict) and isinstance(record.get("session_id"), str):
+                if isinstance(record, dict) and isinstance(
+                    record.get("session_id"), str
+                ):
                     owners.add(record["session_id"])
     return owners
 
@@ -68,7 +75,11 @@ def main() -> int:
                 lookup = load_session_lookup(session_id=sid, repo_root=ROOT)
                 session = lookup.session
             except Exception as exc:  # noqa: BLE001
-                state = "orphan-lease" if sid not in index.get("sessions", {}) else "missing-state"
+                state = (
+                    "orphan-lease"
+                    if sid not in index.get("sessions", {})
+                    else "missing-state"
+                )
                 checked.append({"session_id": sid, "status": state, "error": str(exc)})
                 if not dry_run:
                     release_all_session_leases(repo_root=ROOT, session_id=sid)
@@ -76,7 +87,9 @@ def main() -> int:
                 continue
             if session.get("status") == "removed":
                 if not dry_run:
-                    release_all_session_leases(repo_root=lookup.state_repo_root, session_id=sid)
+                    release_all_session_leases(
+                        repo_root=lookup.state_repo_root, session_id=sid
+                    )
                 released.append(sid)
             else:
                 active.append(sid)
@@ -86,9 +99,13 @@ def main() -> int:
                 "status": "ok",
                 "dry_run": dry_run,
                 "checked": checked,
-                "active_session_leases": sorted(set(active) & lease_owner_session_ids(leases)),
+                "active_session_leases": sorted(
+                    set(active) & lease_owner_session_ids(leases)
+                ),
                 "released_lease_sessions": [] if dry_run else sorted(set(released)),
-                "would_release_lease_sessions": sorted(set(released)) if dry_run else [],
+                "would_release_lease_sessions": sorted(set(released))
+                if dry_run
+                else [],
             }
         )
         return 0

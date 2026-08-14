@@ -104,7 +104,9 @@ _FIXTURES: list[tuple[str, list[str], str]] = [
 ]
 
 
-@pytest.mark.parametrize("label,kernels,expected_family", _FIXTURES, ids=[c[0] for c in _FIXTURES])
+@pytest.mark.parametrize(
+    "label,kernels,expected_family", _FIXTURES, ids=[c[0] for c in _FIXTURES]
+)
 def test_moe_family_resolution(label, kernels, expected_family):
     got = _resolve_moe_family(kernels)
     assert got == expected_family, (
@@ -141,6 +143,4 @@ def test_hc_mhc_prefix_kernels_are_block_head_not_moe_gating():
         assert "block_head" in role_set, (
             f"{name}: expected role 'block_head', got {sorted(role_set)}"
         )
-        assert "moe" not in role_set, (
-            f"{name}: must NOT carry the 'moe' role"
-        )
+        assert "moe" not in role_set, f"{name}: must NOT carry the 'moe' role"

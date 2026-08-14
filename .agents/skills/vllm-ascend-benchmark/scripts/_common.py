@@ -23,8 +23,14 @@ from vaws_validate import require_env_name  # noqa: E402
 
 SERVING_SCRIPTS = ROOT / ".agents" / "skills" / "vllm-ascend-serving" / "scripts"
 NIGHTLY_CONFIGS_DIR = (
-    ROOT / "vllm-ascend" / "tests" / "e2e" / "nightly"
-    / "single_node" / "models" / "configs"
+    ROOT
+    / "vllm-ascend"
+    / "tests"
+    / "e2e"
+    / "nightly"
+    / "single_node"
+    / "models"
+    / "configs"
 )
 BENCHMARK_STATE_DIR = ROOT / ".vaws-local" / "benchmark"
 PROGRESS_SENTINEL = "__VAWS_BENCHMARK_PROGRESS__="
@@ -33,6 +39,7 @@ PROGRESS_SENTINEL = "__VAWS_BENCHMARK_PROGRESS__="
 # ---------------------------------------------------------------------------
 # Progress / output helpers
 # ---------------------------------------------------------------------------
+
 
 def emit_progress(phase: str, message: str, **extra: Any) -> None:
     payload: dict[str, Any] = {"phase": phase, "message": message}
@@ -47,6 +54,7 @@ def print_json(data: dict[str, Any]) -> None:
 
 def now_utc() -> str:
     from datetime import datetime, timezone
+
     return (
         datetime.now(timezone.utc)
         .replace(microsecond=0)
@@ -65,7 +73,10 @@ def benchmark_runs_dir(config: "BenchConfig") -> Path:
         return session_benchmark_dir(config.session_id, ROOT) / "runs"
     if config.session_file:
         lookup = load_session_lookup(session_file=config.session_file)
-        return session_benchmark_dir(lookup.session["session_id"], lookup.state_repo_root) / "runs"
+        return (
+            session_benchmark_dir(lookup.session["session_id"], lookup.state_repo_root)
+            / "runs"
+        )
     target = safe_token(config.machine or "legacy")
     return BENCHMARK_STATE_DIR / target / "runs"
 
@@ -81,7 +92,9 @@ def write_local_result(config: "BenchConfig", result: dict[str, Any]) -> Path:
     result_path = runs_dir / filename
     result["result_path"] = str(result_path)
     result["run_dir"] = str(runs_dir)
-    result_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    result_path.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     return result_path
 
 
@@ -103,7 +116,9 @@ def _run_json_command_streaming(
         assert proc.stderr is not None
         for line in proc.stderr:
             stderr_lines.append(line)
-            if not progress_markers or any(marker in line for marker in progress_markers):
+            if not progress_markers or any(
+                marker in line for marker in progress_markers
+            ):
                 sys.stderr.write(line)
                 sys.stderr.flush()
 
@@ -129,12 +144,14 @@ def _run_json_command_streaming(
 # Nightly YAML parsing (reference-only, not an execution template)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class NightlyReference:
     """Parsed reference from a nightly YAML config.
 
     Fields may be None when the YAML does not define them.
     """
+
     name: str = ""
     model: str = ""
     envs: dict[str, str] = field(default_factory=dict)
@@ -147,6 +164,7 @@ class NightlyReference:
 def _try_yaml_import():
     try:
         import yaml  # noqa: F811
+
         return yaml
     except ImportError:
         return None
@@ -192,7 +210,8 @@ def parse_nightly_yaml(yaml_name: str) -> NightlyReference | None:
     perf = benchmarks.get("perf", {})
     if perf:
         ref.bench_config = {
-            k: v for k, v in perf.items()
+            k: v
+            for k, v in perf.items()
             if k not in ("case_type", "baseline", "threshold")
         }
         ref.baseline = perf.get("baseline")
@@ -205,9 +224,11 @@ def parse_nightly_yaml(yaml_name: str) -> NightlyReference | None:
 # Configuration assembly
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class BenchConfig:
     """Assembled benchmark configuration ready for execution."""
+
     machine: str = ""
     session_id: str | None = None
     session_file: str | None = None
@@ -220,6 +241,7 @@ class BenchConfig:
     bench_args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
     skip_parity: bool = False
+    health_timeout: int | None = None
     nightly_ref: NightlyReference | None = None
 
     def to_serve_start_args(self) -> list[str]:
@@ -243,32 +265,47 @@ class BenchConfig:
             args.extend(["--extra-env", f"{k}={v}"])
         if self.skip_parity:
             args.append("--skip-parity")
+        if self.health_timeout is not None:
+            args.extend(["--health-timeout", str(self.health_timeout)])
         if self.serve_args:
             args.append("--")
             args.extend(self.serve_args)
         return args
 
     def to_bench_serve_args(
-        self, base_url: str, served_model_name: str,
+        self,
+        base_url: str,
+        served_model_name: str,
     ) -> list[str]:
         """Build CLI args for `vllm bench serve`."""
         from urllib.parse import urlparse
+
         parsed = urlparse(base_url)
         host = parsed.hostname or "localhost"
         port = str(parsed.port or 8000)
 
         args = [
-            "vllm", "bench", "serve",
-            "--backend", "openai-chat",
-            "--endpoint", "/v1/chat/completions",
-            "--host", host,
-            "--port", port,
-            "--model", served_model_name,
-            "--tokenizer", self.model,
+            "vllm",
+            "bench",
+            "serve",
+            "--backend",
+            "openai-chat",
+            "--endpoint",
+            "/v1/chat/completions",
+            "--host",
+            host,
+            "--port",
+            port,
+            "--model",
+            served_model_name,
+            "--tokenizer",
+            self.model,
             "--save-result",
         ]
         has_num_prompts = any(a.startswith("--num-prompts") for a in self.bench_args)
-        has_concurrency = any(a.startswith("--max-concurrency") for a in self.bench_args)
+        has_concurrency = any(
+            a.startswith("--max-concurrency") for a in self.bench_args
+        )
 
         if not has_num_prompts:
             args.extend(["--num-prompts", "64"])
@@ -314,10 +351,13 @@ def assemble_config(
     extra_env: list[str] | None = None,
     refer_nightly: str | None = None,
     skip_parity: bool = False,
+    health_timeout: int | None = None,
 ) -> BenchConfig:
     """Assemble a BenchConfig with user > nightly priority."""
     if not machine and not session_id and not session_file:
-        raise RuntimeError("--machine is required unless --session-id or --session-file is used")
+        raise RuntimeError(
+            "--machine is required unless --session-id or --session-file is used"
+        )
     nightly_ref: NightlyReference | None = None
     if refer_nightly:
         nightly_ref = parse_nightly_yaml(refer_nightly)
@@ -328,6 +368,7 @@ def assemble_config(
         session_file=session_file,
         model=model,
         skip_parity=skip_parity,
+        health_timeout=health_timeout,
         nightly_ref=nightly_ref,
     )
 
@@ -401,6 +442,7 @@ def assemble_config(
 # Serving skill wrappers
 # ---------------------------------------------------------------------------
 
+
 def call_serve_start(config: BenchConfig) -> dict[str, Any]:
     """Call serve_start.py and return its JSON output."""
     script = str(SERVING_SCRIPTS / "serve_start.py")
@@ -414,8 +456,7 @@ def call_serve_start(config: BenchConfig) -> dict[str, Any]:
 
     if not stdout.strip():
         raise RuntimeError(
-            f"serve_start.py produced no output (rc={returncode}):\n"
-            f"{stderr[:2000]}"
+            f"serve_start.py produced no output (rc={returncode}):\n{stderr[:2000]}"
         )
     if data is None:
         raise RuntimeError(
@@ -451,6 +492,7 @@ def call_serve_stop(config: BenchConfig, force: bool = False) -> dict[str, Any]:
 # Remote benchmark execution
 # ---------------------------------------------------------------------------
 
+
 def _get_ssh_endpoint(
     machine: str | None,
     *,
@@ -474,6 +516,7 @@ def _get_ssh_endpoint(
         if p not in sys.path:
             sys.path.insert(0, p)
     import inventory as inv_store
+
     read_path = inv_store.read_inventory_path(
         inv_store.preferred_inventory_path(inv_store.DEFAULT_PATH)
     )
@@ -492,9 +535,9 @@ def _ascend_env_preamble() -> str:
         "if [ -f /etc/profile.d/vaws-ascend-env.sh ]; then"
         "  set +u; source /etc/profile.d/vaws-ascend-env.sh; set -u;"
         " fi; "
-        'export LD_LIBRARY_PATH='
+        "export LD_LIBRARY_PATH="
         '"/usr/local/Ascend/driver/lib64/driver'
-        ':/usr/local/Ascend/driver/lib64'
+        ":/usr/local/Ascend/driver/lib64"
         '${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; '
     )
 
@@ -529,8 +572,7 @@ def run_bench_on_remote(
         if key in config.env
     }
     client_env_export = " ".join(
-        f"export {key}={shlex.quote(value)};"
-        for key, value in client_env.items()
+        f"export {key}={shlex.quote(value)};" for key, value in client_env.items()
     )
 
     remote_script = (
@@ -541,16 +583,40 @@ def run_bench_on_remote(
 
     ssh_cmd = [
         "ssh",
-        "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "LogLevel=ERROR",
-        "-p", str(container_port),
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "LogLevel=ERROR",
+        "-p",
+        str(container_port),
         f"root@{container_ip}",
-        "bash", "-c", shlex.quote(remote_script),
+        "bash",
+        "-c",
+        shlex.quote(remote_script),
     ]
 
     emit_progress("bench_run", f"running vllm bench serve on {target_token}")
-    proc = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=1200)
+    proc = subprocess.run(
+        ssh_cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=3600,
+    )
+
+    # Always persist the full client output for post-mortem analysis; on
+    # success the JSON result is parsed from it below.
+    output_dir = Path(".vaws-local/benchmark") / safe_token(config.machine or "unknown")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"client_output_{now_utc().replace(':', '-')}_{os.getpid()}.log"
+    try:
+        output_path.write_text(proc.stdout or "", encoding="utf-8", errors="replace")
+        emit_progress("bench_run", f"client output saved: {output_path}")
+    except OSError:
+        pass
 
     if proc.returncode != 0:
         raise RuntimeError(
@@ -575,7 +641,7 @@ def run_bench_on_remote(
         result_data = json.loads(stdout[json_start:])
     except json.JSONDecodeError as e:
         raise RuntimeError(
-            f"cannot parse bench result JSON: {e}\n{stdout[json_start:json_start+500]}"
+            f"cannot parse bench result JSON: {e}\n{stdout[json_start : json_start + 500]}"
         )
 
     return result_data
@@ -585,14 +651,24 @@ def run_bench_on_remote(
 # Metrics extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_metrics(raw_result: dict[str, Any]) -> dict[str, Any]:
     """Extract key metrics from vllm bench serve result JSON."""
     metrics: dict[str, Any] = {}
 
-    for key in ("output_throughput", "mean_tpot_ms", "mean_ttft_ms",
-                "median_tpot_ms", "median_ttft_ms", "acceptance_rate",
-                "total_input", "total_output", "request_throughput",
-                "mean_e2el_ms", "median_e2el_ms"):
+    for key in (
+        "output_throughput",
+        "mean_tpot_ms",
+        "mean_ttft_ms",
+        "median_tpot_ms",
+        "median_ttft_ms",
+        "acceptance_rate",
+        "total_input",
+        "total_output",
+        "request_throughput",
+        "mean_e2el_ms",
+        "median_e2el_ms",
+    ):
         if key in raw_result:
             val = raw_result[key]
             if isinstance(val, str):

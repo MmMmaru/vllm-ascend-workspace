@@ -134,7 +134,13 @@ FIELD_DOC = {
 }
 
 # AIC / AIV stage 分组：用于在算子卡里按归属展示
-AIC_STAGES = ["aic_mac_time", "aic_fixpipe_time", "aic_mte1_time", "aic_mte2_time", "aic_scalar_time"]
+AIC_STAGES = [
+    "aic_mac_time",
+    "aic_fixpipe_time",
+    "aic_mte1_time",
+    "aic_mte2_time",
+    "aic_scalar_time",
+]
 AIV_STAGES = ["aiv_vec_time", "aiv_mte2_time", "aiv_mte3_time", "aiv_scalar_time"]
 
 # bound_stage → 决策依据字段映射
@@ -165,24 +171,50 @@ STAGE_RATIO_FIELD = {
 
 # 原始 kernel_details.csv 完整 schema (46 列)，用于算子卡 tier 3 的 raw dump
 RAW_KD_FIELDS = [
-    "Device_id", "Model ID", "Task ID", "Stream ID", "Name", "Type", "OP State",
-    "Accelerator Core", "Start Time(us)", "Duration(us)", "Wait Time(us)",
-    "Block Dim", "Mix Block Dim", "HF32 Eligible",
-    "Input Shapes", "Input Data Types", "Input Formats",
-    "Output Shapes", "Output Data Types", "Output Formats",
+    "Device_id",
+    "Model ID",
+    "Task ID",
+    "Stream ID",
+    "Name",
+    "Type",
+    "OP State",
+    "Accelerator Core",
+    "Start Time(us)",
+    "Duration(us)",
+    "Wait Time(us)",
+    "Block Dim",
+    "Mix Block Dim",
+    "HF32 Eligible",
+    "Input Shapes",
+    "Input Data Types",
+    "Input Formats",
+    "Output Shapes",
+    "Output Data Types",
+    "Output Formats",
     "Context ID",
-    "aicore_time(us)", "aic_total_cycles",
-    "aic_mac_time(us)", "aic_mac_ratio",
-    "aic_scalar_time(us)", "aic_scalar_ratio",
-    "aic_mte1_time(us)", "aic_mte1_ratio",
-    "aic_mte2_time(us)", "aic_mte2_ratio",
-    "aic_fixpipe_time(us)", "aic_fixpipe_ratio",
+    "aicore_time(us)",
+    "aic_total_cycles",
+    "aic_mac_time(us)",
+    "aic_mac_ratio",
+    "aic_scalar_time(us)",
+    "aic_scalar_ratio",
+    "aic_mte1_time(us)",
+    "aic_mte1_ratio",
+    "aic_mte2_time(us)",
+    "aic_mte2_ratio",
+    "aic_fixpipe_time(us)",
+    "aic_fixpipe_ratio",
     "aic_icache_miss_rate",
-    "aiv_time(us)", "aiv_total_cycles",
-    "aiv_vec_time(us)", "aiv_vec_ratio",
-    "aiv_scalar_time(us)", "aiv_scalar_ratio",
-    "aiv_mte2_time(us)", "aiv_mte2_ratio",
-    "aiv_mte3_time(us)", "aiv_mte3_ratio",
+    "aiv_time(us)",
+    "aiv_total_cycles",
+    "aiv_vec_time(us)",
+    "aiv_vec_ratio",
+    "aiv_scalar_time(us)",
+    "aiv_scalar_ratio",
+    "aiv_mte2_time(us)",
+    "aiv_mte2_ratio",
+    "aiv_mte3_time(us)",
+    "aiv_mte3_ratio",
     "aiv_icache_miss_rate",
     "cube_utilization(%)",
 ]
@@ -294,6 +326,7 @@ def fmt_ms(v, prec=2):
 #   ribbon in the HTML so end-users don't mistake them for findings.
 # -----------------------------
 
+
 def compute_ep_balance(b) -> dict:
     """Compute EP load balance via GroupedMatmul wall-time per rank.
 
@@ -306,12 +339,19 @@ def compute_ep_balance(b) -> dict:
     for e in b.events:
         if getattr(e, "redundant", False):
             continue
-        nm = (e.name or "")
+        nm = e.name or ""
         if "GroupedMatmul" in nm:
             by_rank[e.rank_id] += e.duration_us
     if not by_rank:
-        return {"by_rank": {}, "mean_us": 0.0, "peak_us": 0.0, "min_us": 0.0,
-                "peak_to_mean": 1.0, "spread": 0.0, "available": False}
+        return {
+            "by_rank": {},
+            "mean_us": 0.0,
+            "peak_us": 0.0,
+            "min_us": 0.0,
+            "peak_to_mean": 1.0,
+            "spread": 0.0,
+            "available": False,
+        }
     vals = list(by_rank.values())
     mean = sum(vals) / len(vals)
     peak = max(vals)
@@ -339,8 +379,13 @@ def assess_companion_run(b) -> dict:
     for rid in step_by_rank:
         step_by_rank[rid].sort(key=lambda x: safe_float(x["start_us"]))
     if not step_by_rank:
-        return {"companion_step_indices": [], "n_companion": 0, "n_total_aligned": 0,
-                "rank_family_counts": {}, "companion_rank_pairs": []}
+        return {
+            "companion_step_indices": [],
+            "n_companion": 0,
+            "n_total_aligned": 0,
+            "rank_family_counts": {},
+            "companion_rank_pairs": [],
+        }
     rank_ids = sorted(step_by_rank.keys())
     n_steps = min(len(step_by_rank[r]) for r in rank_ids)
     real_set = {"attention_moe_workload", "attention_dense_workload"}
@@ -500,13 +545,19 @@ def guess_model_structure(b, step_row: dict) -> str | None:
     seg_id = step_row.get("segment_id")
     seg = b._step_seg_by_id.get(seg_id) if seg_id else None
     if seg is None:
-        return f"{layer_count}L · ?+{'moe' if has_moe else ('ffn' if has_attn else '?')}"
-    attn_sub = detect_attention_subtype(
-        b,
-        int(safe_float(seg["row_start"])),
-        int(safe_float(seg["row_end"])),
-        rid,
-    ) if has_attn else None
+        return (
+            f"{layer_count}L · ?+{'moe' if has_moe else ('ffn' if has_attn else '?')}"
+        )
+    attn_sub = (
+        detect_attention_subtype(
+            b,
+            int(safe_float(seg["row_start"])),
+            int(safe_float(seg["row_end"])),
+            rid,
+        )
+        if has_attn
+        else None
+    )
     rhs = "moe" if has_moe else ("ffn" if has_attn else "?")
     if has_attn:
         return f"{layer_count}L · {attn_sub}+{rhs}"
@@ -580,16 +631,25 @@ def split_main_speculative_tail(b, step_seg: dict, rank_id: str) -> dict:
 
     seg_id = step_seg["segment_id"]
     anatomy = b._step_anatomy_by_id.get(seg_id)
-    head_row_start = int(safe_float((anatomy or {}).get("head_row_start") or step_row_start))
-    head_row_end   = int(safe_float((anatomy or {}).get("head_row_end") or step_row_start))
-    main_row_start = int(safe_float((anatomy or {}).get("main_row_start") or step_row_start))
-    main_row_end   = int(safe_float((anatomy or {}).get("main_row_end") or step_row_end))
-    tail_row_start = int(safe_float((anatomy or {}).get("tail_row_start") or step_row_end))
-    tail_row_end   = int(safe_float((anatomy or {}).get("tail_row_end") or step_row_end))
+    head_row_start = int(
+        safe_float((anatomy or {}).get("head_row_start") or step_row_start)
+    )
+    head_row_end = int(
+        safe_float((anatomy or {}).get("head_row_end") or step_row_start)
+    )
+    main_row_start = int(
+        safe_float((anatomy or {}).get("main_row_start") or step_row_start)
+    )
+    main_row_end = int(safe_float((anatomy or {}).get("main_row_end") or step_row_end))
+    tail_row_start = int(
+        safe_float((anatomy or {}).get("tail_row_start") or step_row_end)
+    )
+    tail_row_end = int(safe_float((anatomy or {}).get("tail_row_end") or step_row_end))
 
     # speculative layers within this step
     spec_layers = [
-        ls for ls in layer_segments_in_step(b, rank_id, step_row_start, step_row_end)
+        ls
+        for ls in layer_segments_in_step(b, rank_id, step_row_start, step_row_end)
         if ls.get("layer_role") in ("speculative", "spec", "spec_layer")
     ]
     spec_rows = set()
@@ -624,15 +684,16 @@ def split_main_speculative_tail(b, step_seg: dict, rank_id: str) -> dict:
         "spec_events": spec_evts,
         "tail_events": tail_evts,
         "spec_layer_count": len(spec_layers),
-        "head_us":  head_us,
-        "main_us":  main_us,
-        "spec_us":  spec_us,
-        "tail_us":  tail_us,
+        "head_us": head_us,
+        "main_us": main_us,
+        "spec_us": spec_us,
+        "tail_us": tail_us,
         "step_busy_us": step_busy_us,
         "head_bubble_ms": safe_float((anatomy or {}).get("head_bubble_ms", 0)),
         "main_bubble_ms": safe_float((anatomy or {}).get("main_bubble_ms", 0)),
         "tail_bubble_ms": safe_float((anatomy or {}).get("tail_bubble_ms", 0)),
-        "step_wall_ms": safe_float(step_seg.get("wall_ms", 0)) or (safe_float(step_seg["end_us"]) - safe_float(step_seg["start_us"])) / 1000.0,
+        "step_wall_ms": safe_float(step_seg.get("wall_ms", 0))
+        or (safe_float(step_seg["end_us"]) - safe_float(step_seg["start_us"])) / 1000.0,
     }
 
 
@@ -642,13 +703,15 @@ def kernel_rollup_by_bound(events: list) -> list:
     Returns sorted list (desc by duration_us) of:
         {kernel, op_type, count, duration_us, bound_family, dominant_stage}
     """
-    by_key: dict = defaultdict(lambda: {
-        "count": 0,
-        "duration_us": 0.0,
-        "wait_us": 0.0,
-        "op_type": "",
-        "stage_durations": defaultdict(float),
-    })
+    by_key: dict = defaultdict(
+        lambda: {
+            "count": 0,
+            "duration_us": 0.0,
+            "wait_us": 0.0,
+            "op_type": "",
+            "stage_durations": defaultdict(float),
+        }
+    )
     for e in events:
         if getattr(e, "redundant", False):
             continue
@@ -662,17 +725,21 @@ def kernel_rollup_by_bound(events: list) -> list:
             rec["stage_durations"][stage_field] += safe_float(v)
     rows = []
     for (kernel, op_type), rec in by_key.items():
-        bound = pick_bound_stage(rec["stage_durations"]) if rec["stage_durations"] else None
+        bound = (
+            pick_bound_stage(rec["stage_durations"]) if rec["stage_durations"] else None
+        )
         family = STAGE_FAMILY.get(bound, "unknown") if bound else "unknown"
-        rows.append({
-            "kernel": kernel,
-            "op_type": op_type,
-            "count": rec["count"],
-            "duration_us": rec["duration_us"],
-            "wait_us": rec["wait_us"],
-            "bound_stage": bound or "—",
-            "bound_family": family,
-        })
+        rows.append(
+            {
+                "kernel": kernel,
+                "op_type": op_type,
+                "count": rec["count"],
+                "duration_us": rec["duration_us"],
+                "wait_us": rec["wait_us"],
+                "bound_stage": bound or "—",
+                "bound_family": family,
+            }
+        )
     rows.sort(key=lambda r: -r["duration_us"])
     return rows
 
@@ -681,7 +748,7 @@ def fmt_pct(v, prec=1):
     if v is None:
         return "—"
     try:
-        return f"{float(v)*100:.{prec}f}%"
+        return f"{float(v) * 100:.{prec}f}%"
     except Exception:
         return str(v)
 
@@ -756,7 +823,9 @@ class Event:
     op_roles: str
     op_categories: str
     redundant: bool = False  # 通信去重 flag
-    raw_row: dict = field(default_factory=dict)  # full kernel_details.csv row (46 fields)
+    raw_row: dict = field(
+        default_factory=dict
+    )  # full kernel_details.csv row (46 fields)
 
 
 @dataclass
@@ -819,25 +888,27 @@ def _load_events(path: Path) -> list:
                 pipe = json.loads(row.get("pipeline_us") or "{}")
             except Exception:
                 pipe = {}
-            events.append(Event(
-                event_id=row["event_id"],
-                rank_id=row["rank_id"],
-                source_id=row.get("source_id", ""),
-                row_idx=int(row.get("row_idx") or 0),
-                name=row.get("name_raw", ""),
-                task_type=row.get("task_type", ""),
-                op_type=row.get("op_type", "unknown"),
-                accel_core=row.get("accelerator_core", ""),
-                stream_id=row.get("stream_id", ""),
-                start_us=safe_float(row.get("start_us")),
-                end_us=safe_float(row.get("end_us")),
-                duration_us=safe_float(row.get("duration_us")),
-                wait_us=safe_float(row.get("wait_us")),
-                pipeline=pipe,
-                shape_signature=row.get("shape_signature", ""),
-                op_roles=row.get("op_roles", ""),
-                op_categories=row.get("op_categories", ""),
-            ))
+            events.append(
+                Event(
+                    event_id=row["event_id"],
+                    rank_id=row["rank_id"],
+                    source_id=row.get("source_id", ""),
+                    row_idx=int(row.get("row_idx") or 0),
+                    name=row.get("name_raw", ""),
+                    task_type=row.get("task_type", ""),
+                    op_type=row.get("op_type", "unknown"),
+                    accel_core=row.get("accelerator_core", ""),
+                    stream_id=row.get("stream_id", ""),
+                    start_us=safe_float(row.get("start_us")),
+                    end_us=safe_float(row.get("end_us")),
+                    duration_us=safe_float(row.get("duration_us")),
+                    wait_us=safe_float(row.get("wait_us")),
+                    pipeline=pipe,
+                    shape_signature=row.get("shape_signature", ""),
+                    op_roles=row.get("op_roles", ""),
+                    op_categories=row.get("op_categories", ""),
+                )
+            )
     return events
 
 
@@ -871,7 +942,10 @@ def _load_raw_kernel_details(root: Path) -> dict:
             print(f"  WARN: failed reading {path}: {exc}", file=sys.stderr)
             continue
         by_source[s["source_id"]] = rows
-        print(f"  source {s['source_id'][:12]}… : {len(rows):,} rows ({path.name})", file=sys.stderr)
+        print(
+            f"  source {s['source_id'][:12]}… : {len(rows):,} rows ({path.name})",
+            file=sys.stderr,
+        )
     return by_source
 
 
@@ -893,9 +967,17 @@ def _attach_raw_rows(events: list, raw_by_source: dict) -> int:
 
 
 _COMM_NAME_HINTS = (
-    "allreduce", "allgather", "reducescatter", "reduce_scatter",
-    "broadcast", "alltoall", "all_to_all", "send", "recv",
-    "dispatch", "combine",
+    "allreduce",
+    "allgather",
+    "reducescatter",
+    "reduce_scatter",
+    "broadcast",
+    "alltoall",
+    "all_to_all",
+    "send",
+    "recv",
+    "dispatch",
+    "combine",
 )
 
 
@@ -965,7 +1047,9 @@ def _build_rank_event_index(events_by_row: list) -> None:
         _RANK_EVENT_ROWS[rid] = [e.row_idx for e in lst]
 
 
-def _build_segments_index(segments: list, row_safe: bool = False) -> tuple[dict, dict, dict]:
+def _build_segments_index(
+    segments: list, row_safe: bool = False
+) -> tuple[dict, dict, dict]:
     """Bucket segments by rank_id and sort each bucket by row_start.
 
     Returns ``(segs_by_rank, row_starts_by_rank, row_ends_by_rank)``.
@@ -1011,11 +1095,17 @@ def _build_layer_seg_rank_index(b: "Bundle") -> None:
         b._block_seg_row_starts_by_rank,
         b._block_seg_row_ends_by_rank,
     ) = _build_segments_index(b.block_segments, row_safe=True)
-    b._step_seg_by_id = {s.get("segment_id"): s for s in b.step_segments if s.get("segment_id")}
-    b._step_anatomy_by_id = {a.get("segment_id"): a for a in b.step_anatomy if a.get("segment_id")}
+    b._step_seg_by_id = {
+        s.get("segment_id"): s for s in b.step_segments if s.get("segment_id")
+    }
+    b._step_anatomy_by_id = {
+        a.get("segment_id"): a for a in b.step_anatomy if a.get("segment_id")
+    }
 
 
-def layer_segments_in_step(b: "Bundle", rank_id: str, row_start: int, row_end: int) -> list:
+def layer_segments_in_step(
+    b: "Bundle", rank_id: str, row_start: int, row_end: int
+) -> list:
     """Return layer_segments fully contained within ``[row_start, row_end]``.
 
     O(log L + k) per call when the rank index is populated; O(L) fallback.
@@ -1026,7 +1116,8 @@ def layer_segments_in_step(b: "Bundle", rank_id: str, row_start: int, row_end: i
     lst = b._layer_segs_by_rank.get(rank_id)
     if lst is None:
         return [
-            ls for ls in b.layer_segments
+            ls
+            for ls in b.layer_segments
             if ls.get("rank_id") == rank_id
             and int(ls.get("row_start", 0)) >= row_start
             and int(ls.get("row_end", 0)) <= row_end
@@ -1042,7 +1133,9 @@ def layer_segments_in_step(b: "Bundle", rank_id: str, row_start: int, row_end: i
     return out
 
 
-def block_segments_in_layer(b: "Bundle", rank_id: str, row_start: int, row_end: int) -> list:
+def block_segments_in_layer(
+    b: "Bundle", rank_id: str, row_start: int, row_end: int
+) -> list:
     """Return block_segments fully contained within ``[row_start, row_end]``.
 
     Same bisect strategy as ``layer_segments_in_step``. Used by
@@ -1052,7 +1145,8 @@ def block_segments_in_layer(b: "Bundle", rank_id: str, row_start: int, row_end: 
     lst = b._block_segs_by_rank.get(rank_id)
     if lst is None:
         return [
-            bs for bs in b.block_segments
+            bs
+            for bs in b.block_segments
             if bs.get("rank_id") == rank_id
             and int(safe_float(bs.get("row_start", 0))) >= row_start
             and int(safe_float(bs.get("row_end", 0))) <= row_end
@@ -1068,7 +1162,9 @@ def block_segments_in_layer(b: "Bundle", rank_id: str, row_start: int, row_end: 
     return out
 
 
-def events_in_row_range(events_by_row: list, row_start: int, row_end: int, rank_id: str | None = None) -> list:
+def events_in_row_range(
+    events_by_row: list, row_start: int, row_end: int, rank_id: str | None = None
+) -> list:
     """`events_by_row` must be pre-sorted by row_idx.
 
     Boundaries are **inclusive** on both ends: ``[row_start, row_end]``.
@@ -1147,7 +1243,10 @@ def load_bundle(root: Path) -> Bundle:
     _build_rank_event_index(b.events)
     print(f"  loaded {len(b.events)} events", file=sys.stderr)
     n_dedup = dedup_comm_aiv(b.events)
-    print(f"  marked {n_dedup} comm-shadow events as redundant (mix_comm_aiv + AIV ops with comm-name keywords vs HCCL events, IoU >= 0.9)", file=sys.stderr)
+    print(
+        f"  marked {n_dedup} comm-shadow events as redundant (mix_comm_aiv + AIV ops with comm-name keywords vs HCCL events, IoU >= 0.9)",
+        file=sys.stderr,
+    )
     print(f"loading raw kernel_details.csv (per source) ...", file=sys.stderr)
     raw_by_source = _load_raw_kernel_details(root)
     _attach_raw_rows(b.events, raw_by_source)
@@ -1723,7 +1822,7 @@ document.addEventListener('keydown', (e) => {
         '<pattern id="bubble-pattern" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">'
         '<rect width="6" height="6" fill="transparent"/>'
         '<line x1="0" y1="0" x2="0" y2="6" stroke="rgba(248,81,73,.55)" stroke-width="2"/>'
-        '</pattern></defs></svg>'
+        "</pattern></defs></svg>"
     )
     # v7: SPA chrome (back button + breadcrumb) — content injected per-render
     nav = (
@@ -1731,25 +1830,25 @@ document.addEventListener('keydown', (e) => {
         '<button id="back-btn" class="back-btn" onclick="window.goBack()" disabled>← 上一级</button>'
         '<div class="breadcrumb" id="breadcrumb">'
         '<span class="crumb active" data-show="view-l1">总览 · L1</span>'
-        '</div>'
+        "</div>"
         f'<span class="chrome-title">{html.escape(title)}</span>'
         '<span class="chrome-meta">Backspace 返回 · 点击 step / layer 进入下一级</span>'
-        '</div>'
+        "</div>"
     )
     field_docs_json = json.dumps(FIELD_DOC, ensure_ascii=False)
     js_filled = js.replace("__FIELD_DOCS_PLACEHOLDER__", field_docs_json)
     return (
         '<!doctype html><html lang="zh-cn"><head><meta charset="utf-8"><title>'
         + html.escape(title)
-        + '</title><style>'
+        + "</title><style>"
         + css
-        + '</style></head><body>'
+        + "</style></head><body>"
         + pattern_defs
-        + '<main>'
+        + "<main>"
         + nav
-        + '<script>'
+        + "<script>"
         + js_filled
-        + '</script>'
+        + "</script>"
     )
 
 
@@ -1806,7 +1905,7 @@ def _split_semi(value: str) -> list[str]:
             break
     if not v:
         return []
-    return [tok.strip() for tok in v.split(';')]
+    return [tok.strip() for tok in v.split(";")]
 
 
 def _format_shape(s: str) -> str:
@@ -1839,9 +1938,8 @@ def _render_op_signature(e: Event, short_name: str) -> str:
 
     def row(idx, shape, dtype, fmt, kind):
         # treat undefined inputs distinctly
-        is_undef = (
-            (not shape or shape in ("", "()", "[]"))
-            and (not dtype or dtype in ("DT_UNDEFINED", "UNDEFINED"))
+        is_undef = (not shape or shape in ("", "()", "[]")) and (
+            not dtype or dtype in ("DT_UNDEFINED", "UNDEFINED")
         )
         if is_undef:
             return (
@@ -1849,7 +1947,7 @@ def _render_op_signature(e: Event, short_name: str) -> str:
                 f'<span class="ir-pname">{kind}_{idx}</span>'
                 f'<span class="ir-colon">:</span>'
                 f'<span class="muted" style="font-style:italic">undefined</span>'
-                f'</div>'
+                f"</div>"
             )
         chips = []
         if dtype and dtype != "DT_UNDEFINED":
@@ -1861,9 +1959,9 @@ def _render_op_signature(e: Event, short_name: str) -> str:
             f'<div class="ir-row">'
             f'<span class="ir-pname">{kind}_{idx}</span>'
             f'<span class="ir-colon">:</span>'
-            f'{chip_html}'
+            f"{chip_html}"
             f'<code class="ir-shape">{html.escape(_format_shape(shape))}</code>'
-            f'</div>'
+            f"</div>"
         )
 
     n_in = max(len(in_shapes), len(in_dtypes), len(in_formats))
@@ -1882,7 +1980,7 @@ def _render_op_signature(e: Event, short_name: str) -> str:
         out_rows.append(row(i, sh, dt, fm, "out"))
 
     n_defined = sum(1 for r in in_rows if "ir-undef" not in r)
-    in_summary = f'{n_defined} input{"s" if n_defined != 1 else ""}'
+    in_summary = f"{n_defined} input{'s' if n_defined != 1 else ''}"
     if n_in > n_defined:
         in_summary += f' <span class="muted">(+{n_in - n_defined} undefined)</span>'
 
@@ -1891,13 +1989,15 @@ def _render_op_signature(e: Event, short_name: str) -> str:
         f'<span class="ir-fname">{html.escape(short_name)}</span>'
         f'<span class="muted">(</span> '
         f'<span class="muted" style="font-size:10.5px">{in_summary}</span>'
-        f'</div>'
+        f"</div>"
     )
-    in_block = '<div class="ir-block">' + "".join(in_rows) + '</div>'
+    in_block = '<div class="ir-block">' + "".join(in_rows) + "</div>"
     sig_arrow = '<div class="ir-tail"><span class="muted">) →</span></div>'
-    out_block = '<div class="ir-block">' + "".join(out_rows) + '</div>'
+    out_block = '<div class="ir-block">' + "".join(out_rows) + "</div>"
 
-    return f'<div class="ir-signature">{sig_header}{in_block}{sig_arrow}{out_block}</div>'
+    return (
+        f'<div class="ir-signature">{sig_header}{in_block}{sig_arrow}{out_block}</div>'
+    )
 
 
 def _stage_ratio_value(raw_row: dict, stage_time_field: str) -> float | None:
@@ -1944,13 +2044,16 @@ def _decide_bound_stage(e: Event) -> tuple[str, float | None, str]:
     return (s, None, "absolute_time")
 
 
-def render_operator_card(e: Event, layer_total_us: float,
-                          card_id: str = "",
-                          step_busy_us: float = 0.0,
-                          kernel_layer_union_us: dict | None = None,
-                          kernel_layer_count: "Counter | None" = None,
-                          kernel_step_union_us: dict | None = None,
-                          kernel_step_count: "Counter | None" = None) -> str:
+def render_operator_card(
+    e: Event,
+    layer_total_us: float,
+    card_id: str = "",
+    step_busy_us: float = 0.0,
+    kernel_layer_union_us: dict | None = None,
+    kernel_layer_count: "Counter | None" = None,
+    kernel_step_union_us: dict | None = None,
+    kernel_step_count: "Counter | None" = None,
+) -> str:
     """3-tier operator card: highlights / pipeline ratios / raw 46-field dump.
 
     Scope is strictly current rank · current step · current layer (per user
@@ -1963,7 +2066,11 @@ def render_operator_card(e: Event, layer_total_us: float,
     bound_family = STAGE_FAMILY.get(bound, "unknown")
     bf_color = BOUND_FAMILY_COLOR.get(bound_family, "#8b949e")
 
-    redundant_chip = '<span class="badge b-warn" title="本 event 与同时段的 HCCL 通信算子时间重叠 ≥ 0.9，已在累加里跳过（AIV 字段仍保留供分析）">redundant</span>' if e.redundant else ""
+    redundant_chip = (
+        '<span class="badge b-warn" title="本 event 与同时段的 HCCL 通信算子时间重叠 ≥ 0.9，已在累加里跳过（AIV 字段仍保留供分析）">redundant</span>'
+        if e.redundant
+        else ""
+    )
 
     # exec / wait bars
     total_with_wait = e.duration_us + e.wait_us
@@ -1998,64 +2105,72 @@ def render_operator_card(e: Event, layer_total_us: float,
     stage_rows = []
     if e.op_type != "communication":
         # decision stage first
-        ordered = ([bound] if bound and bound in stages else []) + [s for s in stages if s != bound]
+        ordered = ([bound] if bound and bound in stages else []) + [
+            s for s in stages if s != bound
+        ]
         for s in ordered:
             t_us = safe_float(e.pipeline.get(s))
             r = _stage_ratio_value(e.raw_row, s)
-            is_decision = (s == bound)
+            is_decision = s == bound
             family = STAGE_FAMILY.get(s, "unknown")
             color = BOUND_FAMILY_COLOR.get(family, "#8b949e")
-            marker = '<span style="color:#f85149;margin-right:2px;font-weight:600">🔥</span>' if is_decision else '<span style="display:inline-block;width:14px"></span>'
+            marker = (
+                '<span style="color:#f85149;margin-right:2px;font-weight:600">🔥</span>'
+                if is_decision
+                else '<span style="display:inline-block;width:14px"></span>'
+            )
             label_style = "color:#f85149;font-weight:600" if is_decision else ""
             ratio_field = STAGE_RATIO_FIELD.get(s, "")
-            ratio_label = (f"{r*100:.1f}%" if r is not None else "—")
+            ratio_label = f"{r * 100:.1f}%" if r is not None else "—"
             ratio_bar_w = (r * 100) if r is not None else 0
             stage_rows.append(
                 '<div class="stage-row">'
-                f'{marker}<span class="stage-name" style="{label_style}">{s.replace("_time","")}</span>'
-                f'{info_btn(s)}'
+                f'{marker}<span class="stage-name" style="{label_style}">{s.replace("_time", "")}</span>'
+                f"{info_btn(s)}"
                 f'<div class="stage-bar-track">'
                 f'<div class="stage-bar-fill" style="width:{ratio_bar_w:.1f}%;background:{color}"></div>'
-                f'</div>'
+                f"</div>"
                 f'<span class="stage-ratio">{ratio_label}</span>'
-                f'{info_btn(ratio_field) if r is not None else ""}'
+                f"{info_btn(ratio_field) if r is not None else ''}"
                 f'<span class="stage-v">{t_us:,.2f} μs</span>'
-                '</div>'
+                "</div>"
             )
-        pipeline_html = '<div class="stage-list">' + "".join(stage_rows) + '</div>'
+        pipeline_html = '<div class="stage-list">' + "".join(stage_rows) + "</div>"
     else:
         pipeline_html = '<div class="muted" style="font-size:11px;margin-top:6px">communication op — 无 AIC/AIV pipeline stage（全 0）</div>'
 
     # Decision narrative (with click ⓘ buttons for each technical term)
     if bound:
         if decision_basis == "ratio":
-            ratio_pct_str = f"{bound_ratio*100:.1f}%"
-            candidate_count = len([s for s in stages if _stage_ratio_value(e.raw_row, s) is not None])
+            ratio_pct_str = f"{bound_ratio * 100:.1f}%"
+            candidate_count = len(
+                [s for s in stages if _stage_ratio_value(e.raw_row, s) is not None]
+            )
             decision_note = (
                 f'<div class="decision-block">'
                 f'<span class="decision-icon">🔥</span> '
-                f'<b>判定 bound_stage</b>{info_btn("bound_stage")} = '
-                f'<span style="color:#f85149;font-weight:600;font-family:monospace">{bound.replace("_time","")}</span>'
-                f' → <b>bound_family</b>{info_btn("bound_family")} = '
+                f"<b>判定 bound_stage</b>{info_btn('bound_stage')} = "
+                f'<span style="color:#f85149;font-weight:600;font-family:monospace">{bound.replace("_time", "")}</span>'
+                f" → <b>bound_family</b>{info_btn('bound_family')} = "
                 f'<span class="badge" style="background:{bf_color}33;color:{bf_color}">{bound_family}</span>'
                 f'<div class="muted" style="font-size:11.5px;margin-top:5px">'
-                f'<b>依据</b>：CANN 报告的 <code>{STAGE_RATIO_FIELD.get(bound,"")}</code>{info_btn(STAGE_RATIO_FIELD.get(bound, ""))}'
+                f"<b>依据</b>：CANN 报告的 <code>{STAGE_RATIO_FIELD.get(bound, '')}</code>{info_btn(STAGE_RATIO_FIELD.get(bound, ''))}"
                 f' = <span style="color:#f0883e;font-weight:600">{ratio_pct_str}</span>'
-                f'（在 {candidate_count} 个候选 stage 中 ratio 最高）'
-                f'</div></div>'
+                f"（在 {candidate_count} 个候选 stage 中 ratio 最高）"
+                f"</div></div>"
             )
         else:
             t = safe_float(e.pipeline.get(bound))
             decision_note = (
                 f'<div class="decision-block">'
                 f'<span class="decision-icon">🔥</span> '
-                f'<b>判定 bound_stage</b>{info_btn("bound_stage")} = '
-                f'<span style="color:#f85149">{bound.replace("_time","")}</span> → '
-                f'<b>bound_family</b>{info_btn("bound_family")} = '
+                f"<b>判定 bound_stage</b>{info_btn('bound_stage')} = "
+                f'<span style="color:#f85149">{bound.replace("_time", "")}</span> → '
+                f"<b>bound_family</b>{info_btn('bound_family')} = "
                 f'<span class="badge" style="background:{bf_color}33;color:{bf_color}">{bound_family}</span>'
                 f'<div class="muted" style="font-size:11.5px;margin-top:5px">'
                 f'<b>依据</b>：绝对耗时最大（<span style="color:#f0883e">{t:.2f}μs</span>，ratio 字段在 raw row 中缺失，退化判断）'
-                f'</div></div>'
+                f"</div></div>"
             )
     else:
         decision_note = ""
@@ -2066,10 +2181,10 @@ def render_operator_card(e: Event, layer_total_us: float,
         if key in e.raw_row and e.raw_row.get(key) not in (None, "", "N/A"):
             try:
                 v = float(e.raw_row[key])
-                display = (f"{v:.1f}%" if "%" in key else f"{v*100:.2f}%")
+                display = f"{v:.1f}%" if "%" in key else f"{v * 100:.2f}%"
                 extra_rows.append(
                     f'<div class="kv-row"><span class="kv-k">{html.escape(key)}</span>{info_btn(key)}'
-                    f'<div class="kv-bar-track"><div class="kv-bar-fill" style="width:{min(v*100 if v<=1 else v, 100):.1f}%;background:#ffa657"></div></div>'
+                    f'<div class="kv-bar-track"><div class="kv-bar-fill" style="width:{min(v * 100 if v <= 1 else v, 100):.1f}%;background:#ffa657"></div></div>'
                     f'<span class="kv-v">{display}</span></div>'
                 )
             except Exception:
@@ -2090,21 +2205,25 @@ def render_operator_card(e: Event, layer_total_us: float,
                 f'<tr><td class="raw-k">{html.escape(f_key)}{ibtn}</td><td class="raw-v">{v_html}</td></tr>'
             )
     raw_table = (
-        '<table class="raw-fields">' + "".join(raw_rows_html) + '</table>'
-        if raw_rows_html else
-        '<div class="muted">无法 join 回原始 kernel_details.csv 行（source 缺失）</div>'
+        '<table class="raw-fields">' + "".join(raw_rows_html) + "</table>"
+        if raw_rows_html
+        else '<div class="muted">无法 join 回原始 kernel_details.csv 行（source 缺失）</div>'
     )
 
     # Input/Output IR-style signature (no truncation; renders pyfunc-like)
     shape_preview = _render_op_signature(e, short)
 
-    host_warn_chip = '<span class="badge b-warn" title="wait_us / duration_us > 30% → 该算子很可能 host bound 或上游同步等待">host bound suspected</span>' if host_warn else ""
+    host_warn_chip = (
+        '<span class="badge b-warn" title="wait_us / duration_us > 30% → 该算子很可能 host bound 或上游同步等待">host bound suspected</span>'
+        if host_warn
+        else ""
+    )
 
     block_dim_chip = ""
     bd = e.raw_row.get("Block Dim", "")
     mbd = e.raw_row.get("Mix Block Dim", "")
     if bd and bd not in ("0", "", "N/A"):
-        block_dim_chip = f'<span class="chip" title="{html.escape(FIELD_DOC.get("Block Dim",""))}">block_dim={html.escape(str(bd))}{f"/{html.escape(str(mbd))}" if mbd and mbd not in ("0","","N/A") else ""}</span>'
+        block_dim_chip = f'<span class="chip" title="{html.escape(FIELD_DOC.get("Block Dim", ""))}">block_dim={html.escape(str(bd))}{f"/{html.escape(str(mbd))}" if mbd and mbd not in ("0", "", "N/A") else ""}</span>'
 
     return f"""
 <div class="op-card" id="opcard-{card_id or e.event_id}">
@@ -2112,7 +2231,7 @@ def render_operator_card(e: Event, layer_total_us: float,
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
       <span class="op-name" title="{html.escape(e.name)}">{html.escape(short)}</span>
       <span class="badge" style="background:{op_type_color}33;color:{op_type_color}">{html.escape(e.op_type)}</span>
-      <span class="muted" style="font-size:11px" title="{html.escape(FIELD_DOC.get('stream_id',''))}">stream {html.escape(e.stream_id or '—')}</span>
+      <span class="muted" style="font-size:11px" title="{html.escape(FIELD_DOC.get("stream_id", ""))}">stream {html.escape(e.stream_id or "—")}</span>
       {block_dim_chip}
       {host_warn_chip}
       {redundant_chip}
@@ -2132,7 +2251,7 @@ def render_operator_card(e: Event, layer_total_us: float,
       <div class="exec-wait-row">
         <span class="muted ew-label">wait {info_btn("wait_us")}</span>
         <div class="ew-track"><div class="ew-fill" style="width:{wait_pct:.1f}%;background:#f0883e"></div></div>
-        <span class="ew-v">{e.wait_us:,.2f} μs  <span class="muted">({wait_ratio*100:.0f}% of exec)</span></span>
+        <span class="ew-v">{e.wait_us:,.2f} μs  <span class="muted">({wait_ratio * 100:.0f}% of exec)</span></span>
       </div>
     </div>
     <div class="op-shares">
@@ -2163,7 +2282,7 @@ def render_operator_card(e: Event, layer_total_us: float,
 
   {decision_note}
 
-  {('<div class="util-section">' + "".join(extra_rows) + '</div>') if extra_rows else ""}
+  {('<div class="util-section">' + "".join(extra_rows) + "</div>") if extra_rows else ""}
 
   <details class="raw-details">
     <summary>📋 原始 kernel_details.csv 全 46 字段</summary>
@@ -2180,26 +2299,38 @@ _TIMELINE_COUNTER = [0]
 # v7: SPA view renderers (L1 / L2 / L3)
 # -----------------------------
 
+
 def render_l1_view(b: "Bundle") -> str:
     """L1 总览：跨 rank 的 DP/EP 负载、快慢卡、陪跑判定、per-rank step Gantt."""
     # ---- KPI strip ----
     rank_count = len(b.rank_summary)
     step_count = sum(int(safe_float(r["step_count"])) for r in b.rank_summary)
-    total_wall = sum(safe_float(r["wall_ms"]) for r in b.rank_summary) / max(rank_count, 1)
+    total_wall = sum(safe_float(r["wall_ms"]) for r in b.rank_summary) / max(
+        rank_count, 1
+    )
     ep = compute_ep_balance(b)
     comp = assess_companion_run(b)
 
     # Pre-compute values to avoid nested f-string quoting issues
     ep_avail = ep["available"]
     ep_p2m = ep["peak_to_mean"]
-    ep_color = "#ff7b72" if (ep_avail and ep_p2m >= 1.10) else ("#3fb950" if ep_avail else "var(--muted)")
+    ep_color = (
+        "#ff7b72"
+        if (ep_avail and ep_p2m >= 1.10)
+        else ("#3fb950" if ep_avail else "var(--muted)")
+    )
     ep_val = f"{ep_p2m:.2f}×" if ep_avail else "—"
-    ep_sub = f"peak {ep['peak_us']/1000:.1f} ms / mean {ep['mean_us']/1000:.1f} ms" if ep_avail else "无 GroupedMatmul 事件"
+    ep_sub = (
+        f"peak {ep['peak_us'] / 1000:.1f} ms / mean {ep['mean_us'] / 1000:.1f} ms"
+        if ep_avail
+        else "无 GroupedMatmul 事件"
+    )
     comp_color = "#f0a065" if comp["n_companion"] > 0 else "#3fb950"
     comp_msg = "存在 real ↔ dummy 错位" if comp["n_companion"] > 0 else "所有 rank 同步"
     findings_freq = (
         Counter(f.get("type", "?") for f in b.findings).most_common(1)[0][0]
-        if b.findings else "—"
+        if b.findings
+        else "—"
     )
     ep_info = info_btn("ep_peak_to_mean") if "ep_peak_to_mean" in FIELD_DOC else ""
 
@@ -2209,31 +2340,37 @@ def render_l1_view(b: "Bundle") -> str:
         f'<div class="sub">{step_count} step · 平均 wall {fmt_ms(total_wall)} ms / rank</div></div>'
         f'<div class="kpi"><div class="label">EP 峰均比 (GMM){ep_info}'
         '<span class="ui-only-pill" title="UI-only heuristic — 非 diagnosis finding，未进入 diagnosis_findings.json">UI-only</span>'
-        '</div>'
+        "</div>"
         f'<div class="value" style="color:{ep_color}">{ep_val}</div>'
         f'<div class="sub">{ep_sub}</div></div>'
         f'<div class="kpi"><div class="label">DP 陪跑步数'
         '<span class="ui-only-pill" title="UI-only heuristic — 非 diagnosis finding，未进入 diagnosis_findings.json">UI-only</span>'
-        '</div>'
+        "</div>"
         f'<div class="value" style="color:{comp_color}">{comp["n_companion"]} / {comp["n_total_aligned"]}</div>'
         f'<div class="sub">{comp_msg}</div></div>'
         f'<div class="kpi"><div class="label">Findings</div>'
         f'<div class="value">{len(b.findings)}</div>'
         f'<div class="sub">最频 {findings_freq}</div></div>'
-        '</div>'
+        "</div>"
         '<div class="muted" style="margin-top:6px;font-size:11px">'
         '<span class="ui-only-pill" style="margin-right:6px">UI-only</span>'
-        '标签项为 UI 推断信号（EP 峰均比 / DP 陪跑 / Layer composition / 模型结构猜测），'
-        '不会写入 <code>diagnosis_findings.json</code>，也不参与 evidence-chain 校验。'
-        '需要正式结论请查 <code>diagnosis_findings.json</code>。'
-        '</div>'
+        "标签项为 UI 推断信号（EP 峰均比 / DP 陪跑 / Layer composition / 模型结构猜测），"
+        "不会写入 <code>diagnosis_findings.json</code>，也不参与 evidence-chain 校验。"
+        "需要正式结论请查 <code>diagnosis_findings.json</code>。"
+        "</div>"
     )
 
     # ---- Cross-rank table (slow card / fast card / workload) ----
     rank_rows = b.rank_summary
-    busy_mean = statistics.mean(safe_float(r["busy_union_ms"]) for r in rank_rows) if rank_rows else 0
+    busy_mean = (
+        statistics.mean(safe_float(r["busy_union_ms"]) for r in rank_rows)
+        if rank_rows
+        else 0
+    )
     xrank_rows = []
-    for r in sorted(rank_rows, key=lambda x: safe_float(x["busy_union_ms"]), reverse=True):
+    for r in sorted(
+        rank_rows, key=lambda x: safe_float(x["busy_union_ms"]), reverse=True
+    ):
         busy = safe_float(r["busy_union_ms"])
         wall = safe_float(r["wall_ms"])
         underfeed = safe_float(r["underfeed_ratio"])
@@ -2246,7 +2383,7 @@ def render_l1_view(b: "Bundle") -> str:
             speed_badge = '<span class="badge b-success">normal</span>'
         wl_class, wl_label = classify_workload(b, r["rank_id"])
         gmm_per_rank = ep["by_rank"].get(r["rank_id"], 0.0) if ep["available"] else 0.0
-        gmm_label = (f"{gmm_per_rank/1000:.1f} ms" if ep["available"] else "—")
+        gmm_label = f"{gmm_per_rank / 1000:.1f} ms" if ep["available"] else "—"
         xrank_rows.append(
             "<tr>"
             f"<td><b>{html.escape(short_rank_label(r['rank_id']))}</b>"
@@ -2254,9 +2391,9 @@ def render_l1_view(b: "Bundle") -> str:
             f"<td class='num'>{int(safe_float(r['step_count']))}</td>"
             f"<td class='num'>{fmt_ms(wall)}</td>"
             f"<td class='num'>{fmt_ms(busy)}</td>"
-            f"<td class='num'>{diff*100:+.1f}%</td>"
+            f"<td class='num'>{diff * 100:+.1f}%</td>"
             f"<td class='num'>{gmm_label}</td>"
-            f"<td class='num'>{underfeed*100:.1f}%</td>"
+            f"<td class='num'>{underfeed * 100:.1f}%</td>"
             f"<td>{speed_badge}</td>"
             f"<td><span class='badge {wl_class}'>{html.escape(wl_label)}</span></td>"
             "</tr>"
@@ -2269,10 +2406,10 @@ def render_l1_view(b: "Bundle") -> str:
         '<th class="num">Busy ms</th><th class="num">Busy vs 均值</th>'
         f'<th class="num">GMM 总 ms{info_btn("ep_per_rank_gmm") if "ep_per_rank_gmm" in FIELD_DOC else ""}</th>'
         '<th class="num">Underfeed</th><th>Speed</th><th>Workload</th></tr></thead>'
-        f'<tbody>{"".join(xrank_rows)}</tbody></table></div>'
+        f"<tbody>{''.join(xrank_rows)}</tbody></table></div>"
         '<div class="muted" style="margin-top:6px;font-size:11px">'
-        'Speed：busy 比组均值 ±30% 时报警 · Workload：real = attention+moe 占比 &gt; 80% · companion = ≥ 50% 步是 moe-only/dummy'
-        '</div></div>'
+        "Speed：busy 比组均值 ±30% 时报警 · Workload：real = attention+moe 占比 &gt; 80% · companion = ≥ 50% 步是 moe-only/dummy"
+        "</div></div>"
     )
 
     # ---- EP imbalance detail (only when GMM available) ----
@@ -2284,33 +2421,37 @@ def render_l1_view(b: "Bundle") -> str:
         for rid in rid_sorted:
             v = ep["by_rank"][rid]
             deviation = (v - ep["mean_us"]) / ep["mean_us"] if ep["mean_us"] else 0
-            color = "#ff7b72" if deviation > 0.10 else ("#3fb950" if abs(deviation) < 0.05 else "#79c0ff")
+            color = (
+                "#ff7b72"
+                if deviation > 0.10
+                else ("#3fb950" if abs(deviation) < 0.05 else "#79c0ff")
+            )
             bar_pct = (v / max_v * 100) if max_v else 0
             rows.append(
                 "<tr>"
                 f"<td><b>{html.escape(short_rank_label(rid))}</b></td>"
-                f"<td class='num'>{v/1000:.2f}</td>"
+                f"<td class='num'>{v / 1000:.2f}</td>"
                 "<td class='bar-cell' style='min-width:160px'>"
                 f"<div class='bar' style='width:{bar_pct:.1f}%;background:{color}'></div>"
-                f"<div class='label'>{deviation*100:+.1f}% vs mean</div></td>"
+                f"<div class='label'>{deviation * 100:+.1f}% vs mean</div></td>"
                 "</tr>"
             )
         ep_verdict = (
             '<span class="badge b-danger">EP imbalance</span>'
-            if ep["peak_to_mean"] >= 1.10 else
-            '<span class="badge b-success">EP balanced</span>'
+            if ep["peak_to_mean"] >= 1.10
+            else '<span class="badge b-success">EP balanced</span>'
         )
         ep_html = (
             '<div class="card" style="margin-top:14px">'
             f'<h3 style="margin-top:0">EP 负载（GroupedMatmul wall）· {ep_verdict}</h3>'
             '<div class="muted" style="font-size:11.5px;margin-bottom:6px">'
-            f'峰均比 = max / mean = <b>{ep["peak_to_mean"]:.3f}</b> · spread = (max-min) / mean = <b>{ep["spread"]*100:.1f}%</b>'
-            ' · 经验阈值：&gt; 1.10 视为 EP 不均（GroupedMatmul 是 MoE expert dispatch 的核心 kernel，每 rank 的 GMM 总耗时直接反映分到的 token 量）'
-            '</div>'
-            '<table>'
+            f"峰均比 = max / mean = <b>{ep['peak_to_mean']:.3f}</b> · spread = (max-min) / mean = <b>{ep['spread'] * 100:.1f}%</b>"
+            " · 经验阈值：&gt; 1.10 视为 EP 不均（GroupedMatmul 是 MoE expert dispatch 的核心 kernel，每 rank 的 GMM 总耗时直接反映分到的 token 量）"
+            "</div>"
+            "<table>"
             '<thead><tr><th>Rank</th><th class="num">GMM 总耗时 ms</th><th>Deviation vs mean</th></tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table>'
-            '</div>'
+            f"<tbody>{''.join(rows)}</tbody></table>"
+            "</div>"
         )
 
     # ---- Companion run detail ----
@@ -2331,13 +2472,13 @@ def render_l1_view(b: "Bundle") -> str:
             '<div class="card" style="margin-top:14px">'
             '<h3 style="margin-top:0">DP 陪跑判定 · <span class="badge b-warn">存在错位</span></h3>'
             '<div class="muted" style="font-size:11.5px;margin-bottom:6px">'
-            f'在 {comp["n_total_aligned"]} 个对齐 step 中，有 <b>{comp["n_companion"]}</b> 个 step 出现：部分 rank 跑真实数据（attention+moe / attention+dense），'
-            '另一部分 rank 跑 moe-only / ffn-only / 空 dummy。这通常意味着 prefill 阶段或 schedule 不均。'
-            '</div>'
-            '<table>'
+            f"在 {comp['n_total_aligned']} 个对齐 step 中，有 <b>{comp['n_companion']}</b> 个 step 出现：部分 rank 跑真实数据（attention+moe / attention+dense），"
+            "另一部分 rank 跑 moe-only / ffn-only / 空 dummy。这通常意味着 prefill 阶段或 schedule 不均。"
+            "</div>"
+            "<table>"
             '<thead><tr><th>真实数据 rank</th><th>陪跑 rank</th><th class="num">出现步数</th></tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table>'
-            '</div>'
+            f"<tbody>{''.join(rows)}</tbody></table>"
+            "</div>"
         )
 
     # ---- per-rank step Gantt (each step clickable → L2) ----
@@ -2345,14 +2486,14 @@ def render_l1_view(b: "Bundle") -> str:
 
     return (
         '<section class="view active" id="view-l1" data-level="1">'
-        f'{kpi_strip}'
-        f'{cross_rank_html}'
-        f'{ep_html}'
-        f'{companion_html}'
+        f"{kpi_strip}"
+        f"{cross_rank_html}"
+        f"{ep_html}"
+        f"{companion_html}"
         '<div style="margin-top:14px"><h3 style="margin:0 0 8px 0">每 Rank Step 时间线 · 点击任一 step 进入 L2</h3>'
-        f'{gantt_html}'
-        '</div>'
-        '</section>'
+        f"{gantt_html}"
+        "</div>"
+        "</section>"
     )
 
 
@@ -2387,18 +2528,24 @@ def _render_l1_gantt(b: "Bundle") -> str:
     grid_step_ms = 2000
     for tick in range(0, int(max_wall_ms) + grid_step_ms, grid_step_ms):
         x = x_of(tick)
-        parts.append(f'<line class="gridline" x1="{x:.1f}" y1="{label_h}" x2="{x:.1f}" y2="{plot_h}"/>')
-        parts.append(f'<text class="axis-text" x="{x:.1f}" y="{label_h-6}" text-anchor="middle">{tick/1000:.1f}s</text>')
+        parts.append(
+            f'<line class="gridline" x1="{x:.1f}" y1="{label_h}" x2="{x:.1f}" y2="{plot_h}"/>'
+        )
+        parts.append(
+            f'<text class="axis-text" x="{x:.1f}" y="{label_h - 6}" text-anchor="middle">{tick / 1000:.1f}s</text>'
+        )
 
     for ri, rid in enumerate(ranks):
         row_top = label_h + ri * (row_h + gap)
         parts.append(
-            f'<text class="rank-label" x="{margin_l-8:.1f}" y="{row_top + row_h/2 + 4:.1f}" text-anchor="end">{html.escape(short_rank_label(rid))}</text>'
+            f'<text class="rank-label" x="{margin_l - 8:.1f}" y="{row_top + row_h / 2 + 4:.1f}" text-anchor="end">{html.escape(short_rank_label(rid))}</text>'
         )
         parts.append(
             f'<rect x="{margin_l}" y="{row_top}" width="{plot_w}" height="{row_h}" fill="#1c232c" rx="3"/>'
         )
-        rank_start = min(safe_float(s["start_us"]) for s in by_rank[rid]) if by_rank[rid] else 0
+        rank_start = (
+            min(safe_float(s["start_us"]) for s in by_rank[rid]) if by_rank[rid] else 0
+        )
         for seg in by_rank[rid]:
             t0 = (safe_float(seg["start_us"]) - rank_start) / 1000.0
             t1 = (safe_float(seg["end_us"]) - rank_start) / 1000.0
@@ -2417,13 +2564,13 @@ def _render_l1_gantt(b: "Bundle") -> str:
             )
             view_id = f"view-l2-{seg['segment_id']}"
             parts.append(
-                f'<rect class="seg" x="{x0:.1f}" y="{row_top+4}" width="{w:.1f}" height="{row_h-8}" '
+                f'<rect class="seg" x="{x0:.1f}" y="{row_top + 4}" width="{w:.1f}" height="{row_h - 8}" '
                 f'fill="{color}" rx="2" data-show="{view_id}"><title>{html.escape(tooltip)}</title></rect>'
             )
             if bubble > 0 and wall > 0:
                 bubble_w = w * (bubble / wall)
                 parts.append(
-                    f'<rect x="{x0:.1f}" y="{row_top+4}" width="{bubble_w:.1f}" height="{row_h-8}" '
+                    f'<rect x="{x0:.1f}" y="{row_top + 4}" width="{bubble_w:.1f}" height="{row_h - 8}" '
                     f'fill="url(#bubble-pattern)" rx="2" pointer-events="none"/>'
                 )
 
@@ -2434,26 +2581,24 @@ def _render_l1_gantt(b: "Bundle") -> str:
         legend_items.append(
             f'<span style="display:inline-flex;align-items:center;gap:4px;margin-right:14px">'
             f'<span style="display:inline-block;width:12px;height:12px;background:{c};border-radius:2px"></span>'
-            f'{html.escape(family_label(f))}</span>'
+            f"{html.escape(family_label(f))}</span>"
         )
     legend_items.append(
         '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:14px">'
         '<span style="display:inline-block;width:12px;height:12px;background-image:repeating-linear-gradient(45deg,rgba(248,81,73,.55) 0 2px,transparent 2px 6px);background-color:#1c232c;border-radius:2px"></span>'
-        'bubble (idle)</span>'
+        "bubble (idle)</span>"
     )
 
     return (
         '<div class="card scroll-x">'
         f'<svg class="gantt-svg" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">'
-        '<defs>'
+        "<defs>"
         '<pattern id="bubble-pattern" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">'
         '<rect width="6" height="6" fill="transparent"/>'
         '<line x1="0" y1="0" x2="0" y2="6" stroke="rgba(248,81,73,.55)" stroke-width="2"/>'
-        '</pattern></defs>'
-        + "".join(parts) +
-        '</svg>'
+        "</pattern></defs>" + "".join(parts) + "</svg>"
         f'<div style="margin-top:8px;font-size:11px">{"".join(legend_items)}</div>'
-        '</div>'
+        "</div>"
     )
 
 
@@ -2475,7 +2620,9 @@ def render_l2_views(b: "Bundle") -> str:
             seg_idx_in_rank[s["segment_id"]] = i
 
     step_seg_by_id = {s["segment_id"]: s for s in b.step_segments}
-    classes_sorted = sorted(b.step_class, key=lambda r: safe_float(r["wall_ms_sum"]), reverse=True)
+    classes_sorted = sorted(
+        b.step_class, key=lambda r: safe_float(r["wall_ms_sum"]), reverse=True
+    )
     top_class_id = classes_sorted[0]["step_class_id"] if classes_sorted else None
     # only top-3 classes have L3 views generated (matches render_l3_views)
     L3_TOP_N = 3
@@ -2495,18 +2642,33 @@ def render_l2_views(b: "Bundle") -> str:
     for s in b.step_summary:
         seg_id = s["segment_id"]
         view_id = f"view-l2-{seg_id}"
-        out.append(_render_l2_single_step(b, s, view_id, seg_idx_in_rank, by_rank,
-                                          step_seg_by_id, rep_step_per_class,
-                                          covered_class_ids, top1_rep_seg))
+        out.append(
+            _render_l2_single_step(
+                b,
+                s,
+                view_id,
+                seg_idx_in_rank,
+                by_rank,
+                step_seg_by_id,
+                rep_step_per_class,
+                covered_class_ids,
+                top1_rep_seg,
+            )
+        )
     return "".join(out)
 
 
-def _render_l2_single_step(b: "Bundle", s: dict, view_id: str,
-                            seg_idx_in_rank: dict, by_rank: dict,
-                            step_seg_by_id: dict,
-                            rep_step_per_class: dict,
-                            covered_class_ids: set,
-                            top1_rep_seg: str | None) -> str:
+def _render_l2_single_step(
+    b: "Bundle",
+    s: dict,
+    view_id: str,
+    seg_idx_in_rank: dict,
+    by_rank: dict,
+    step_seg_by_id: dict,
+    rep_step_per_class: dict,
+    covered_class_ids: set,
+    top1_rep_seg: str | None,
+) -> str:
     seg_id = s["segment_id"]
     rid = s["rank_id"]
     family = s.get("step_family", "")
@@ -2545,23 +2707,25 @@ def _render_l2_single_step(b: "Bundle", s: dict, view_id: str,
     spec_pct = pct_of(spec_us)
     tail_pct = pct_of(tail_us)
     bubble_pct = bubble_pct_recomputed
-    spec_info = info_btn("speculative_layer") if "speculative_layer" in FIELD_DOC else ""
+    spec_info = (
+        info_btn("speculative_layer") if "speculative_layer" in FIELD_DOC else ""
+    )
     spec_layer_count = split["spec_layer_count"]
     phase_split_html = (
         '<div class="phase-split">'
         f'<div class="cell main"><div class="name">主体 (main)</div>'
-        f'<div class="val">{main_us/1000:.2f} ms</div>'
-        f'<div class="sub">{main_pct*100:.1f}% · main bubble {main_bubble_ms:.2f} ms</div></div>'
+        f'<div class="val">{main_us / 1000:.2f} ms</div>'
+        f'<div class="sub">{main_pct * 100:.1f}% · main bubble {main_bubble_ms:.2f} ms</div></div>'
         f'<div class="cell spec"><div class="name">投机解码 (spec){spec_info}</div>'
-        f'<div class="val">{spec_us/1000:.2f} ms</div>'
-        f'<div class="sub">{spec_pct*100:.1f}% · {spec_layer_count} spec layers</div></div>'
+        f'<div class="val">{spec_us / 1000:.2f} ms</div>'
+        f'<div class="sub">{spec_pct * 100:.1f}% · {spec_layer_count} spec layers</div></div>'
         f'<div class="cell tail"><div class="name">尾部小算子+空泡 (tail)</div>'
-        f'<div class="val">{tail_us/1000:.2f} ms</div>'
-        f'<div class="sub">{tail_pct*100:.1f}% · tail bubble {tail_bubble_ms:.2f} ms</div></div>'
+        f'<div class="val">{tail_us / 1000:.2f} ms</div>'
+        f'<div class="sub">{tail_pct * 100:.1f}% · tail bubble {tail_bubble_ms:.2f} ms</div></div>'
         f'<div class="cell bubble"><div class="name">空泡总计 (bubble)</div>'
-        f'<div class="val" style="color:#ff7b72">{bubble_us/1000:.2f} ms</div>'
-        f'<div class="sub">{bubble_pct*100:.1f}% · head {head_bubble_ms:.1f} / main {main_bubble_ms:.1f} / tail {tail_bubble_ms:.1f} ms</div></div>'
-        '</div>'
+        f'<div class="val" style="color:#ff7b72">{bubble_us / 1000:.2f} ms</div>'
+        f'<div class="sub">{bubble_pct * 100:.1f}% · head {head_bubble_ms:.1f} / main {main_bubble_ms:.1f} / tail {tail_bubble_ms:.1f} ms</div></div>'
+        "</div>"
     )
 
     # model guess
@@ -2592,24 +2756,24 @@ def _render_l2_single_step(b: "Bundle", s: dict, view_id: str,
         if other_rid != rid:
             other_view = f"view-l2-{other['segment_id']}"
             view_link = f'<button class="back-btn" data-show="{other_view}" style="padding:2px 8px">查看</button>'
-        diff_color = "#ff7b72" if diff > 5 else ("#79c0ff" if diff < -5 else "var(--muted)")
+        diff_color = (
+            "#ff7b72" if diff > 5 else ("#79c0ff" if diff < -5 else "var(--muted)")
+        )
         xrank_rows.append(
             '<div class="xrank-row">'
             f'<div><b>{html.escape(short_rank_label(other_rid))}</b> {chip}<div class="muted" style="font-size:10px">{html.escape(family_label(other_family))}</div></div>'
             f'<div class="num">{other_wall:.2f} ms</div>'
-            f'<div class="num">{other_bubble*100:.1f}%</div>'
+            f'<div class="num">{other_bubble * 100:.1f}%</div>'
             f'<div class="num" style="color:{diff_color}">{diff:+.1f}% vs 本步</div>'
-            f'<div>{view_link}</div>'
-            '</div>'
+            f"<div>{view_link}</div>"
+            "</div>"
         )
     xrank_html = (
         '<div class="card" style="margin-top:14px">'
         '<h3 style="margin-top:0">跨 Rank 同步对比</h3>'
         '<div class="xrank-row head">'
         '<div>Rank</div><div class="num">Wall ms</div><div class="num">Bubble %</div><div class="num">Δ vs 本步</div><div></div>'
-        '</div>'
-        + "".join(xrank_rows) +
-        '</div>'
+        "</div>" + "".join(xrank_rows) + "</div>"
     )
 
     # Kernel rollup (top 30) — current step + current rank ONLY.
@@ -2619,11 +2783,13 @@ def _render_l2_single_step(b: "Bundle", s: dict, view_id: str,
     # Recompute each kernel's union-time (not sum) so concurrent AIC+AIV don't double count
     name_to_union = union_duration_us_by_name(split["step_events"])
     max_dur = rollup[0]["duration_us"] if rollup else 1.0
-    krows = ['<div class="kernel-row head" style="grid-template-columns:1.5fr 0.5fr 0.4fr 1.6fr 0.5fr 0.7fr">'
-             '<div>Kernel</div><div>Op type</div><div class="num">Calls</div>'
-             '<div>Σ (in this step) · % of step active</div>'
-             '<div>Bound family</div><div>Bound stage</div>'
-             '</div>']
+    krows = [
+        '<div class="kernel-row head" style="grid-template-columns:1.5fr 0.5fr 0.4fr 1.6fr 0.5fr 0.7fr">'
+        '<div>Kernel</div><div>Op type</div><div class="num">Calls</div>'
+        "<div>Σ (in this step) · % of step active</div>"
+        "<div>Bound family</div><div>Bound stage</div>"
+        "</div>"
+    ]
     for r in rollup[:30]:
         op_type = r["op_type"]
         color = OP_TYPE_COLOR.get(op_type, "#8b949e")
@@ -2640,19 +2806,19 @@ def _render_l2_single_step(b: "Bundle", s: dict, view_id: str,
             f'<div class="num">{r["count"]}</div>'
             '<div class="bar-host" title="union of all calls of this kernel in this step">'
             f'<div class="bar-fill" style="width:{min(bar_pct, 100):.1f}%;background:{color}"></div>'
-            f'<div class="bar-lbl">{union_us/1000:.2f} ms · {dur_pct_step:.1f}%</div>'
-            '</div>'
+            f'<div class="bar-lbl">{union_us / 1000:.2f} ms · {dur_pct_step:.1f}%</div>'
+            "</div>"
             f'<div><span class="badge" style="background:{bf_color}33;color:{bf_color}">{html.escape(bf)}</span></div>'
             f'<div class="muted" style="font-size:10.5px">{html.escape(r["bound_stage"])}</div>'
-            '</div>'
+            "</div>"
         )
     rollup_extra = (
         f'<div class="muted" style="font-size:11px;margin-top:6px">'
-        f'分母 = 本 step 在本 rank 上所有 device 事件 (AIV/AIC/mix_cv/mix_comm_aiv/communication/aicpu, '
-        f'去 redundant) 的 active union = <b>{step_busy_us/1000:.2f} ms</b>'
-        f'（step wall = {step_wall_ms:.2f} ms，差额 = bubble）'
-        + (f' · 仅显示前 30 / 共 {len(rollup)} 种 kernel' if len(rollup) > 30 else '')
-        + '</div>'
+        f"分母 = 本 step 在本 rank 上所有 device 事件 (AIV/AIC/mix_cv/mix_comm_aiv/communication/aicpu, "
+        f"去 redundant) 的 active union = <b>{step_busy_us / 1000:.2f} ms</b>"
+        f"（step wall = {step_wall_ms:.2f} ms，差额 = bubble）"
+        + (f" · 仅显示前 30 / 共 {len(rollup)} 种 kernel" if len(rollup) > 30 else "")
+        + "</div>"
     )
 
     # Layer list — every layer routes to its step_class's rep step's L3 view.
@@ -2672,7 +2838,7 @@ def _render_l2_single_step(b: "Bundle", s: dict, view_id: str,
     #             3) fallback → use top-1 class's rep L3 (best-effort same layer_index)
     own_cls = s.get("step_class_id", "")
     own_rep_seg = rep_step_per_class.get(own_cls)
-    is_rep_self = (own_rep_seg == seg_id)
+    is_rep_self = own_rep_seg == seg_id
     own_class_covered = own_cls in covered_class_ids
 
     if is_rep_self:
@@ -2703,78 +2869,92 @@ def _render_l2_single_step(b: "Bundle", s: dict, view_id: str,
         if target_kind == "self":
             cross_hint = ""
         elif target_kind == "class_rep":
-            cross_hint = ' <span class="muted" style="font-size:10px">(on class rep)</span>'
+            cross_hint = (
+                ' <span class="muted" style="font-size:10px">(on class rep)</span>'
+            )
         elif target_kind == "top1_fallback":
-            cross_hint = ' <span class="muted" style="font-size:10px">(on top-1 rep)</span>'
+            cross_hint = (
+                ' <span class="muted" style="font-size:10px">(on top-1 rep)</span>'
+            )
         else:
-            cross_hint = ' <span class="muted" style="font-size:10px">(no L3 available)</span>'
-        click_attr = f'data-show="{view_l3}"' if clickable else 'style="cursor:default;opacity:.55"'
+            cross_hint = (
+                ' <span class="muted" style="font-size:10px">(no L3 available)</span>'
+            )
+        click_attr = (
+            f'data-show="{view_l3}"'
+            if clickable
+            else 'style="cursor:default;opacity:.55"'
+        )
         cursor_style = ";cursor:pointer" if clickable else ""
         # mini bar visualizing % of step
-        pct_color = "#3fb950" if layer_step_pct > 5 else ("#f0883e" if layer_step_pct > 2 else "#58a6ff")
+        pct_color = (
+            "#3fb950"
+            if layer_step_pct > 5
+            else ("#f0883e" if layer_step_pct > 2 else "#58a6ff")
+        )
         layer_rows_html.append(
             '<div class="kernel-row" '
             f'style="grid-template-columns:50px 1.2fr 0.6fr 1.0fr 0.5fr 0.4fr 0.4fr{cursor_style}" '
-            f'{click_attr}>'
+            f"{click_attr}>"
             f'<div><span class="muted">L{lay_idx}</span></div>'
             f'<div><b style="color:#79c0ff">{html.escape(composition)}</b>{cross_hint}</div>'
-            f'<div class="num">{ldur/1000:.2f} ms</div>'
+            f'<div class="num">{ldur / 1000:.2f} ms</div>'
             '<div class="bar-host" style="position:relative;height:14px;background:#0d1117;border-radius:2px;border:1px solid #1c232c">'
             f'<div class="bar-fill" style="position:absolute;left:0;top:0;height:100%;width:{min(layer_step_pct, 100):.1f}%;background:{pct_color};opacity:.6;border-radius:2px"></div>'
             f'<div style="position:relative;line-height:14px;padding:0 6px;font-variant-numeric:tabular-nums;font-size:10.5px">{layer_step_pct:.2f}%</div>'
-            '</div>'
+            "</div>"
             f'<div class="num muted">{len(lev)} events</div>'
             f'<div><span class="chip" style="font-size:10px">{html.escape(role)}</span></div>'
             f'<div class="muted" style="font-size:10.5px;text-align:right">{"→ L3" if clickable else "—"}</div>'
-            '</div>'
+            "</div>"
         )
     rep_note = ""
     if target_kind == "class_rep":
         rep_note = (
             '<div class="muted" style="font-size:11px;margin-top:6px">'
-            '本 step 与其 step_class 的代表 step 结构一致；点击 layer 跳到代表 step 的 L3 详情。'
-            '</div>'
+            "本 step 与其 step_class 的代表 step 结构一致；点击 layer 跳到代表 step 的 L3 详情。"
+            "</div>"
         )
     elif target_kind == "top1_fallback":
         rep_note = (
             '<div class="muted" style="font-size:11px;margin-top:6px">'
-            '本 step 的 step_class 未在 top-3 内（L3 仅生成 top-3 by wall_ms_sum）；点击 layer 跳到 top-1 代表 step 的同 layer_index，作为最接近的结构参考。'
-            '</div>'
+            "本 step 的 step_class 未在 top-3 内（L3 仅生成 top-3 by wall_ms_sum）；点击 layer 跳到 top-1 代表 step 的同 layer_index，作为最接近的结构参考。"
+            "</div>"
         )
     elif target_kind == "none":
         rep_note = (
             '<div class="muted" style="font-size:11px;margin-top:6px">'
-            '未找到任何 L3 目标。'
-            '</div>'
+            "未找到任何 L3 目标。"
+            "</div>"
         )
     layers_block = (
         '<div class="card" style="margin-top:14px">'
         '<h3 style="margin-top:0">Layer 顺序 · 点击任一 layer 进入 L3</h3>'
         '<div class="muted" style="font-size:11.5px;margin-bottom:6px">'
-        '<b>Composition</b> 列：根据 block_segments 推断的 attention sub-type + ffn/moe 组合。'
-        '<code>mha</code>/<code>gqa</code>/<code>mqa</code> = FIA / UnpadFlashAttention 路径，'
-        '由 kernel_details.csv 里的 <code>Input Shapes</code> 字段读出 Q/K 的 head 数 best-effort 推断；'
-        '<code>gqa_or_mha</code> = 同一条 FIA / UnpadFA 路径但 shape 缺失或异常时的 fallback 标签；'
-        '<code>mla</code> = DeepSeek V2/V3 (Multi-head Latent Attention)；'
-        '<code>dsa</code> = DeepSeek V3.2 (Sparse Attention)；'
-        '<code>csa</code> = DeepSeek V4 主层 (Compressed Sparse Attention)；'
-        '<code>hca</code> = DeepSeek V4 交替层 (Heavily Compressed Attention)；'
-        '<code>linear</code> = Mamba / GDN / 线性 attention。'
-        '</div>'
+        "<b>Composition</b> 列：根据 block_segments 推断的 attention sub-type + ffn/moe 组合。"
+        "<code>mha</code>/<code>gqa</code>/<code>mqa</code> = FIA / UnpadFlashAttention 路径，"
+        "由 kernel_details.csv 里的 <code>Input Shapes</code> 字段读出 Q/K 的 head 数 best-effort 推断；"
+        "<code>gqa_or_mha</code> = 同一条 FIA / UnpadFA 路径但 shape 缺失或异常时的 fallback 标签；"
+        "<code>mla</code> = DeepSeek V2/V3 (Multi-head Latent Attention)；"
+        "<code>dsa</code> = DeepSeek V3.2 (Sparse Attention)；"
+        "<code>csa</code> = DeepSeek V4 主层 (Compressed Sparse Attention)；"
+        "<code>hca</code> = DeepSeek V4 交替层 (Heavily Compressed Attention)；"
+        "<code>linear</code> = Mamba / GDN / 线性 attention。"
+        "</div>"
         '<div class="kernel-rollup" style="margin-top:6px">'
         '<div class="kernel-row head" style="grid-template-columns:50px 1.2fr 0.6fr 1.0fr 0.5fr 0.4fr 0.4fr">'
-        '<div>idx</div>'
+        "<div>idx</div>"
         '<div>Composition <span class="ui-only-pill" title="UI-only heuristic — block 组合由 block_segments 推断，不是 diagnosis finding">UI-only</span></div>'
         '<div class="num">Active ms</div><div class="num">% of step active</div><div class="num">Events</div><div>Role</div><div></div>'
-        '</div>'
-        + "".join(layer_rows_html) +
-        '</div>'
+        "</div>"
+        + "".join(layer_rows_html)
+        + "</div>"
         + f'<div class="muted" style="font-size:11px;margin-top:6px">'
-        f'分母 = 本 step 在本 rank 上所有 device 事件 (AIV/AIC/mix/comm/aicpu, 去 redundant) 的 active union = <b>{step_busy_us/1000:.2f} ms</b>；'
-        f'分子 = 本 layer 在本 rank 上同口径的 active union（跨流取并集，AIC/AIV 同时活跃不双计；redundant 标记的 AIV 与 HCCL 双流副本不双计）'
-        + '</div>'
+        f"分母 = 本 step 在本 rank 上所有 device 事件 (AIV/AIC/mix/comm/aicpu, 去 redundant) 的 active union = <b>{step_busy_us / 1000:.2f} ms</b>；"
+        f"分子 = 本 layer 在本 rank 上同口径的 active union（跨流取并集，AIC/AIV 同时活跃不双计；redundant 标记的 AIV 与 HCCL 双流副本不双计）"
+        + "</div>"
         + rep_note
-        + '</div>'
+        + "</div>"
     )
 
     fam_lbl = family_label(family, layer_count) if family else (f"Step #{step_idx + 1}")
@@ -2784,34 +2964,34 @@ def _render_l2_single_step(b: "Bundle", s: dict, view_id: str,
         f'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
         f'<div><h1 style="margin:0">{html.escape(title)}</h1>'
         f'<div class="muted" style="font-size:11.5px">'
-        f'wall <b>{wall:.2f}</b> ms · bubble <b style="color:#ff7b72">{bubble_ratio*100:.1f}%</b> · '
-        f'time window <code>{start_us/1000:.2f} → {end_us/1000:.2f} ms</code> · segment_id <code>{html.escape(seg_id)}</code>'
-        '</div></div>'
-        f'{model_pill}'
-        '</div>'
-        '</div>'
+        f'wall <b>{wall:.2f}</b> ms · bubble <b style="color:#ff7b72">{bubble_ratio * 100:.1f}%</b> · '
+        f"time window <code>{start_us / 1000:.2f} → {end_us / 1000:.2f} ms</code> · segment_id <code>{html.escape(seg_id)}</code>"
+        "</div></div>"
+        f"{model_pill}"
+        "</div>"
+        "</div>"
     )
 
     return (
         f'<section class="view" id="{view_id}" data-level="2" data-l2id="{view_id}" '
         f'data-l2title="{html.escape(title)}" data-title="{html.escape(title)}">'
-        f'{head}'
+        f"{head}"
         f'<div class="card" style="margin-top:14px"><h3 style="margin-top:0">阶段分区</h3>'
-        f'{phase_split_html}'
+        f"{phase_split_html}"
         '<div class="muted" style="font-size:11px;margin-top:6px">'
-        '主体 = main layer 内事件 · 投机 = layer_role=spec 内事件 · 尾部 = tail 段事件 · 空泡比例来自 step_anatomy'
-        '</div></div>'
-        f'{xrank_html}'
+        "主体 = main layer 内事件 · 投机 = layer_role=spec 内事件 · 尾部 = tail 段事件 · 空泡比例来自 step_anatomy"
+        "</div></div>"
+        f"{xrank_html}"
         '<div class="card" style="margin-top:14px">'
         '<h3 style="margin-top:0">Kernel 占比 · 按耗时降序</h3>'
         '<div class="muted" style="font-size:11.5px;margin-bottom:6px">所有 kernel 按本 step 内的总耗时降序排列；bound family 是该 kernel 的 ratio-加权主要瓶颈面</div>'
         '<div class="kernel-rollup">'
-        + "".join(krows) +
-        '</div>'
-        + rollup_extra +
-        '</div>'
-        f'{layers_block}'
-        '</section>'
+        + "".join(krows)
+        + "</div>"
+        + rollup_extra
+        + "</div>"
+        f"{layers_block}"
+        "</section>"
     )
 
 
@@ -2825,7 +3005,9 @@ def render_l3_views(b: "Bundle") -> str:
     # generate L3 views for the top-N step classes by wall_ms_sum. Uncovered classes'
     # layer clicks fall back to the top-1 class's rep step (best-effort same-layer-index).
     rep_seg_ids: list[str] = []
-    classes_sorted = sorted(b.step_class, key=lambda r: safe_float(r["wall_ms_sum"]), reverse=True)
+    classes_sorted = sorted(
+        b.step_class, key=lambda r: safe_float(r["wall_ms_sum"]), reverse=True
+    )
     L3_TOP_N = 3
     for cls in classes_sorted[:L3_TOP_N]:
         cls_id = cls["step_class_id"]
@@ -2843,12 +3025,18 @@ def render_l3_views(b: "Bundle") -> str:
         step_meta = step_seg_by_id.get(seg_id)
         if not step_meta:
             continue
-        rank_id = next((s["rank_id"] for s in b.step_summary if s["segment_id"] == seg_id), None)
+        rank_id = next(
+            (s["rank_id"] for s in b.step_summary if s["segment_id"] == seg_id), None
+        )
         if rank_id is None:
             continue
         # Precompute step-scope context once per step (kernel-step union + step_busy).
-        step_events = events_in_row_range(b.events, step_meta["row_start"], step_meta["row_end"], rank_id)
-        step_events_active = [e for e in step_events if not getattr(e, "redundant", False)]
+        step_events = events_in_row_range(
+            b.events, step_meta["row_start"], step_meta["row_end"], rank_id
+        )
+        step_events_active = [
+            e for e in step_events if not getattr(e, "redundant", False)
+        ]
         step_busy_us = union_duration_us(step_events_active)
         kernel_step_union_us = union_duration_us_by_name(step_events_active)
         kernel_step_count = Counter(short_op_name(e.name) for e in step_events_active)
@@ -2866,20 +3054,31 @@ def render_l3_views(b: "Bundle") -> str:
             lay_idx = ls.get("layer_index", "?")
             role = ls.get("layer_role", "main")
             view_id = f"view-l3-{seg_id}-{lay_idx}-{role}"
-            out.append(_render_l3_layer(
-                b, view_id, seg_id, ls, rank_id,
-                step_busy_us=step_busy_us,
-                kernel_step_union_us=kernel_step_union_us,
-                kernel_step_count=kernel_step_count,
-            ))
+            out.append(
+                _render_l3_layer(
+                    b,
+                    view_id,
+                    seg_id,
+                    ls,
+                    rank_id,
+                    step_busy_us=step_busy_us,
+                    kernel_step_union_us=kernel_step_union_us,
+                    kernel_step_count=kernel_step_count,
+                )
+            )
     return "".join(out)
 
 
-def _render_l3_layer(b: "Bundle", view_id: str, parent_seg_id: str,
-                     ls: dict, rank_id: str,
-                     step_busy_us: float,
-                     kernel_step_union_us: dict,
-                     kernel_step_count: Counter) -> str:
+def _render_l3_layer(
+    b: "Bundle",
+    view_id: str,
+    parent_seg_id: str,
+    ls: dict,
+    rank_id: str,
+    step_busy_us: float,
+    kernel_step_union_us: dict,
+    kernel_step_count: Counter,
+) -> str:
     lay_idx = ls.get("layer_index", "?")
     role = ls.get("layer_role", "main")
     lev = events_in_row_range(b.events, ls["row_start"], ls["row_end"], rank_id)
@@ -2890,7 +3089,7 @@ def _render_l3_layer(b: "Bundle", view_id: str, parent_seg_id: str,
     kernel_layer_union_us = union_duration_us_by_name(lev_active)
     kernel_layer_count = Counter(short_op_name(e.name) for e in lev_active)
 
-    title = f"Layer {lay_idx} · {role} · active {layer_busy_us/1000:.2f} ms · {len(lev_active)} ops"
+    title = f"Layer {lay_idx} · {role} · active {layer_busy_us / 1000:.2f} ms · {len(lev_active)} ops"
     l2_view = f"view-l2-{parent_seg_id}"
 
     # Cap the number of fully-rendered operator cards per layer. The full
@@ -2906,32 +3105,35 @@ def _render_l3_layer(b: "Bundle", view_id: str, parent_seg_id: str,
     OP_CARD_PER_LAYER_LIMIT = 200
     if len(lev_active) > OP_CARD_PER_LAYER_LIMIT:
         card_eligible_idx = {
-            i for i, _ in sorted(
+            i
+            for i, _ in sorted(
                 enumerate(lev_active),
                 key=lambda iv: -iv[1].duration_us,
             )[:OP_CARD_PER_LAYER_LIMIT]
         }
         size_note = (
             f'<div class="muted" style="font-size:11px;margin-top:6px;color:#f0883e">'
-            f'本 layer 共 {len(lev_active)} ops；为控制 HTML 体积，'
-            f'仅前 {OP_CARD_PER_LAYER_LIMIT} 个最长耗时算子展开 46 字段卡，'
-            f'其余仅显示一行摘要'
-            f'</div>'
+            f"本 layer 共 {len(lev_active)} ops；为控制 HTML 体积，"
+            f"仅前 {OP_CARD_PER_LAYER_LIMIT} 个最长耗时算子展开 46 字段卡，"
+            f"其余仅显示一行摘要"
+            f"</div>"
         )
     else:
         card_eligible_idx = None  # render all
         size_note = ""
 
-    list_html = ['<div class="op-list-row head">'
-                 '<div class="ix">#</div>'
-                 '<div class="nm">Operator</div>'
-                 '<div>Op type</div>'
-                 '<div class="num">Stream</div>'
-                 '<div class="num">Duration μs</div>'
-                 '<div class="num">% of layer</div>'
-                 '<div>Bound</div>'
-                 '<div></div>'
-                 '</div>']
+    list_html = [
+        '<div class="op-list-row head">'
+        '<div class="ix">#</div>'
+        '<div class="nm">Operator</div>'
+        "<div>Op type</div>"
+        '<div class="num">Stream</div>'
+        '<div class="num">Duration μs</div>'
+        '<div class="num">% of layer</div>'
+        "<div>Bound</div>"
+        "<div></div>"
+        "</div>"
+    ]
     for i, e in enumerate(lev_active):
         op_type = e.op_type
         color = OP_TYPE_COLOR.get(op_type, "#8b949e")
@@ -2947,24 +3149,25 @@ def _render_l3_layer(b: "Bundle", view_id: str, parent_seg_id: str,
             row_attrs = f' data-card-id="{card_id}"'
         else:
             chevron = '<div style="text-align:right;color:var(--muted);font-size:14px">—</div>'
-            row_attrs = ''
+            row_attrs = ""
         list_html.append(
             f'<div class="op-list-row"{row_attrs}>'
-            f'<div class="ix">{i+1}</div>'
+            f'<div class="ix">{i + 1}</div>'
             f'<div class="nm" title="{html.escape(e.name)}">{html.escape(short_op_name(e.name))}</div>'
             f'<div><span class="badge" style="background:{color}33;color:{color}">{html.escape(op_type)}</span></div>'
             f'<div class="num muted" style="font-family:\'SF Mono\',Menlo,Consolas,monospace;font-size:10.5px">{html.escape(str(stream))}</div>'
             f'<div class="num">{e.duration_us:.2f}</div>'
             f'<div class="num">{pct:.2f}%</div>'
             f'<div><span class="badge" style="background:{bf_color}33;color:{bf_color}">{html.escape(bf)}</span></div>'
-            f'{chevron}'
-            '</div>'
+            f"{chevron}"
+            "</div>"
         )
         if renders_card:
             list_html.append(
                 f'<div class="op-card-host hidden" id="{card_id}">'
                 + render_operator_card(
-                    e, layer_busy_us,
+                    e,
+                    layer_busy_us,
                     card_id=f"opcard-{view_id}-{i}",
                     step_busy_us=step_busy_us,
                     kernel_layer_union_us=kernel_layer_union_us,
@@ -2972,7 +3175,7 @@ def _render_l3_layer(b: "Bundle", view_id: str, parent_seg_id: str,
                     kernel_step_union_us=kernel_step_union_us,
                     kernel_step_count=kernel_step_count,
                 )
-                + '</div>'
+                + "</div>"
             )
 
     return (
@@ -2981,16 +3184,12 @@ def _render_l3_layer(b: "Bundle", view_id: str, parent_seg_id: str,
         '<div class="card">'
         f'<h2 style="margin:0">{html.escape(title)}</h2>'
         '<div class="muted" style="font-size:11.5px">'
-        '按执行顺序排列；点击任一算子展开 46 字段算子卡 / pipeline ratio / IR 签名'
-        '</div>'
-        '</div>'
+        "按执行顺序排列；点击任一算子展开 46 字段算子卡 / pipeline ratio / IR 签名"
+        "</div>"
+        "</div>"
         '<div class="card" style="margin-top:12px">'
-        '<div class="op-list">'
-        + "".join(list_html) +
-        '</div>'
-        + size_note
-        + '</div>'
-        '</section>'
+        '<div class="op-list">' + "".join(list_html) + "</div>" + size_note + "</div>"
+        "</section>"
     )
 
 
@@ -3011,20 +3210,25 @@ def build_html_report(
     output.parent.mkdir(parents=True, exist_ok=True)
     b = load_bundle(root)
     title = f"Ascend Profiling · {os.path.basename(str(root).rstrip('/'))}"
-    html_out = "".join([
-        render_head(title),
-        render_l1_view(b),
-        render_l2_views(b),
-        render_l3_views(b),
-        render_foot(),
-    ])
+    html_out = "".join(
+        [
+            render_head(title),
+            render_l1_view(b),
+            render_l2_views(b),
+            render_l3_views(b),
+            render_foot(),
+        ]
+    )
     output.write_text(html_out, encoding="utf-8")
     return output.resolve()
 
 
 def main():
     if len(sys.argv) < 3:
-        print(f"usage: {sys.argv[0]} <profile_analysis_root> <output.html>", file=sys.stderr)
+        print(
+            f"usage: {sys.argv[0]} <profile_analysis_root> <output.html>",
+            file=sys.stderr,
+        )
         sys.exit(2)
     root = Path(sys.argv[1])
     output = Path(sys.argv[2])

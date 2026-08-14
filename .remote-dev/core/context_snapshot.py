@@ -8,7 +8,7 @@ from .result import make_result, utc_now_iso
 from .ssh_transport import run_remote_python
 from .state_store import atomic_write_json, ensure_endpoint_state
 
-REMOTE_PROBE_PY = r'''
+REMOTE_PROBE_PY = r"""
 import importlib
 import json
 import os
@@ -47,10 +47,14 @@ summary = {
     "modules": {name: module_info(name) for name in ("torch", "torch_npu", "vllm", "vllm_ascend")},
 }
 print(json.dumps({"status": "ok", "summary": summary}, sort_keys=True))
-'''
+"""
 
 
-def write_context_snapshot(endpoint: Endpoint, summary: dict[str, Any], full_probe: dict[str, Any] | None = None) -> dict[str, Any]:
+def write_context_snapshot(
+    endpoint: Endpoint,
+    summary: dict[str, Any],
+    full_probe: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     base = ensure_endpoint_state(endpoint) / "context"
     payload = {
         "schema_version": "remote-dev.context.v1",
@@ -76,7 +80,10 @@ def write_context_snapshot(endpoint: Endpoint, summary: dict[str, Any], full_pro
     }
     stamp = payload["created_at"].replace(":", "").replace("-", "")
     full_path = base / f"context-{stamp}.json"
-    atomic_write_json(full_path, payload if full_probe is None else {**payload, "full_probe": full_probe})
+    atomic_write_json(
+        full_path,
+        payload if full_probe is None else {**payload, "full_probe": full_probe},
+    )
     atomic_write_json(base / "latest.json", payload)
     payload["refs"]["full_probe"] = str(full_path)
     return payload
@@ -89,14 +96,20 @@ def _duration_ms(start: float) -> int:
 def remote_probe(endpoint: Endpoint, *, timeout_ms: int = 120000) -> dict[str, Any]:
     started = utc_now_iso()
     start = time.monotonic()
-    data = run_remote_python(endpoint, REMOTE_PROBE_PY, {"root": endpoint.root}, timeout_ms=timeout_ms)
+    data = run_remote_python(
+        endpoint, REMOTE_PROBE_PY, {"root": endpoint.root}, timeout_ms=timeout_ms
+    )
     status = str(data.get("status", "failed"))
     summary = data.get("summary", {}) if isinstance(data.get("summary"), dict) else {}
-    snapshot = write_context_snapshot(endpoint, summary, data) if status == "ok" else None
+    snapshot = (
+        write_context_snapshot(endpoint, summary, data) if status == "ok" else None
+    )
     result = make_result(
         tool="remote.probe",
         target=endpoint.to_result_target(),
-        outcome="success" if status == "ok" else ("timeout" if status == "timeout" else "failed"),
+        outcome="success"
+        if status == "ok"
+        else ("timeout" if status == "timeout" else "failed"),
         status=status,
         summary="Remote probe completed." if status == "ok" else "Remote probe failed.",
         started_at=started,
@@ -119,12 +132,16 @@ def remote_probe(endpoint: Endpoint, *, timeout_ms: int = 120000) -> dict[str, A
     return {"text": text, "result": result}
 
 
-def remote_context_snapshot(endpoint: Endpoint, *, timeout_ms: int = 120000, live_probe: bool = True) -> dict[str, Any]:
+def remote_context_snapshot(
+    endpoint: Endpoint, *, timeout_ms: int = 120000, live_probe: bool = True
+) -> dict[str, Any]:
     if live_probe:
         payload = remote_probe(endpoint, timeout_ms=timeout_ms)
         payload["result"]["tool"] = "remote.context_snapshot"
         return payload
-    snapshot = write_context_snapshot(endpoint, {"status": "ok", "note": "snapshot requested without live probe"})
+    snapshot = write_context_snapshot(
+        endpoint, {"status": "ok", "note": "snapshot requested without live probe"}
+    )
     result = make_result(
         tool="remote.context_snapshot",
         target=endpoint.to_result_target(),

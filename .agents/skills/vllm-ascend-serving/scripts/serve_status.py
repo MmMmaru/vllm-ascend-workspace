@@ -34,7 +34,9 @@ from vaws_session_state import release_service_port
 
 
 def check_alive(ep, pid: int) -> bool:
-    r = ssh_exec(ep, f"kill -0 {pid} 2>/dev/null && echo alive || echo dead", check=False)
+    r = ssh_exec(
+        ep, f"kill -0 {pid} 2>/dev/null && echo alive || echo dead", check=False
+    )
     return r.stdout.strip() == "alive"
 
 
@@ -86,26 +88,30 @@ def main(argv: list[str] | None = None) -> int:
             state_repo_root=target.state_repo_root,
         )
         if state is None:
-            print_json({
-                "status": "not_found",
-                "machine": alias,
-                "mode": target.mode,
-                "session_id": target.session_id,
-                "message": "no serving state recorded for this machine",
-            })
+            print_json(
+                {
+                    "status": "not_found",
+                    "machine": alias,
+                    "mode": target.mode,
+                    "session_id": target.session_id,
+                    "message": "no serving state recorded for this machine",
+                }
+            )
             return 0
 
         pid = state.get("pid")
         port = state.get("port")
         if not pid or not port:
-            print_json({
-                "status": "not_found",
-                "machine": alias,
-                "mode": target.mode,
-                "session_id": target.session_id,
-                "message": "serving state is missing pid or port",
-                "state": state,
-            })
+            print_json(
+                {
+                    "status": "not_found",
+                    "machine": alias,
+                    "mode": target.mode,
+                    "session_id": target.session_id,
+                    "message": "serving state is missing pid or port",
+                    "state": state,
+                }
+            )
             return 0
 
         emit_progress("probe", f"checking pid={pid} port={port}")
@@ -174,12 +180,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     except Exception as exc:
-        print_json({
-            "status": "failed",
-            "error": str(exc),
-            "machine": getattr(args, "machine", None),
-            "session_id": getattr(args, "session_id", None),
-        })
+        print_json(
+            {
+                "status": "failed",
+                "error": str(exc),
+                "machine": getattr(args, "machine", None),
+                "session_id": getattr(args, "session_id", None),
+            }
+        )
         return 2
 
 

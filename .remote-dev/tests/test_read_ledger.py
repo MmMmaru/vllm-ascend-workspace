@@ -32,7 +32,9 @@ class ReadLedgerTests(unittest.TestCase):
                     },
                 )
                 self.assertTrue(path.exists())
-                loaded = state_store.load_read_ledger(endpoint, "/vllm-workspace/foo.py")
+                loaded = state_store.load_read_ledger(
+                    endpoint, "/vllm-workspace/foo.py"
+                )
                 self.assertEqual(loaded["sha256"], "abc")
                 self.assertIn(endpoint.endpoint_id, str(path))
             finally:
@@ -55,8 +57,16 @@ class ReadLedgerTests(unittest.TestCase):
                     client_context_id="context-a",
                 )
                 self.assertIn("/reads/context-a/", path.as_posix())
-                self.assertIsNone(state_store.load_read_ledger(endpoint, "/vllm-workspace/foo.py", client_context_id="context-b"))
-                loaded = state_store.load_read_ledger(endpoint, "/vllm-workspace/foo.py", client_context_id="context-a")
+                self.assertIsNone(
+                    state_store.load_read_ledger(
+                        endpoint,
+                        "/vllm-workspace/foo.py",
+                        client_context_id="context-b",
+                    )
+                )
+                loaded = state_store.load_read_ledger(
+                    endpoint, "/vllm-workspace/foo.py", client_context_id="context-a"
+                )
                 self.assertIsNotNone(loaded)
                 self.assertEqual(loaded["ledger_scope"], "context-a")
             finally:

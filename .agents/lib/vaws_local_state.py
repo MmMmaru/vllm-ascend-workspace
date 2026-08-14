@@ -125,7 +125,9 @@ def _validate_profile(profile: Any, *, where: str = "profile") -> dict[str, Any]
         raise WorkspaceStateError(
             f"unsupported profile schema_version in {where}: {profile.get('schema_version')!r}"
         )
-    machine_username = normalize_machine_username(str(profile.get("machine_username", "")))
+    machine_username = normalize_machine_username(
+        str(profile.get("machine_username", ""))
+    )
     container_name = profile.get("container_name")
     expected_container_name = default_container_name(machine_username)
     if container_name is None:
@@ -136,7 +138,9 @@ def _validate_profile(profile: Any, *, where: str = "profile") -> dict[str, Any]
         )
     source = profile.get("source")
     if source is not None and source not in {"user", "generated"}:
-        raise WorkspaceStateError(f"{where}.source must be 'user' or 'generated' when present")
+        raise WorkspaceStateError(
+            f"{where}.source must be 'user' or 'generated' when present"
+        )
     for field in ("created_at", "updated_at"):
         value = profile.get(field)
         if value is not None and not isinstance(value, str):
@@ -248,6 +252,10 @@ def profile_summary(path: Path = PROFILE_PATH) -> dict[str, Any]:
 
 def resolve_inventory_read_path(preferred_path: Path = INVENTORY_PATH) -> Path:
     preferred_path = preferred_path.expanduser().resolve()
-    if same_path(preferred_path, INVENTORY_PATH) and not preferred_path.exists() and LEGACY_INVENTORY_PATH.exists():
+    if (
+        same_path(preferred_path, INVENTORY_PATH)
+        and not preferred_path.exists()
+        and LEGACY_INVENTORY_PATH.exists()
+    ):
         return LEGACY_INVENTORY_PATH.expanduser().resolve()
     return preferred_path

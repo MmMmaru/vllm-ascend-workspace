@@ -6,6 +6,7 @@ empty list so the command runs through the local shell. The behaviour
 under test is the local timer + select-loop logic, which is the same
 code path used over real ssh.
 """
+
 from __future__ import annotations
 
 import time
@@ -72,7 +73,9 @@ def test_silent_hang_does_not_exceed_wall_budget() -> None:
         # full sleep means neither mechanism fired.
         if "rc" in outcome:
             rc = outcome["rc"]
-            assert rc != 0, f"sleep 30 should not have returned rc=0 under timeout=2 (got rc={rc})"
+            assert rc != 0, (
+                f"sleep 30 should not have returned rc=0 under timeout=2 (got rc={rc})"
+            )
     finally:
         monkey.restore()
 
@@ -92,6 +95,7 @@ def test_wall_budget_respected_when_remote_exits_immediately() -> None:
         # the production command-construction path (shlex.quote of the
         # payload) doesn't matter — we only test the timer logic here.
         import shutil
+
         true_bin = shutil.which("true") or "/usr/bin/true"
         monkey.setattr(common, "_ssh_base_cmd", lambda _ep: [true_bin, "--"])
         endpoint = _local_endpoint()

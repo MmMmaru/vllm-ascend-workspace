@@ -8,7 +8,9 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-os.environ.setdefault("REMOTE_DEV_SESSION_ID", f"mcp-{os.getpid()}-{uuid.uuid4().hex[:8]}")
+os.environ.setdefault(
+    "REMOTE_DEV_SESSION_ID", f"mcp-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+)
 
 SUBSTRATE_ROOT = Path(__file__).resolve().parents[1]
 if str(SUBSTRATE_ROOT) not in sys.path:
@@ -18,13 +20,17 @@ from mcp.tools import call_tool, list_resources, list_tools, read_resource  # no
 
 
 def encode_payload(payload: dict[str, Any]) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
+        "utf-8"
+    )
 
 
 def send(payload: dict[str, Any], *, framed: bool = False) -> None:
     encoded = encode_payload(payload)
     if framed:
-        sys.stdout.buffer.write(f"Content-Length: {len(encoded)}\r\n\r\n".encode("ascii"))
+        sys.stdout.buffer.write(
+            f"Content-Length: {len(encoded)}\r\n\r\n".encode("ascii")
+        )
         sys.stdout.buffer.write(encoded)
         sys.stdout.buffer.flush()
     else:
@@ -36,8 +42,19 @@ def result(request_id: Any, value: dict[str, Any], *, framed: bool = False) -> N
     send({"jsonrpc": "2.0", "id": request_id, "result": value}, framed=framed)
 
 
-def error(request_id: Any, code: int, message: str, data: Any | None = None, *, framed: bool = False) -> None:
-    payload: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+def error(
+    request_id: Any,
+    code: int,
+    message: str,
+    data: Any | None = None,
+    *,
+    framed: bool = False,
+) -> None:
+    payload: dict[str, Any] = {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {"code": code, "message": message},
+    }
     if data is not None:
         payload["error"]["data"] = data
     send(payload, framed=framed)
@@ -75,7 +92,8 @@ def handle(message: dict[str, Any], *, framed: bool = False) -> None:
                 {
                     "content": [{"type": "text", "text": payload.get("text", "")}],
                     "structuredContent": payload.get("result", {}),
-                    "isError": payload.get("result", {}).get("outcome") not in {"success", "cancelled"},
+                    "isError": payload.get("result", {}).get("outcome")
+                    not in {"success", "cancelled"},
                 },
                 framed=framed,
             )

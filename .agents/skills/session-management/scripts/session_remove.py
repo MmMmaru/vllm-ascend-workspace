@@ -40,7 +40,9 @@ def print_json(data: dict[str, Any]) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False))
 
 
-def run_git(args: list[str], *, check: bool = False) -> subprocess.CompletedProcess[str]:
+def run_git(
+    args: list[str], *, check: bool = False
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(ROOT), *args],
         capture_output=True,
@@ -49,8 +51,17 @@ def run_git(args: list[str], *, check: bool = False) -> subprocess.CompletedProc
     )
 
 
-def stop_session(session_id: str, *, session_file: Path | None = None, force: bool) -> dict[str, Any]:
-    script = ROOT / ".agents" / "skills" / "vllm-ascend-serving" / "scripts" / "serve_stop.py"
+def stop_session(
+    session_id: str, *, session_file: Path | None = None, force: bool
+) -> dict[str, Any]:
+    script = (
+        ROOT
+        / ".agents"
+        / "skills"
+        / "vllm-ascend-serving"
+        / "scripts"
+        / "serve_stop.py"
+    )
     cmd = [sys.executable, str(script)]
     if session_file is not None:
         cmd.extend(["--session-file", str(session_file)])
@@ -58,9 +69,15 @@ def stop_session(session_id: str, *, session_file: Path | None = None, force: bo
         cmd.extend(["--session-id", session_id])
     if force:
         cmd.append("--force")
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT), check=False)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=str(ROOT), check=False
+    )
     if not result.stdout.strip():
-        return {"status": "unknown", "returncode": result.returncode, "stderr_tail": result.stderr[-500:]}
+        return {
+            "status": "unknown",
+            "returncode": result.returncode,
+            "stderr_tail": result.stderr[-500:],
+        }
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -70,7 +87,10 @@ def stop_session(session_id: str, *, session_file: Path | None = None, force: bo
 
 
 def stop_result_allows_lease_release(result: dict[str, Any]) -> bool:
-    return result.get("returncode") == 0 and result.get("status") in {"not_found", "stopped"}
+    return result.get("returncode") == 0 and result.get("status") in {
+        "not_found",
+        "stopped",
+    }
 
 
 def container_result_allows_lease_release(result: dict[str, Any] | None) -> bool:
@@ -78,7 +98,12 @@ def container_result_allows_lease_release(result: dict[str, Any] | None) -> bool
         return False
     if result.get("success") is False:
         return False
-    return result.get("status") not in {"blocked", "failed", "needs_input", "needs_repair"}
+    return result.get("status") not in {
+        "blocked",
+        "failed",
+        "needs_input",
+        "needs_repair",
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -124,15 +149,21 @@ def main() -> int:
             }
         else:
             emit_progress("stop", "stopping session service", session_id=sid)
-            results["stop"] = stop_session(sid, session_file=lookup.session_file, force=args.force)
+            results["stop"] = stop_session(
+                sid, session_file=lookup.session_file, force=args.force
+            )
 
         if args.remove_container:
             emit_progress("container", "removing session container", session_id=sid)
-            results["container"] = remove_container(session_record_for_execution(session))
+            results["container"] = remove_container(
+                session_record_for_execution(session)
+            )
 
         if args.remove_worktree:
             worktree_root = Path(session["local"]["worktree_root"])
-            emit_progress("worktree", "removing session worktree", path=str(worktree_root))
+            emit_progress(
+                "worktree", "removing session worktree", path=str(worktree_root)
+            )
             cmd = ["worktree", "remove"]
             if args.force:
                 cmd.extend(["--force", "--force"])
@@ -145,9 +176,9 @@ def main() -> int:
             }
 
         if args.release_leases:
-            can_release = stop_result_allows_lease_release(results["stop"]) or container_result_allows_lease_release(
-                results.get("container")
-            )
+            can_release = stop_result_allows_lease_release(
+                results["stop"]
+            ) or container_result_allows_lease_release(results.get("container"))
             if not can_release:
                 results["leases"] = {
                     "released": False,
@@ -166,12 +197,20 @@ def main() -> int:
         if args.remove_container or args.remove_worktree:
             remove_ok = True
             if args.remove_container:
-                remove_ok = remove_ok and container_result_allows_lease_release(results.get("container"))
+                remove_ok = remove_ok and container_result_allows_lease_release(
+                    results.get("container")
+                )
             if args.remove_worktree:
-                remove_ok = remove_ok and results.get("worktree", {}).get("returncode") == 0
+                remove_ok = (
+                    remove_ok and results.get("worktree", {}).get("returncode") == 0
+                )
             next_status = "removed" if remove_ok else "needs_repair"
         else:
-            next_status = "stopped" if stop_result_allows_lease_release(results["stop"]) else "needs_repair"
+            next_status = (
+                "stopped"
+                if stop_result_allows_lease_release(results["stop"])
+                else "needs_repair"
+            )
         updated = mark_session_status(
             repo_root=lookup.state_repo_root,
             session_id=sid,

@@ -6,6 +6,7 @@ stage doesn't write ``report/report.md``. ``REQUIRED_ARTIFACTS_BY_END_STAGE``
 holds the smaller-than-full sets keyed by end stage; this test pins that
 contract.
 """
+
 from __future__ import annotations
 
 import conftest  # noqa: F401
@@ -31,9 +32,7 @@ def test_required_artifacts_table_covers_all_stages() -> None:
         assert files, f"stage {stage} maps to empty artifact set"
         # ``manifest.json`` is always written and is the wrapper's entry
         # point into the run metadata.
-        assert "manifest.json" in files, (
-            f"stage {stage} must include manifest.json"
-        )
+        assert "manifest.json" in files, f"stage {stage} must include manifest.json"
 
 
 def test_only_stage_normalize_does_not_require_report() -> None:
@@ -58,13 +57,9 @@ def test_resolve_end_stage_default_is_report() -> None:
 
 
 def test_resolve_end_stage_prefers_only_then_to() -> None:
+    assert profile_analyze._resolve_end_stage("segment", None, "report") == "segment"
     assert (
-        profile_analyze._resolve_end_stage("segment", None, "report")
-        == "segment"
-    )
-    assert (
-        profile_analyze._resolve_end_stage(None, "normalize", "classify")
-        == "classify"
+        profile_analyze._resolve_end_stage(None, "normalize", "classify") == "classify"
     )
 
 

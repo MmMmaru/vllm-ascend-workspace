@@ -35,7 +35,9 @@ def ssh_base_cmd(endpoint: Endpoint) -> list[str]:
     return cmd
 
 
-def run_script(endpoint: Endpoint, script: str, *, timeout_ms: int | None = None) -> RemoteCompleted:
+def run_script(
+    endpoint: Endpoint, script: str, *, timeout_ms: int | None = None
+) -> RemoteCompleted:
     timeout = None if timeout_ms is None else timeout_ms / 1000
     try:
         proc = subprocess.run(
@@ -116,7 +118,11 @@ def run_remote_python(
             "stdout_tail": (proc.stdout or "")[-4000:],
             "stderr_tail": (proc.stderr or "")[-4000:],
         }
-    return data if isinstance(data, dict) else {"status": "failed", "error": "remote python JSON was not an object"}
+    return (
+        data
+        if isinstance(data, dict)
+        else {"status": "failed", "error": "remote python JSON was not an object"}
+    )
 
 
 def _decode_stream(value: str | bytes | None) -> str:

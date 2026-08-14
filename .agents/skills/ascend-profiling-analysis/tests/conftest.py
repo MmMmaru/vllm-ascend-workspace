@@ -2,6 +2,7 @@
 ``_common`` and ``ascend_profile`` as top-level modules without installing
 the package.
 """
+
 from __future__ import annotations
 
 import sys

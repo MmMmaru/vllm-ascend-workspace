@@ -5,6 +5,7 @@ A change to the CLI surface breaks the agent's call site, so we lock it
 down with a simple parser-introspection test rather than running the
 full pipeline.
 """
+
 from __future__ import annotations
 
 import conftest  # noqa: F401

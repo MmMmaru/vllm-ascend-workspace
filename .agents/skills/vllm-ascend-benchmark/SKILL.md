@@ -56,6 +56,7 @@ python3 .agents/skills/vllm-ascend-benchmark/scripts/bench_run.py \
   [--bench-args <arg> ...] \
   [--extra-env KEY=VALUE ...] \
   [--refer-nightly <yaml-name>] \
+  [--health-timeout <seconds>] \
   [--port <N>] \
   [--skip-parity]
 ```
@@ -69,6 +70,8 @@ python3 .agents/skills/vllm-ascend-benchmark/scripts/bench_run.py \
   machine has fragmented free devices; the benchmark client also inherits
   source-loading `PATH`/`PYTHONPATH` values from `--extra-env`.
 - `--refer-nightly`: name of a nightly YAML (without path prefix) to use as a configuration reference; user-provided args override anything from the YAML
+- `--health-timeout`: service readiness timeout in seconds, forwarded to `serve_start.py` (default 300s is too short for very large models such as Kimi-K2.5; use 1800+)
+- The full bench client output of each run is saved under `.vaws-local/benchmark/<machine>/client_output_*.log` for post-mortem analysis.
 
 ## Workflow
 

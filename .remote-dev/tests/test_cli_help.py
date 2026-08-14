@@ -17,18 +17,30 @@ from mcp.schemas import TOOL_SCHEMAS  # noqa: E402
 class CliHelpTests(unittest.TestCase):
     def test_cli_wrappers_have_help(self) -> None:
         scripts = sorted((ROOT / ".remote-dev" / "tools").glob("remote_*.py"))
-        expected_scripts = {ROOT / ".remote-dev" / "tools" / (name.replace(".", "_") + ".py") for name in TOOL_SCHEMAS}
+        expected_scripts = {
+            ROOT / ".remote-dev" / "tools" / (name.replace(".", "_") + ".py")
+            for name in TOOL_SCHEMAS
+        }
         self.assertEqual(set(scripts), expected_scripts)
         for script_path in scripts:
             script = str(script_path.relative_to(ROOT))
             with self.subTest(script=script):
-                proc = subprocess.run([sys.executable, str(script_path), "--help"], capture_output=True, text=True, check=False)
+                proc = subprocess.run(
+                    [sys.executable, str(script_path), "--help"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
                 self.assertEqual(proc.returncode, 0, proc.stderr)
                 self.assertIn("usage:", proc.stdout)
 
     def test_claude_skill_shim_check_passes(self) -> None:
         proc = subprocess.run(
-            [sys.executable, str(ROOT / ".remote-dev" / "tools" / "sync_claude_skills.py"), "--check"],
+            [
+                sys.executable,
+                str(ROOT / ".remote-dev" / "tools" / "sync_claude_skills.py"),
+                "--check",
+            ],
             capture_output=True,
             text=True,
             check=False,

@@ -178,8 +178,7 @@ ascend_config = init_ascend_config(vllm_config)
 
 ```python
 enable_sp_by_pass = (
-    not model_config.enforce_eager
-    and compilation_config.pass_config.enable_sp
+    not model_config.enforce_eager and compilation_config.pass_config.enable_sp
 )
 ```
 
@@ -279,8 +278,8 @@ model runner 在最后一个 PP stage 得到完整 hidden states 后，如果当
 代码中存在两个判断：
 
 ```python
-enable_sp(vllm_config)       # Ascend FlashComm1 开关
-enable_sp_by_pass()          # compilation_config.pass_config.enable_sp 的 Ascend 视图
+enable_sp(vllm_config)  # Ascend FlashComm1 开关
+enable_sp_by_pass()  # compilation_config.pass_config.enable_sp 的 Ascend 视图
 ```
 
 `register_custom_ops.py` 在 EP 通信场景会使用 `enable_sp_by_pass()` 作为额外条件；model runner 的 padding 也接受二者之一。因此同时打开时，编译 pass 和 Ascend 通信路径都会参与。
@@ -298,7 +297,7 @@ compilation_config.pass_config.enable_sp = enable_sp(vllm_config)
 `enable_sp()` 使用模块级 `_ENABLE_SP` 缓存。运行中的进程里直接修改 `vllm_config.additional_config` 后，旧缓存可能仍生效；测试或 RLHF 场景需要：
 
 ```python
-additional_config={
+additional_config = {
     "enable_flashcomm1": True,
     "refresh": True,
 }

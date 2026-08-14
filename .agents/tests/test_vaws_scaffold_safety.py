@@ -35,7 +35,14 @@ from vaws_validate import (  # noqa: E402
 
 
 def load_session_create_module():
-    path = ROOT / ".agents" / "skills" / "session-management" / "scripts" / "session_create.py"
+    path = (
+        ROOT
+        / ".agents"
+        / "skills"
+        / "session-management"
+        / "scripts"
+        / "session_create.py"
+    )
     spec = importlib.util.spec_from_file_location("_vaws_session_create_test", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -118,8 +125,13 @@ class RemoteToolboxSafetyTests(unittest.TestCase):
                     session={"session_id": "sess-abc"},
                     leased_devices=[],
                 )
-                toolbox._save_job_record("job-collision", {"job_id": "job-collision", "target": target.to_dict()})
-                payload = toolbox.start_remote_job(target, command="echo should-not-run", job_id="job-collision")
+                toolbox._save_job_record(
+                    "job-collision",
+                    {"job_id": "job-collision", "target": target.to_dict()},
+                )
+                payload = toolbox.start_remote_job(
+                    target, command="echo should-not-run", job_id="job-collision"
+                )
                 self.assertEqual(payload["status"], "blocked")
                 self.assertIn("already exists", payload["error"])
         finally:
@@ -291,7 +303,9 @@ class WorktreeCreateTests(unittest.TestCase):
                         worktree_root=worktree_root,
                         no_worktree=False,
                     )
-                self.assertEqual(events, ["worktree-add", "binding", "submodule-update"])
+                self.assertEqual(
+                    events, ["worktree-add", "binding", "submodule-update"]
+                )
                 fail_submodule = False
                 events.clear()
                 reused_root, reused_payload = module.ensure_worktree(
@@ -309,7 +323,9 @@ class WorktreeCreateTests(unittest.TestCase):
             self.assertEqual(events, ["submodule-update"])
             self.assertEqual(reused_root, worktree_root.resolve())
             self.assertEqual(reused_payload["action"], "reused")
-            binding = json.loads((worktree_root / ".vaws-local" / "current-session.json").read_text())
+            binding = json.loads(
+                (worktree_root / ".vaws-local" / "current-session.json").read_text()
+            )
             self.assertEqual(binding["session_id"], "sess-abc")
             self.assertEqual(binding["source"], "session_create-staging")
 
@@ -318,7 +334,12 @@ class RunStateIsolationTests(unittest.TestCase):
     def test_memory_profiling_run_dirs_are_unique_and_sanitized(self) -> None:
         module = load_script_module(
             "_vaws_mem_common_test",
-            ROOT / ".agents" / "skills" / "ascend-memory-profiling" / "scripts" / "_common.py",
+            ROOT
+            / ".agents"
+            / "skills"
+            / "ascend-memory-profiling"
+            / "scripts"
+            / "_common.py",
         )
         original_state_dir = module.MEMPROF_STATE_DIR
         try:
@@ -334,17 +355,28 @@ class RunStateIsolationTests(unittest.TestCase):
         finally:
             module.MEMPROF_STATE_DIR = original_state_dir
 
-    def test_profiling_collection_run_dirs_include_session_and_do_not_collide(self) -> None:
+    def test_profiling_collection_run_dirs_include_session_and_do_not_collide(
+        self,
+    ) -> None:
         module = load_script_module(
             "_vaws_profile_collection_common_test",
-            ROOT / ".agents" / "skills" / "ascend-profiling-collection" / "scripts" / "_common.py",
+            ROOT
+            / ".agents"
+            / "skills"
+            / "ascend-profiling-collection"
+            / "scripts"
+            / "_common.py",
         )
         original_state_dir = module.COLLECTION_STATE_DIR
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 module.COLLECTION_STATE_DIR = Path(tmp) / "profile-runs"
-                first = module.unique_collection_run_dir(tag="../same tag", session_id="sess-a")
-                second = module.unique_collection_run_dir(tag="../same tag", session_id="sess-a")
+                first = module.unique_collection_run_dir(
+                    tag="../same tag", session_id="sess-a"
+                )
+                second = module.unique_collection_run_dir(
+                    tag="../same tag", session_id="sess-a"
+                )
                 self.assertNotEqual(first, second)
                 self.assertEqual(first.parent, module.COLLECTION_STATE_DIR)
                 self.assertEqual(second.parent, module.COLLECTION_STATE_DIR)
@@ -357,7 +389,12 @@ class RunStateIsolationTests(unittest.TestCase):
     def test_benchmark_results_are_written_under_session_state(self) -> None:
         module = load_script_module(
             "_vaws_benchmark_common_test",
-            ROOT / ".agents" / "skills" / "vllm-ascend-benchmark" / "scripts" / "_common.py",
+            ROOT
+            / ".agents"
+            / "skills"
+            / "vllm-ascend-benchmark"
+            / "scripts"
+            / "_common.py",
         )
         original_root = module.ROOT
         original_state_dir = module.BENCHMARK_STATE_DIR

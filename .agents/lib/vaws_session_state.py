@@ -14,7 +14,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from vaws_local_state import ROOT, STATE_DIR, WorkspaceStateError, ensure_state_dir, utc_now_iso
+from vaws_local_state import (
+    ROOT,
+    STATE_DIR,
+    WorkspaceStateError,
+    ensure_state_dir,
+    utc_now_iso,
+)
 from vaws_session_id import load_current_session_binding, normalize_session_id
 from vaws_validate import parse_device_csv
 
@@ -163,7 +169,12 @@ def safe_token(value: str, *, fallback: str = "item", max_len: int = 63) -> str:
 
 
 def default_worktree_root(repo_root: Path, session_id: str) -> Path:
-    return repo_root.parent / "vaws-worktrees" / repo_root.name / require_session_id(session_id)
+    return (
+        repo_root.parent
+        / "vaws-worktrees"
+        / repo_root.name
+        / require_session_id(session_id)
+    )
 
 
 def default_branch(session_id: str) -> str:
@@ -188,11 +199,19 @@ def parse_port_range(value: str) -> tuple[int, int]:
 
 
 def _empty_index() -> dict[str, Any]:
-    return {"schema_version": INDEX_SCHEMA_VERSION, "updated_at": utc_now_iso(), "sessions": {}}
+    return {
+        "schema_version": INDEX_SCHEMA_VERSION,
+        "updated_at": utc_now_iso(),
+        "sessions": {},
+    }
 
 
 def _empty_leases() -> dict[str, Any]:
-    return {"schema_version": LEASE_SCHEMA_VERSION, "updated_at": utc_now_iso(), "leases": {}}
+    return {
+        "schema_version": LEASE_SCHEMA_VERSION,
+        "updated_at": utc_now_iso(),
+        "leases": {},
+    }
 
 
 def load_index(repo_root: Path = ROOT) -> dict[str, Any]:
@@ -247,12 +266,19 @@ def _resource_owner(bucket: dict[str, Any], kind: str, value: str) -> str | None
     return None
 
 
-def _reserve(bucket: dict[str, Any], kind: str, value: int | str, session_id: str) -> None:
+def _reserve(
+    bucket: dict[str, Any], kind: str, value: int | str, session_id: str
+) -> None:
     key = str(value)
     owner = _resource_owner(bucket, kind, key)
     if owner is not None and owner != session_id:
-        raise SessionStateError(f"{kind[:-1]} {key} is already leased by session {owner}")
-    bucket.setdefault(kind, {})[key] = {"session_id": session_id, "updated_at": utc_now_iso()}
+        raise SessionStateError(
+            f"{kind[:-1]} {key} is already leased by session {owner}"
+        )
+    bucket.setdefault(kind, {})[key] = {
+        "session_id": session_id,
+        "updated_at": utc_now_iso(),
+    }
 
 
 def _select_port(
@@ -265,20 +291,28 @@ def _select_port(
     is_available: Callable[[int], bool] | None = None,
 ) -> int:
     start, end = parse_port_range(port_range)
-    candidates: Iterable[int] = [preferred] if preferred is not None else range(start, end + 1)
+    candidates: Iterable[int] = (
+        [preferred] if preferred is not None else range(start, end + 1)
+    )
     for port in candidates:
         if port is None:
             continue
         if port < start or port > end:
-            raise SessionStateError(f"port {port} is outside allowed range {port_range}")
+            raise SessionStateError(
+                f"port {port} is outside allowed range {port_range}"
+            )
         owner = _resource_owner(bucket, kind, str(port))
         if owner is not None and owner != session_id:
             if preferred is not None:
-                raise SessionStateError(f"port {port} is already leased by session {owner}")
+                raise SessionStateError(
+                    f"port {port} is already leased by session {owner}"
+                )
             continue
         if is_available is not None and not is_available(port):
             if preferred is not None:
-                raise SessionStateError(f"port {port} is not available on the remote host/container")
+                raise SessionStateError(
+                    f"port {port} is not available on the remote host/container"
+                )
             continue
         _reserve(bucket, kind, port, session_id)
         return port
@@ -301,7 +335,9 @@ def allocate_session_leases(
     if npu_count is not None and npu_count < 1:
         raise SessionStateError("--npu-count must be >= 1")
     if requested_devices is not None:
-        requested_devices = parse_device_csv(",".join(str(item) for item in requested_devices)) or []
+        requested_devices = (
+            parse_device_csv(",".join(str(item) for item in requested_devices)) or []
+        )
     if requested_devices is not None and npu_count is not None:
         raise SessionStateError("use only one of --devices or --npu-count")
     available_set = set(available_devices) if available_devices is not None else None
@@ -319,14 +355,18 @@ def allocate_session_leases(
                     )
             allocated_devices = list(requested_devices)
         elif npu_count:
-            candidates = sorted(available_set) if available_set is not None else list(range(64))
+            candidates = (
+                sorted(available_set) if available_set is not None else list(range(64))
+            )
             for dev in candidates:
                 if _resource_owner(bucket, "npu_devices", str(dev)) in {None, sid}:
                     allocated_devices.append(dev)
                 if len(allocated_devices) >= npu_count:
                     break
             if len(allocated_devices) < npu_count:
-                raise SessionStateError(f"not enough locally unleased NPU devices for session {sid}")
+                raise SessionStateError(
+                    f"not enough locally unleased NPU devices for session {sid}"
+                )
 
         for dev in allocated_devices:
             _reserve(bucket, "npu_devices", dev, sid)
@@ -424,11 +464,15 @@ def release_all_session_leases(*, repo_root: Path = ROOT, session_id: str) -> No
         save_leases(leases, repo_root)
 
 
-def validate_session(session: dict[str, Any], *, where: str = "session") -> dict[str, Any]:
+def validate_session(
+    session: dict[str, Any], *, where: str = "session"
+) -> dict[str, Any]:
     if not isinstance(session, dict):
         raise SessionStateError(f"{where} must be an object")
     if session.get("schema_version") != SESSION_SCHEMA_VERSION:
-        raise SessionStateError(f"unsupported {where}.schema_version: {session.get('schema_version')!r}")
+        raise SessionStateError(
+            f"unsupported {where}.schema_version: {session.get('schema_version')!r}"
+        )
     sid = require_session_id(str(session.get("session_id", "")))
     if not isinstance(session.get("base_machine"), str) or not session["base_machine"]:
         raise SessionStateError(f"{where}.base_machine must be a non-empty string")
@@ -476,7 +520,9 @@ def _session_file_from_binding(repo_root: Path, session_id: str | None) -> Path 
         return Path(session_file).expanduser().resolve()
     base_repo_root = binding.get("base_repo_root")
     if isinstance(base_repo_root, str) and base_repo_root:
-        return session_file_path(bound_id or require_session_id(session_id or ""), Path(base_repo_root))
+        return session_file_path(
+            bound_id or require_session_id(session_id or ""), Path(base_repo_root)
+        )
     return None
 
 
@@ -507,14 +553,18 @@ def load_session_lookup(
             binding = load_current_session_binding(repo_root)
             if binding and isinstance(binding.get("session_id"), str):
                 sid = require_session_id(binding["session_id"])
-                path = _session_file_from_binding(repo_root, sid) or session_file_path(sid, repo_root)
+                path = _session_file_from_binding(repo_root, sid) or session_file_path(
+                    sid, repo_root
+                )
         if path is None:
             raise SessionStateError("session id or session file is required")
     if not path.exists():
         raise SessionStateError(f"session file does not exist: {path}")
     session = validate_session(_load_json(path), where=str(path))
     if sid is not None and session["session_id"] != sid:
-        raise SessionStateError(f"session file {path} contains {session['session_id']!r}, expected {sid!r}")
+        raise SessionStateError(
+            f"session file {path} contains {session['session_id']!r}, expected {sid!r}"
+        )
     state_root = path.parents[3] if path.parent.parent.name == "sessions" else repo_root
     return SessionLookup(session=session, session_file=path, state_repo_root=state_root)
 
@@ -525,7 +575,9 @@ def load_session(
     session_file: str | Path | None = None,
     repo_root: Path = ROOT,
 ) -> dict[str, Any]:
-    return load_session_lookup(session_id=session_id, session_file=session_file, repo_root=repo_root).session
+    return load_session_lookup(
+        session_id=session_id, session_file=session_file, repo_root=repo_root
+    ).session
 
 
 def mark_session_status(

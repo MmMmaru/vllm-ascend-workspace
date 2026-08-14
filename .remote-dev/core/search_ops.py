@@ -10,7 +10,7 @@ from .preview import MAX_GREP_MATCHES, MAX_LINE_CHARS, MAX_TEXT_CHARS, compact_t
 from .result import make_result, utc_now_iso
 from .ssh_transport import run_remote_python
 
-REMOTE_SEARCH_PY = r'''
+REMOTE_SEARCH_PY = r"""
 import fnmatch
 import glob as glob_mod
 import json
@@ -147,7 +147,7 @@ if op == "grep":
     raise SystemExit(0)
 
 fail("unsupported_op", f"unsupported search op: {op}")
-'''
+"""
 
 
 def _duration_ms(start: float) -> int:
@@ -186,7 +186,9 @@ def remote_glob(
     try:
         base = join_under_root(endpoint.root, endpoint.effective_cwd, raw_path)
     except PathPolicyError as exc:
-        return _path_blocked_result(endpoint, "remote.glob", raw_path, str(exc), started, start)
+        return _path_blocked_result(
+            endpoint, "remote.glob", raw_path, str(exc), started, start
+        )
     data = run_remote_python(
         endpoint,
         REMOTE_SEARCH_PY,
@@ -203,7 +205,9 @@ def remote_glob(
     )
     matches = data.get("matches", []) if isinstance(data.get("matches"), list) else []
     status = str(data.get("status", "failed"))
-    visible_matches, text_truncated = _compact_matches([str(item.get("path", item)) for item in matches])
+    visible_matches, text_truncated = _compact_matches(
+        [str(item.get("path", item)) for item in matches]
+    )
     result = make_result(
         tool="remote.glob",
         target=endpoint.to_result_target(),
@@ -212,11 +216,23 @@ def remote_glob(
         summary=f"RemoteGlob found {len(matches)} paths.",
         started_at=started,
         duration_ms=_duration_ms(start),
-        preview={"matches": visible_matches, "truncated": bool(data.get("truncated", False)) or text_truncated},
-        warnings=["respect_gitignore is not implemented for RemoteGlob"] if respect_gitignore else [],
-        extra={"matches": visible_matches, "truncated": bool(data.get("truncated", False)) or text_truncated, "error": data.get("error")},
+        preview={
+            "matches": visible_matches,
+            "truncated": bool(data.get("truncated", False)) or text_truncated,
+        },
+        warnings=["respect_gitignore is not implemented for RemoteGlob"]
+        if respect_gitignore
+        else [],
+        extra={
+            "matches": visible_matches,
+            "truncated": bool(data.get("truncated", False)) or text_truncated,
+            "error": data.get("error"),
+        },
     )
-    text = compact_text("\n".join(visible_matches) + ("\n<truncated>\n" if data.get("truncated") or text_truncated else "\n"))
+    text = compact_text(
+        "\n".join(visible_matches)
+        + ("\n<truncated>\n" if data.get("truncated") or text_truncated else "\n")
+    )
     return {"text": text, "result": result}
 
 
@@ -244,7 +260,9 @@ def remote_grep(
     try:
         base = join_under_root(endpoint.root, endpoint.effective_cwd, raw_path)
     except PathPolicyError as exc:
-        return _path_blocked_result(endpoint, "remote.grep", raw_path, str(exc), started, start)
+        return _path_blocked_result(
+            endpoint, "remote.grep", raw_path, str(exc), started, start
+        )
     data = run_remote_python(
         endpoint,
         REMOTE_SEARCH_PY,
@@ -265,7 +283,9 @@ def remote_grep(
     )
     matches = data.get("matches", []) if isinstance(data.get("matches"), list) else []
     status = str(data.get("status", "failed"))
-    warnings = local_warnings + (data.get("warnings", []) if isinstance(data.get("warnings"), list) else [])
+    warnings = local_warnings + (
+        data.get("warnings", []) if isinstance(data.get("warnings"), list) else []
+    )
     visible_matches, text_truncated = _compact_matches(matches)
     result = make_result(
         tool="remote.grep",
@@ -275,15 +295,29 @@ def remote_grep(
         summary=f"RemoteGrep found {len(matches)} matches.",
         started_at=started,
         duration_ms=_duration_ms(start),
-        preview={"matches": visible_matches, "truncated": bool(data.get("truncated", False)) or text_truncated},
+        preview={
+            "matches": visible_matches,
+            "truncated": bool(data.get("truncated", False)) or text_truncated,
+        },
         warnings=warnings,
-        extra={"matches": visible_matches, "engine": data.get("engine"), "output_mode": output_mode, "truncated": bool(data.get("truncated", False)) or text_truncated, "error": data.get("error")},
+        extra={
+            "matches": visible_matches,
+            "engine": data.get("engine"),
+            "output_mode": output_mode,
+            "truncated": bool(data.get("truncated", False)) or text_truncated,
+            "error": data.get("error"),
+        },
     )
-    text = compact_text("\n".join(visible_matches) + ("\n<truncated>\n" if data.get("truncated") or text_truncated else "\n"))
+    text = compact_text(
+        "\n".join(visible_matches)
+        + ("\n<truncated>\n" if data.get("truncated") or text_truncated else "\n")
+    )
     return {"text": text, "result": result}
 
 
-def _path_blocked_result(endpoint: Endpoint, tool: str, path: str, error: str, started: str, start: float) -> dict[str, Any]:
+def _path_blocked_result(
+    endpoint: Endpoint, tool: str, path: str, error: str, started: str, start: float
+) -> dict[str, Any]:
     result = make_result(
         tool=tool,
         target=endpoint.to_result_target(),

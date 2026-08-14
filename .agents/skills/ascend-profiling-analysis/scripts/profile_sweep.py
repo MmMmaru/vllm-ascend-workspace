@@ -61,7 +61,9 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         allow_abbrev=False,
     )
-    parser.add_argument("--machine", required=True, help="alias or IP from machine inventory")
+    parser.add_argument(
+        "--machine", required=True, help="alias or IP from machine inventory"
+    )
     parser.add_argument(
         "--search-root",
         action="append",
@@ -69,7 +71,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="absolute remote search root (repeat for multiple roots)",
     )
     parser.add_argument("--tag", default="sweep", help="run tag (used in run dir name)")
-    parser.add_argument("--limit", type=int, default=None, help="cap the number of analyzed roots")
+    parser.add_argument(
+        "--limit", type=int, default=None, help="cap the number of analyzed roots"
+    )
     parser.add_argument(
         "--remote-work-dir",
         default=common.DEFAULT_REMOTE_WORK_DIR,
@@ -230,7 +234,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             check=True,
             timeout=60,
         )
-        common.sync_to_remote(endpoint, common.FRAMEWORK_LOCAL_DIR, remote_framework_dir)
+        common.sync_to_remote(
+            endpoint, common.FRAMEWORK_LOCAL_DIR, remote_framework_dir
+        )
     except (RuntimeError, FileNotFoundError) as exc:
         common.print_json(
             {
@@ -297,7 +303,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     summary_remote = f"{remote_output_dir}/sweep_summary.json"
     try:
         cat = common.ssh_exec(
-            endpoint, f"cat {common.quote_remote(summary_remote)}", check=False, timeout=120
+            endpoint,
+            f"cat {common.quote_remote(summary_remote)}",
+            check=False,
+            timeout=120,
         )
         if cat.returncode != 0:
             raise RuntimeError(

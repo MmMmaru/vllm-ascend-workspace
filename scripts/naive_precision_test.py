@@ -29,7 +29,10 @@ def configure_environment() -> None:
 configure_environment()
 
 from datetime import datetime
-os.environ["VLLM_TORCH_PROFILER_DIR"] = "./.temp/profile/" + datetime.now().strftime("%d_%H-%M")
+
+os.environ["VLLM_TORCH_PROFILER_DIR"] = "./.temp/profile/" + datetime.now().strftime(
+    "%d_%H-%M"
+)
 os.environ["ASCEND_RT_VISIBLE_DEVICES"] = "4,5"
 profile_path = os.environ["VLLM_TORCH_PROFILER_DIR"]
 MODEL = os.environ.get("TEST_MODEL", "/home/weights/Qwen/Qwen3-30B-A3B")
@@ -39,7 +42,6 @@ MAX_TOKENS = 2
 ENABLE_SP = False
 # 开启 matmul + reduce_scatter 融合（依赖 ENABLE_SP）
 FUSE_GEMM_COMMS = True
-
 
 
 def main() -> None:
@@ -54,12 +56,12 @@ def main() -> None:
         "profiler_config": {
             "profiler": "torch",
             "torch_profiler_dir": os.environ["VLLM_TORCH_PROFILER_DIR"],
-            "torch_profiler_with_stack":True
+            "torch_profiler_with_stack": True,
         },
         "additional_config": {
             "ascend_compilation_config": {"enable_npugraph_ex": True},
             "enable_flashcomm1": False,
-        }
+        },
     }
     if ENABLE_SP:
         llm_kwargs["compilation_config"] = {
@@ -80,7 +82,6 @@ def main() -> None:
     profile_root = Path(profile_path).resolve()
     existing_profile_dirs = set(profile_root.glob("*_ascend_pt"))
     for _ in range(10):
-        
         outputs = llm.chat(
             [{"role": "user", "content": PROMPT}],
             sampling_params=sampling_params,
@@ -108,9 +109,7 @@ def main() -> None:
     profile_dirs = sorted(
         path
         for path in profile_root.glob("*_ascend_pt")
-        if path not in existing_profile_dirs
-        and path.is_dir()
-        and any(path.iterdir())
+        if path not in existing_profile_dirs and path.is_dir() and any(path.iterdir())
     )
     if not profile_dirs:
         raise RuntimeError(
@@ -120,10 +119,7 @@ def main() -> None:
     for profile_dir in profile_dirs:
         print(f"Analysing profile: {profile_dir}")
         analyse(str(profile_dir))
-        print(
-            "Profiler output: "
-            f"{profile_dir / 'ASCEND_PROFILER_OUTPUT'}"
-        )
+        print(f"Profiler output: {profile_dir / 'ASCEND_PROFILER_OUTPUT'}")
 
 
 if __name__ == "__main__":

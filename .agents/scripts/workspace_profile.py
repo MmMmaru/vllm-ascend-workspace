@@ -79,10 +79,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    summary = subparsers.add_parser("summary", help="print the current workspace machine profile summary")
+    summary = subparsers.add_parser(
+        "summary", help="print the current workspace machine profile summary"
+    )
     summary.set_defaults(func=cmd_summary)
 
-    validate = subparsers.add_parser("validate", help="validate one proposed machine username")
+    validate = subparsers.add_parser(
+        "validate", help="validate one proposed machine username"
+    )
     validate.add_argument("username", help="letters and digits only; case-insensitive")
     validate.set_defaults(func=cmd_validate)
 

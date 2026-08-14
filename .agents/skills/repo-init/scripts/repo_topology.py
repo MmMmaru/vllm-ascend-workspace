@@ -80,7 +80,12 @@ def resolve_repo(path_value: str) -> pathlib.Path:
 
 
 def branch_exists(repo: pathlib.Path, branch: str) -> bool:
-    return run(["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], cwd=repo).returncode == 0
+    return (
+        run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], cwd=repo
+        ).returncode
+        == 0
+    )
 
 
 def local_head(repo: pathlib.Path, ref: str) -> str | None:
@@ -158,15 +163,21 @@ def cmd_compare_main(args: argparse.Namespace) -> int:
             "push_repo": parse_repo_url(push_url),
             "remote_head": remote_head,
             "tracking_head": tracking_head,
-            "tracking_matches_remote": None if not (remote_head and tracking_head) else tracking_head == remote_head,
-            "local_matches_remote": None if not (remote_head and result["local_branch"]) else result["local_branch"] == remote_head,
+            "tracking_matches_remote": None
+            if not (remote_head and tracking_head)
+            else tracking_head == remote_head,
+            "local_matches_remote": None
+            if not (remote_head and result["local_branch"])
+            else result["local_branch"] == remote_head,
         }
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 
 
-def mutate_remote(repo: pathlib.Path, name: str, desired_url: str) -> list[dict[str, Any]]:
+def mutate_remote(
+    repo: pathlib.Path, name: str, desired_url: str
+) -> list[dict[str, Any]]:
     actions: list[dict[str, Any]] = []
     existing_fetch = remote_url(repo, name)
     existing_push = remote_url(repo, name, push=True)
@@ -177,15 +188,39 @@ def mutate_remote(repo: pathlib.Path, name: str, desired_url: str) -> list[dict[
         existing_push = remote_url(repo, name, push=True)
     elif existing_fetch != desired_url:
         run(["git", "remote", "set-url", name, desired_url], cwd=repo, check=True)
-        actions.append({"remote": name, "action": "set-fetch-url", "from": existing_fetch, "to": desired_url})
+        actions.append(
+            {
+                "remote": name,
+                "action": "set-fetch-url",
+                "from": existing_fetch,
+                "to": desired_url,
+            }
+        )
         existing_fetch = desired_url
 
     if existing_push not in {None, desired_url}:
-        run(["git", "remote", "set-url", "--push", name, desired_url], cwd=repo, check=True)
-        actions.append({"remote": name, "action": "set-push-url", "from": existing_push, "to": desired_url})
+        run(
+            ["git", "remote", "set-url", "--push", name, desired_url],
+            cwd=repo,
+            check=True,
+        )
+        actions.append(
+            {
+                "remote": name,
+                "action": "set-push-url",
+                "from": existing_push,
+                "to": desired_url,
+            }
+        )
     elif existing_push is None:
-        run(["git", "remote", "set-url", "--push", name, desired_url], cwd=repo, check=True)
-        actions.append({"remote": name, "action": "set-push-url", "from": None, "to": desired_url})
+        run(
+            ["git", "remote", "set-url", "--push", name, desired_url],
+            cwd=repo,
+            check=True,
+        )
+        actions.append(
+            {"remote": name, "action": "set-push-url", "from": None, "to": desired_url}
+        )
 
     return actions
 
@@ -206,7 +241,9 @@ def cmd_configure(args: argparse.Namespace) -> int:
                 {
                     "action": "gh-default-failed",
                     "target": args.gh_default,
-                    "detail": gh_proc.stderr.strip() or gh_proc.stdout.strip() or "gh command failed",
+                    "detail": gh_proc.stderr.strip()
+                    or gh_proc.stdout.strip()
+                    or "gh command failed",
                 }
             )
         else:
@@ -262,11 +299,27 @@ def cmd_ensure_main(args: argparse.Namespace) -> int:
             run(["git", "switch", branch], cwd=repo, check=True)
             actions.append({"action": "switch-existing-branch", "branch": branch})
     else:
-        run(["git", "switch", "-c", branch, "--track", f"{remote}/{branch}"], cwd=repo, check=True)
-        actions.append({"action": "create-tracking-branch", "branch": branch, "tracking": f"{remote}/{branch}"})
+        run(
+            ["git", "switch", "-c", branch, "--track", f"{remote}/{branch}"],
+            cwd=repo,
+            check=True,
+        )
+        actions.append(
+            {
+                "action": "create-tracking-branch",
+                "branch": branch,
+                "tracking": f"{remote}/{branch}",
+            }
+        )
 
-    run(["git", "branch", "--set-upstream-to", f"{remote}/{branch}", branch], cwd=repo, check=True)
-    actions.append({"action": "set-upstream", "branch": branch, "tracking": f"{remote}/{branch}"})
+    run(
+        ["git", "branch", "--set-upstream-to", f"{remote}/{branch}", branch],
+        cwd=repo,
+        check=True,
+    )
+    actions.append(
+        {"action": "set-upstream", "branch": branch, "tracking": f"{remote}/{branch}"}
+    )
 
     if args.pull:
         run(["git", "pull", "--ff-only", remote, branch], cwd=repo, check=True)
@@ -293,7 +346,9 @@ def build_parser() -> argparse.ArgumentParser:
         allow_abbrev=False,
     )
     compare_main.add_argument("--repo", required=True, help="repository path")
-    compare_main.add_argument("--branch", default="main", help="branch to compare (default: main)")
+    compare_main.add_argument(
+        "--branch", default="main", help="branch to compare (default: main)"
+    )
     compare_main.set_defaults(func=cmd_compare_main)
 
     configure = subparsers.add_parser(
@@ -319,7 +374,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ensure_main.add_argument("--repo", required=True, help="repository path")
     ensure_main.add_argument("--remote", required=True, help="tracking remote name")
-    ensure_main.add_argument("--branch", default="main", help="branch name (default: main)")
+    ensure_main.add_argument(
+        "--branch", default="main", help="branch name (default: main)"
+    )
     ensure_main.add_argument(
         "--allow-dirty",
         action=argparse.BooleanOptionalAction,

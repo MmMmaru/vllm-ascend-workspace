@@ -37,7 +37,9 @@ from _workflow_common import (  # noqa: E402
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--machine", required=True, help="machine alias or host IP from inventory")
+    parser.add_argument(
+        "--machine", required=True, help="machine alias or host IP from inventory"
+    )
     parser.add_argument(
         "--image",
         help=(
@@ -45,17 +47,31 @@ def build_parser() -> argparse.ArgumentParser:
             "omit only when the recorded image is already explicit and acceptable"
         ),
     )
-    parser.add_argument("--public-key-file", help="local public key to install; defaults to ~/.ssh/id_ed25519.pub if present")
-    parser.add_argument("--python", help="optional explicit python path inside the container")
+    parser.add_argument(
+        "--public-key-file",
+        help="local public key to install; defaults to ~/.ssh/id_ed25519.pub if present",
+    )
+    parser.add_argument(
+        "--python", help="optional explicit python path inside the container"
+    )
     parser.add_argument(
         "--machine-type",
         choices=machine_ops.MACHINE_TYPE_CHOICES,
         help="override detected machine type when npu-smi cannot infer it",
     )
     password_group = parser.add_mutually_exclusive_group()
-    password_group.add_argument("--password", help="host password already supplied by the user in the current chat")
-    password_group.add_argument("--password-env", help="read the host password from one environment variable")
-    password_group.add_argument("--password-stdin", action="store_true", help="read the host password from standard input")
+    password_group.add_argument(
+        "--password",
+        help="host password already supplied by the user in the current chat",
+    )
+    password_group.add_argument(
+        "--password-env", help="read the host password from one environment variable"
+    )
+    password_group.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="read the host password from standard input",
+    )
     return parser
 
 
@@ -64,7 +80,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         requested_machine_type = (
-            machine_ops.normalize_machine_type(args.machine_type) if args.machine_type else None
+            machine_ops.normalize_machine_type(args.machine_type)
+            if args.machine_type
+            else None
         )
         record = find_record(args.machine)
         if record is None:
@@ -90,28 +108,51 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         recorded_machine_type_hint = None
         if record["host"].get("machine_type"):
-            recorded_machine_type_hint = machine_ops.normalize_machine_type(record["host"]["machine_type"])
+            recorded_machine_type_hint = machine_ops.normalize_machine_type(
+                record["host"]["machine_type"]
+            )
         elif record["container"].get("machine_type"):
-            recorded_machine_type_hint = machine_ops.normalize_machine_type(record["container"]["machine_type"])
+            recorded_machine_type_hint = machine_ops.normalize_machine_type(
+                record["container"]["machine_type"]
+            )
         else:
-            recorded_machine_type_hint = machine_ops.infer_machine_type_from_image(record["container"].get("image"))
-        if requested_machine_type is not None and recorded_machine_type_hint is not None and requested_machine_type != recorded_machine_type_hint:
+            recorded_machine_type_hint = machine_ops.infer_machine_type_from_image(
+                record["container"].get("image")
+            )
+        if (
+            requested_machine_type is not None
+            and recorded_machine_type_hint is not None
+            and requested_machine_type != recorded_machine_type_hint
+        ):
             raise WorkflowError(
                 f"explicit machine type {requested_machine_type} does not match the recorded machine type {recorded_machine_type_hint}"
             )
 
-        emit_progress(action="repair", phase="verify-before", message="checking current machine readiness", machine=record["alias"])
+        emit_progress(
+            action="repair",
+            phase="verify-before",
+            message="checking current machine readiness",
+            machine=record["alias"],
+        )
         verified_before = verify_machine(
             record,
             python=args.python,
-            progress_cb=lambda phase, message: emit_progress(action="repair", phase=f"before-{phase}", message=message, machine=record["alias"]),
+            progress_cb=lambda phase, message: emit_progress(
+                action="repair",
+                phase=f"before-{phase}",
+                message=message,
+                machine=record["alias"],
+            ),
         )
         if (
             verified_before.get("status") == "ready"
             and image_request_matches_record(image, record)
             and (
                 requested_machine_type is None
-                or (recorded_machine_type_hint is not None and requested_machine_type == recorded_machine_type_hint)
+                or (
+                    recorded_machine_type_hint is not None
+                    and requested_machine_type == recorded_machine_type_hint
+                )
             )
         ):
             print_json(
@@ -135,25 +176,43 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         password = resolve_password_args(args)
-        emit_progress(action="repair", phase="host-auth", message="checking host key SSH", machine=record["alias"])
+        emit_progress(
+            action="repair",
+            phase="host-auth",
+            message="checking host key SSH",
+            machine=record["alias"],
+        )
         target = host_target(
             host=record["host"]["ip"],
             user=record["host"]["user"],
             port=record["host"]["port"],
         )
         try:
-            private_key = machine_ops.private_key_for_public_key(machine_ops.find_public_key(args.public_key_file))
+            private_key = machine_ops.private_key_for_public_key(
+                machine_ops.find_public_key(args.public_key_file)
+            )
         except machine_ops.MachineManagementError:
             private_key = None
         host_ssh_precheck = check_host_key(target, private_key)
-        host_auth = {"success": True, "result": "already-configured", "precheck": host_ssh_precheck}
+        host_auth = {
+            "success": True,
+            "result": "already-configured",
+            "precheck": host_ssh_precheck,
+        }
         if not host_ssh_precheck["ok"]:
-            host_auth = bootstrap_host_key(target, public_key_file=args.public_key_file, password=password)
+            host_auth = bootstrap_host_key(
+                target, public_key_file=args.public_key_file, password=password
+            )
             if host_auth.get("status") in {"needs_input", "blocked"}:
                 print_json(host_auth)
                 return 0
 
-        emit_progress(action="repair", phase="probe", message="probing host prerequisites", machine=record["alias"])
+        emit_progress(
+            action="repair",
+            phase="probe",
+            message="probing host prerequisites",
+            machine=record["alias"],
+        )
         probe = probe_host(
             target,
             image=image,
@@ -178,7 +237,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             if record["container"].get("machine_type")
             else None
         )
-        if requested_machine_type is not None and probed_machine_type is not None and requested_machine_type != probed_machine_type:
+        if (
+            requested_machine_type is not None
+            and probed_machine_type is not None
+            and requested_machine_type != probed_machine_type
+        ):
             raise WorkflowError(
                 f"explicit machine type {requested_machine_type} does not match detected host type {probed_machine_type}"
             )
@@ -210,7 +273,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         soc = detected_soc or recorded_soc
 
-        emit_progress(action="repair", phase="bootstrap", message="repairing the managed container", machine=record["alias"])
+        emit_progress(
+            action="repair",
+            phase="bootstrap",
+            message="repairing the managed container",
+            machine=record["alias"],
+        )
         container = bootstrap_container(
             target,
             host=record["host"]["ip"],
@@ -228,14 +296,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             print_json(container)
             return 0
 
-        actual_image = container.get("selected_image") or container.get("image") or image
-        bootstrap_method = "password-once" if host_ssh_precheck.get("ok") is False and password.value is not None else None
+        actual_image = (
+            container.get("selected_image") or container.get("image") or image
+        )
+        bootstrap_method = (
+            "password-once"
+            if host_ssh_precheck.get("ok") is False and password.value is not None
+            else None
+        )
         container_machine_type = (
             machine_ops.normalize_machine_type(container.get("container_type"))
             if container.get("container_type")
             else machine_type
         )
-        emit_progress(action="repair", phase="inventory", message="refreshing inventory and mesh state", machine=record["alias"])
+        emit_progress(
+            action="repair",
+            phase="inventory",
+            message="refreshing inventory and mesh state",
+            machine=record["alias"],
+        )
         inventory_payload, updated_record = upsert_machine_record(
             alias=record["alias"],
             namespace=record.get("namespace"),
@@ -251,13 +330,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             host_soc=soc,
             container_machine_type=container_machine_type,
         )
-        peers = [peer for peer in list_records() if peer["alias"] != updated_record["alias"]]
+        peers = [
+            peer for peer in list_records() if peer["alias"] != updated_record["alias"]
+        ]
         mesh = sync_mesh(updated_record, peers=peers)
-        emit_progress(action="repair", phase="verify-after", message="running post-repair readiness verification", machine=updated_record["alias"])
+        emit_progress(
+            action="repair",
+            phase="verify-after",
+            message="running post-repair readiness verification",
+            machine=updated_record["alias"],
+        )
         verified_after = verify_machine(
             updated_record,
             python=args.python,
-            progress_cb=lambda phase, message: emit_progress(action="repair", phase=f"after-{phase}", message=message, machine=updated_record["alias"]),
+            progress_cb=lambda phase, message: emit_progress(
+                action="repair",
+                phase=f"after-{phase}",
+                message=message,
+                machine=updated_record["alias"],
+            ),
         )
         if verified_after.get("status") == "blocked":
             print_json(verified_after)
@@ -299,10 +390,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     except WorkflowError as exc:
-        print_json({"success": False, "status": "blocked", "action": "failed", "error": str(exc)})
+        print_json(
+            {
+                "success": False,
+                "status": "blocked",
+                "action": "failed",
+                "error": str(exc),
+            }
+        )
         return 2
     except Exception as exc:  # noqa: BLE001
-        print_json({"success": False, "status": "blocked", "action": "failed", "error": str(exc)})
+        print_json(
+            {
+                "success": False,
+                "status": "blocked",
+                "action": "failed",
+                "error": str(exc),
+            }
+        )
         return 2
 
 

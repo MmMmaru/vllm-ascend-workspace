@@ -38,7 +38,9 @@ def expected_skill_body(skill_dir: Path) -> str:
     source = skill_dir / "SKILL.md"
     frontmatter = parse_frontmatter(source)
     name = frontmatter.get("name") or skill_dir.name
-    description = frontmatter.get("description") or first_markdown_heading(source, skill_dir.name)
+    description = frontmatter.get("description") or first_markdown_heading(
+        source, skill_dir.name
+    )
     title = first_markdown_heading(source, name)
     return f"""<!-- Generated Claude Code shim from .agents/skills/{skill_dir.name}/SKILL.md. Do not edit. -->
 ---
@@ -62,13 +64,21 @@ Before using this skill:
 
 
 def source_skill_dirs() -> list[Path]:
-    return sorted(path for path in AGENTS_SKILLS.iterdir() if path.is_dir() and (path / "SKILL.md").exists())
+    return sorted(
+        path
+        for path in AGENTS_SKILLS.iterdir()
+        if path.is_dir() and (path / "SKILL.md").exists()
+    )
 
 
 def check_shims() -> list[str]:
     errors: list[str] = []
     expected_names = {path.name for path in source_skill_dirs()}
-    observed_names = {path.name for path in CLAUDE_SKILLS.iterdir() if path.is_dir()} if CLAUDE_SKILLS.exists() else set()
+    observed_names = (
+        {path.name for path in CLAUDE_SKILLS.iterdir() if path.is_dir()}
+        if CLAUDE_SKILLS.exists()
+        else set()
+    )
     for missing in sorted(expected_names - observed_names):
         errors.append(f"missing Claude skill shim: {missing}")
     for extra in sorted(observed_names - expected_names):
@@ -94,13 +104,22 @@ def sync_shims() -> None:
         target = target_dir / "SKILL.md"
         target.write_text(expected_skill_body(skill_dir), encoding="utf-8")
     for existing in CLAUDE_SKILLS.iterdir():
-        if existing.is_dir() and not (AGENTS_SKILLS / existing.name / "SKILL.md").exists():
+        if (
+            existing.is_dir()
+            and not (AGENTS_SKILLS / existing.name / "SKILL.md").exists()
+        ):
             shutil.rmtree(existing)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Sync generated Claude Code skill shims from .agents/skills.")
-    parser.add_argument("--check", action="store_true", help="Only verify that .claude/skills is synchronized.")
+    parser = argparse.ArgumentParser(
+        description="Sync generated Claude Code skill shims from .agents/skills."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Only verify that .claude/skills is synchronized.",
+    )
     args = parser.parse_args()
     if args.check:
         errors = check_shims()

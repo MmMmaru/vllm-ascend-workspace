@@ -47,7 +47,10 @@ class McpSchemaTests(unittest.TestCase):
             "remote.probe",
         ):
             self.assertIn(expected, names)
-            self.assertIn("inputSchema", next(tool for tool in list_tools() if tool["name"] == expected))
+            self.assertIn(
+                "inputSchema",
+                next(tool for tool in list_tools() if tool["name"] == expected),
+            )
 
     def test_underscore_aliases_map_to_canonical_names(self) -> None:
         self.assertEqual(ALIASES["remote_read"], "remote.read")
@@ -57,9 +60,13 @@ class McpSchemaTests(unittest.TestCase):
         job_tools = {"remote.job_status", "remote.job_tail", "remote.job_stop"}
         for name, schema in TOOL_SCHEMAS.items():
             if name in job_tools:
-                self.assertNotIn({"anyOf": ENDPOINT_SELECTOR_ANY_OF}, schema.get("allOf", []))
+                self.assertNotIn(
+                    {"anyOf": ENDPOINT_SELECTOR_ANY_OF}, schema.get("allOf", [])
+                )
             else:
-                self.assertIn({"anyOf": ENDPOINT_SELECTOR_ANY_OF}, schema.get("allOf", []), name)
+                self.assertIn(
+                    {"anyOf": ENDPOINT_SELECTOR_ANY_OF}, schema.get("allOf", []), name
+                )
         self.assertIn({"required": ["host", "port"]}, ENDPOINT_SELECTOR_ANY_OF)
         self.assertIn({"required": ["alias"]}, ENDPOINT_SELECTOR_ANY_OF)
         self.assertIn({"required": ["session_id"]}, ENDPOINT_SELECTOR_ANY_OF)
@@ -77,7 +84,9 @@ class McpSchemaTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 state_store.substrate_root = lambda: Path(tmp)  # type: ignore[assignment]
-                endpoint = Endpoint(host="127.0.0.1", port=46000, root="/vllm-workspace")
+                endpoint = Endpoint(
+                    host="127.0.0.1", port=46000, root="/vllm-workspace"
+                )
                 state_store.ensure_endpoint_state(endpoint)
                 job_id = "job-abc123"
                 record = {
@@ -87,8 +96,12 @@ class McpSchemaTests(unittest.TestCase):
                     "remote_dir": f"{endpoint.root}/.remote-dev/jobs/{job_id}",
                     "started_at": "2026-05-25T00:00:00Z",
                 }
-                state_store.atomic_write_json(state_store.job_record_path(endpoint, job_id), record)
-                mcp_tools.run_script = lambda *_args, **_kwargs: RemoteCompleted(0, "log\n", "")  # type: ignore[assignment]
+                state_store.atomic_write_json(
+                    state_store.job_record_path(endpoint, job_id), record
+                )
+                mcp_tools.run_script = lambda *_args, **_kwargs: RemoteCompleted(
+                    0, "log\n", ""
+                )  # type: ignore[assignment]
 
                 base = f"remote://endpoint/{endpoint.endpoint_id}/job/{job_id}"
                 resources = {resource["uri"] for resource in list_resources()}
@@ -110,7 +123,9 @@ class McpSchemaTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 state_store.substrate_root = lambda: Path(tmp)  # type: ignore[assignment]
-                endpoint = Endpoint(host="127.0.0.1", port=46000, root="/vllm-workspace")
+                endpoint = Endpoint(
+                    host="127.0.0.1", port=46000, root="/vllm-workspace"
+                )
                 state_store.ensure_endpoint_state(endpoint)
                 manifest = {
                     "schema_version": "remote-dev.artifact_manifest.v1",
@@ -120,7 +135,11 @@ class McpSchemaTests(unittest.TestCase):
                     "files": [],
                 }
                 artifact_id = "artifact-abc123"
-                manifest_path = state_store.artifacts_dir(endpoint.endpoint_id) / artifact_id / "manifest.json"
+                manifest_path = (
+                    state_store.artifacts_dir(endpoint.endpoint_id)
+                    / artifact_id
+                    / "manifest.json"
+                )
                 state_store.atomic_write_json(manifest_path, manifest)
 
                 uri = f"remote://endpoint/{endpoint.endpoint_id}/artifacts/{artifact_id}/manifest"
@@ -128,7 +147,10 @@ class McpSchemaTests(unittest.TestCase):
                 self.assertIn(uri, resources)
                 content = read_resource(uri)
                 self.assertEqual(content["mimeType"], "application/json")
-                self.assertEqual(json.loads(content["text"])["schema_version"], "remote-dev.artifact_manifest.v1")
+                self.assertEqual(
+                    json.loads(content["text"])["schema_version"],
+                    "remote-dev.artifact_manifest.v1",
+                )
         finally:
             state_store.substrate_root = original_state_root  # type: ignore[assignment]
 
@@ -150,7 +172,12 @@ class McpSchemaTests(unittest.TestCase):
     def test_server_supports_content_length_framing(self) -> None:
         request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
         encoded = json.dumps(request, separators=(",", ":")).encode("utf-8")
-        framed = b"Content-Length: " + str(len(encoded)).encode("ascii") + b"\r\n\r\n" + encoded
+        framed = (
+            b"Content-Length: "
+            + str(len(encoded)).encode("ascii")
+            + b"\r\n\r\n"
+            + encoded
+        )
         proc = subprocess.run(
             [sys.executable, str(REPO_ROOT / ".remote-dev" / "mcp" / "server.py")],
             input=framed,
@@ -158,7 +185,9 @@ class McpSchemaTests(unittest.TestCase):
             stderr=subprocess.PIPE,
             check=False,
         )
-        self.assertEqual(proc.returncode, 0, proc.stderr.decode("utf-8", errors="replace"))
+        self.assertEqual(
+            proc.returncode, 0, proc.stderr.decode("utf-8", errors="replace")
+        )
         header, body = proc.stdout.split(b"\r\n\r\n", 1)
         self.assertIn(b"Content-Length:", header)
         response = json.loads(body.decode("utf-8"))

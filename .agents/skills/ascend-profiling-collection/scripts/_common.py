@@ -41,6 +41,7 @@ SAFE_TOKEN_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 # Lazy import of serving _common (single source of truth for SSH + inventory)
 # ---------------------------------------------------------------------------
 
+
 def _load_serving_common():
     """Load the serving skill's _common.py without polluting sys.path.
 
@@ -73,6 +74,7 @@ load_serving_state = SERVING.load_serving_state
 # ---------------------------------------------------------------------------
 # Progress / output
 # ---------------------------------------------------------------------------
+
 
 def emit_progress(phase: str, message: str, **extra: Any) -> None:
     payload: dict[str, Any] = {"phase": phase, "message": message}
@@ -119,10 +121,7 @@ def unique_collection_run_dir(
     tag_token = safe_run_token(tag, fallback="profile")
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     for _ in range(10):
-        name = (
-            f"{ts}_{tag_token}_{target_token}_"
-            f"{os.getpid()}_{uuid.uuid4().hex[:8]}"
-        )
+        name = f"{ts}_{tag_token}_{target_token}_{os.getpid()}_{uuid.uuid4().hex[:8]}"
         run_dir = COLLECTION_STATE_DIR / name
         try:
             run_dir.mkdir(parents=True, exist_ok=False)
@@ -152,6 +151,7 @@ ASCEND_ENV_PREAMBLE = textwrap.dedent(
 # Local SSH tunnel for sending workload requests from the local machine
 # ---------------------------------------------------------------------------
 
+
 def _find_free_local_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -170,13 +170,19 @@ def open_local_tunnel(ep, remote_port: int):
     local_port = _find_free_local_port()
     cmd = [
         "ssh",
-        "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "ExitOnForwardFailure=yes",
-        "-o", "LogLevel=ERROR",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "ExitOnForwardFailure=yes",
+        "-o",
+        "LogLevel=ERROR",
         "-N",
-        "-L", f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}",
-        "-p", str(ep.port),
+        "-L",
+        f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}",
+        "-p",
+        str(ep.port),
         ep.destination(),
     ]
     proc = subprocess.Popen(
@@ -223,6 +229,7 @@ def open_local_tunnel(ep, remote_port: int):
 # JSON-emitting subprocess wrapper for sibling scripts
 # ---------------------------------------------------------------------------
 
+
 def call_json_command(cmd: list[str], *, cwd: Path | None = None) -> dict[str, Any]:
     """Run ``cmd`` and parse its stdout as JSON.
 
@@ -260,21 +267,20 @@ def call_json_command(cmd: list[str], *, cwd: Path | None = None) -> dict[str, A
         )
     if not stdout.strip():
         raise RuntimeError(
-            f"command produced no output: {' '.join(cmd)}\n"
-            f"stderr={stderr[:2000]}"
+            f"command produced no output: {' '.join(cmd)}\nstderr={stderr[:2000]}"
         )
     try:
         return json.loads(stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError(
-            f"command returned non-JSON output: {' '.join(cmd)}\n"
-            f"stdout={stdout[:2000]}"
+            f"command returned non-JSON output: {' '.join(cmd)}\nstdout={stdout[:2000]}"
         ) from exc
 
 
 # ---------------------------------------------------------------------------
 # Convenience wrappers around the serving skill's CLI scripts
 # ---------------------------------------------------------------------------
+
 
 def call_serve_start(extra_args: list[str]) -> dict[str, Any]:
     cmd = [sys.executable, str(SERVING_SCRIPTS / "serve_start.py"), *extra_args]
@@ -295,7 +301,9 @@ def call_serve_stop(
         cmd.extend(["--session-id", session_id])
     else:
         if not machine:
-            raise RuntimeError("machine is required unless session_id or session_file is provided")
+            raise RuntimeError(
+                "machine is required unless session_id or session_file is provided"
+            )
         cmd.extend(["--machine", machine])
     if force:
         cmd.append("--force")

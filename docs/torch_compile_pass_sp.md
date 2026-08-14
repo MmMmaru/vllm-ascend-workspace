@@ -62,8 +62,7 @@ pass”。
 
 ```python
 @support_torch_compile
-class Qwen3MoeModel(...):
-    ...
+class Qwen3MoeModel(...): ...
 ```
 
 参见上游
@@ -221,11 +220,9 @@ empty(...)
 
 ```python
 def register(self, pm_pass):
-    def pattern(input, weight, residual):
-        ...
+    def pattern(input, weight, residual): ...
 
-    def replacement(input, weight, residual):
-        ...
+    def replacement(input, weight, residual): ...
 
     pm.register_replacement(
         pattern,
@@ -298,9 +295,7 @@ input [T, H]
 
 ```python
 reduce_scatter = self._reduce_scatter(input)
-residual = torch.ops.vllm.maybe_chunk_residual(
-    reduce_scatter, residual
-)
+residual = torch.ops.vllm.maybe_chunk_residual(reduce_scatter, residual)
 result, _, residual = torch.ops._C_ascend.npu_add_rms_norm_bias(
     reduce_scatter, residual, weight, None, self.eps
 )

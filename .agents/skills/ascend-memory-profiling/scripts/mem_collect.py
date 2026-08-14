@@ -58,7 +58,10 @@ from _common import (
 
 
 def unique_remote_tmp(prefix: str, session_id: str | None = None) -> str:
-    sid = re.sub(r"[^A-Za-z0-9_.-]+", "_", session_id or "legacy").strip("._-") or "legacy"
+    sid = (
+        re.sub(r"[^A-Za-z0-9_.-]+", "_", session_id or "legacy").strip("._-")
+        or "legacy"
+    )
     return f"/tmp/{prefix}_{sid}_{os.getpid()}_{uuid.uuid4().hex[:8]}"
 
 
@@ -74,7 +77,9 @@ _ENV_ERROR_PATTERNS = [
 ]
 
 
-def _emit_env_recovery_hint(log_text: str, machine: str, session_id: str | None = None) -> None:
+def _emit_env_recovery_hint(
+    log_text: str, machine: str, session_id: str | None = None
+) -> None:
     """If log_text contains environment error patterns, emit structured recovery guidance."""
     if not log_text:
         return
@@ -98,35 +103,105 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--machine", help="Machine alias or IP")
     p.add_argument("--session-id", help="VAWS session id")
     p.add_argument("--session-file", help="explicit session.json path")
-    p.add_argument("--model", default="", help="Remote model weight path (auto-detected in attach mode)")
-    p.add_argument("--tp", type=int, default=None, help="Tensor parallel size (auto-detected in attach mode)")
-    p.add_argument("--dp", type=int, default=None, help="Data parallel size (auto-detected in attach mode)")
-    p.add_argument("--devices", default="", help="Comma-separated device IDs (default: auto)")
+    p.add_argument(
+        "--model",
+        default="",
+        help="Remote model weight path (auto-detected in attach mode)",
+    )
+    p.add_argument(
+        "--tp",
+        type=int,
+        default=None,
+        help="Tensor parallel size (auto-detected in attach mode)",
+    )
+    p.add_argument(
+        "--dp",
+        type=int,
+        default=None,
+        help="Data parallel size (auto-detected in attach mode)",
+    )
+    p.add_argument(
+        "--devices", default="", help="Comma-separated device IDs (default: auto)"
+    )
     p.add_argument("--gpu-memory-utilization", type=float, default=0.85)
     p.add_argument("--max-model-len", type=int, default=2048)
-    p.add_argument("--port", type=int, default=None, help="Service port (auto-detected in attach mode)")
+    p.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Service port (auto-detected in attach mode)",
+    )
     p.add_argument("--enable-expert-parallel", action="store_true")
     p.add_argument("--enforce-eager", action="store_true", default=False)
-    p.add_argument("--max-tokens", type=int, default=128, help="Max tokens per inference request")
-    p.add_argument("--prompt", default="Explain transformer attention mechanism in detail.",
-                   help="Prompt for inference request")
-    p.add_argument("--image-url", default="", help="Image URL for VL model inference (triggers chat completion)")
+    p.add_argument(
+        "--max-tokens", type=int, default=128, help="Max tokens per inference request"
+    )
+    p.add_argument(
+        "--prompt",
+        default="Explain transformer attention mechanism in detail.",
+        help="Prompt for inference request",
+    )
+    p.add_argument(
+        "--image-url",
+        default="",
+        help="Image URL for VL model inference (triggers chat completion)",
+    )
     p.add_argument("--tag", default="", help="Tag for the output directory name")
-    p.add_argument("--health-timeout", type=int, default=300, help="Seconds to wait for service ready")
-    p.add_argument("--msprof-mem-freq", type=int, default=50, help="msprof hardware memory sampling freq (Hz)")
-    p.add_argument("--speculative-config", default="", help="JSON string for SpeculativeConfig (e.g. MTP)")
-    p.add_argument("--compilation-config", default="", help="JSON string for CompilationConfig (e.g. cudagraph_mode)")
-    p.add_argument("--additional-config", default="", help="JSON string for AscendConfig additional_config")
-    p.add_argument("--quantization", default="", help="Quantization method (e.g. 'ascend' for W8A8)")
-    p.add_argument("--extra-serve-args", nargs="*", default=[], help="Extra arguments for vLLM serve command")
+    p.add_argument(
+        "--health-timeout",
+        type=int,
+        default=300,
+        help="Seconds to wait for service ready",
+    )
+    p.add_argument(
+        "--msprof-mem-freq",
+        type=int,
+        default=50,
+        help="msprof hardware memory sampling freq (Hz)",
+    )
+    p.add_argument(
+        "--speculative-config",
+        default="",
+        help="JSON string for SpeculativeConfig (e.g. MTP)",
+    )
+    p.add_argument(
+        "--compilation-config",
+        default="",
+        help="JSON string for CompilationConfig (e.g. cudagraph_mode)",
+    )
+    p.add_argument(
+        "--additional-config",
+        default="",
+        help="JSON string for AscendConfig additional_config",
+    )
+    p.add_argument(
+        "--quantization",
+        default="",
+        help="Quantization method (e.g. 'ascend' for W8A8)",
+    )
+    p.add_argument(
+        "--extra-serve-args",
+        nargs="*",
+        default=[],
+        help="Extra arguments for vLLM serve command",
+    )
 
     # Attach mode: profile a service already managed by vllm-ascend-serving
-    p.add_argument("--attach", action="store_true",
-                   help="Attach to a running service managed by the serving skill")
-    p.add_argument("--baseline-from", default="",
-                   help="Path to a previous run directory OR a raw npu-smi output file to reuse as baseline (for attach mode)")
-    p.add_argument("--resume-run", default="",
-                   help="Path to a previous run directory to merge new data into (for two-phase attach)")
+    p.add_argument(
+        "--attach",
+        action="store_true",
+        help="Attach to a running service managed by the serving skill",
+    )
+    p.add_argument(
+        "--baseline-from",
+        default="",
+        help="Path to a previous run directory OR a raw npu-smi output file to reuse as baseline (for attach mode)",
+    )
+    p.add_argument(
+        "--resume-run",
+        default="",
+        help="Path to a previous run directory to merge new data into (for two-phase attach)",
+    )
     return p.parse_args()
 
 
@@ -147,7 +222,11 @@ def collect_npu_smi(ep: SshEndpoint, label: str, local_path: Path) -> dict:
         # Line with NPU ID and name (e.g., "0     910B4")
         col0 = parts[0].strip() if parts else ""
         tokens = col0.split()
-        if len(tokens) >= 2 and tokens[0].isdigit() and any(c.isalpha() for c in tokens[1]):
+        if (
+            len(tokens) >= 2
+            and tokens[0].isdigit()
+            and any(c.isalpha() for c in tokens[1])
+        ):
             current_npu = int(tokens[0])
             continue
         # Line with HBM data: look for "XXXX / YYYYY" pattern in last column
@@ -165,13 +244,20 @@ def collect_npu_smi(ep: SshEndpoint, label: str, local_path: Path) -> dict:
 def build_serve_command(args: argparse.Namespace, python: str) -> str:
     """Build the vLLM serve command string."""
     parts = [
-        python, "-m", "vllm.entrypoints.openai.api_server",
-        "--model", args.model,
-        "--tensor-parallel-size", str(args.tp),
+        python,
+        "-m",
+        "vllm.entrypoints.openai.api_server",
+        "--model",
+        args.model,
+        "--tensor-parallel-size",
+        str(args.tp),
         "--trust-remote-code",
-        "--gpu-memory-utilization", str(args.gpu_memory_utilization),
-        "--max-model-len", str(args.max_model_len),
-        "--port", str(args.port),
+        "--gpu-memory-utilization",
+        str(args.gpu_memory_utilization),
+        "--max-model-len",
+        str(args.max_model_len),
+        "--port",
+        str(args.port),
     ]
     if args.dp > 1:
         parts.extend(["--data-parallel-size", str(args.dp)])
@@ -238,7 +324,12 @@ def wait_for_health(ep: SshEndpoint, port: int, timeout: int) -> float:
     progress("Waiting for service health check...")
     t0 = time.time()
     for i in range(timeout):
-        r = ssh_exec(ep, f"curl -sf -o /dev/null -w '%{{http_code}}' http://localhost:{port}/health 2>/dev/null || true", check=False, timeout=10)
+        r = ssh_exec(
+            ep,
+            f"curl -sf -o /dev/null -w '%{{http_code}}' http://localhost:{port}/health 2>/dev/null || true",
+            check=False,
+            timeout=10,
+        )
         if "200" in r.stdout:
             elapsed = time.time() - t0
             progress(f"Service ready in {elapsed:.0f}s")
@@ -267,34 +358,39 @@ def send_inference(
 
     if args.image_url:
         progress("Sending multimodal (VL) inference request...")
-        payload = json.dumps({
-            "model": api_model,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": args.image_url}},
-                    {"type": "text", "text": args.prompt or "Describe this image in detail."},
+        payload = json.dumps(
+            {
+                "model": api_model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": args.image_url}},
+                            {
+                                "type": "text",
+                                "text": args.prompt or "Describe this image in detail.",
+                            },
+                        ],
+                    }
                 ],
-            }],
-            "max_tokens": args.max_tokens,
-            "temperature": 0.7,
-        })
+                "max_tokens": args.max_tokens,
+                "temperature": 0.7,
+            }
+        )
         api_endpoint = f"http://localhost:{api_port}/v1/chat/completions"
     else:
         progress("Sending text inference request...")
-        payload = json.dumps({
-            "model": api_model,
-            "prompt": args.prompt,
-            "max_tokens": args.max_tokens,
-            "temperature": 0.7,
-        })
+        payload = json.dumps(
+            {
+                "model": api_model,
+                "prompt": args.prompt,
+                "max_tokens": args.max_tokens,
+                "temperature": 0.7,
+            }
+        )
         api_endpoint = f"http://localhost:{api_port}/v1/completions"
 
-    cmd = (
-        f"curl -s {api_endpoint} "
-        f'-H "Content-Type: application/json" '
-        f"-d '{payload}'"
-    )
+    cmd = f"curl -s {api_endpoint} -H \"Content-Type: application/json\" -d '{payload}'"
     r = ssh_exec(ep, cmd, timeout=180)
     try:
         return json.loads(r.stdout)
@@ -305,13 +401,17 @@ def send_inference(
 def stop_service(ep: SshEndpoint) -> None:
     """Kill all vLLM and msprof processes."""
     progress("Stopping service and msprof...")
-    ssh_exec(ep, (
-        "pkill -f 'vllm.entrypoints' 2>/dev/null; "
-        "sleep 3; "
-        "pkill -9 -f 'vllm.entrypoints' 2>/dev/null; "
-        "sleep 2; "
-        "true"
-    ), check=False)
+    ssh_exec(
+        ep,
+        (
+            "pkill -f 'vllm.entrypoints' 2>/dev/null; "
+            "sleep 3; "
+            "pkill -9 -f 'vllm.entrypoints' 2>/dev/null; "
+            "sleep 2; "
+            "true"
+        ),
+        check=False,
+    )
 
 
 def collect_vllm_logs(ep: SshEndpoint, remote_dir: str, local_path: Path) -> str:
@@ -421,14 +521,21 @@ def collect_model_config(ep: SshEndpoint, model_path: str, local_path: Path) -> 
     return {}
 
 
-def collect_weight_manifest(ep: SshEndpoint, python: str, model_path: str, local_path: Path) -> dict:
+def collect_weight_manifest(
+    ep: SshEndpoint, python: str, model_path: str, local_path: Path
+) -> dict:
     """Run weight_inspector.py on remote to extract safetensors tensor metadata."""
     progress("Inspecting model weight files (safetensors headers)...")
     inspector_src = (Path(__file__).parent / "weight_inspector.py").read_text()
 
     remote_script = "/tmp/_vaws_weight_inspector.py"
     ssh_write_text(ep, inspector_src, remote_script)
-    r = ssh_exec(ep, f"{python} {remote_script} {shlex.quote(model_path)}", check=False, timeout=120)
+    r = ssh_exec(
+        ep,
+        f"{python} {remote_script} {shlex.quote(model_path)}",
+        check=False,
+        timeout=120,
+    )
 
     if r.returncode != 0:
         progress(f"WARNING: weight inspector failed: {r.stderr[:500]}")
@@ -439,8 +546,10 @@ def collect_weight_manifest(ep: SshEndpoint, python: str, model_path: str, local
         (local_path / "weight_manifest.json").write_text(
             json.dumps(manifest, indent=2, ensure_ascii=False)
         )
-        progress(f"Weight manifest: {manifest.get('total_tensors', 0)} tensors, "
-                 f"{manifest.get('total_gib', 0)} GiB total")
+        progress(
+            f"Weight manifest: {manifest.get('total_tensors', 0)} tensors, "
+            f"{manifest.get('total_gib', 0)} GiB total"
+        )
         return manifest
     except json.JSONDecodeError:
         progress(f"WARNING: weight inspector output not valid JSON")
@@ -458,7 +567,9 @@ def _resolve_attach_state(machine: dict, args: argparse.Namespace) -> dict:
     state = load_serving_state(
         alias,
         session_id=args.session_id,
-        state_repo_root=getattr(args, "_state_repo_root", Path(__file__).resolve().parents[4]),
+        state_repo_root=getattr(
+            args, "_state_repo_root", Path(__file__).resolve().parents[4]
+        ),
     )
     if state is None:
         raise SystemExit(
@@ -489,7 +600,11 @@ def _parse_npu_smi_text(text: str) -> dict:
         parts = [p.strip() for p in stripped.split("|")]
         col0 = parts[0].strip() if parts else ""
         tokens = col0.split()
-        if len(tokens) >= 2 and tokens[0].isdigit() and any(c.isalpha() for c in tokens[1]):
+        if (
+            len(tokens) >= 2
+            and tokens[0].isdigit()
+            and any(c.isalpha() for c in tokens[1])
+        ):
             current_npu = int(tokens[0])
             continue
         if current_npu is not None:
@@ -514,6 +629,7 @@ def _load_baseline_from(baseline_path: str, run_dir: Path) -> dict:
     # If it's a file, treat it as raw npu-smi output
     if p.is_file():
         import shutil
+
         shutil.copy2(p, run_dir / "baseline_npu_smi.txt")
         return _parse_npu_smi_text(p.read_text())
 
@@ -527,6 +643,7 @@ def _load_baseline_from(baseline_path: str, run_dir: Path) -> dict:
         return {}
 
     import shutil
+
     shutil.copy2(src, run_dir / "baseline_npu_smi.txt")
 
     manifest_path = p / "manifest.json"
@@ -536,7 +653,9 @@ def _load_baseline_from(baseline_path: str, run_dir: Path) -> dict:
     return {}
 
 
-def _collect_serving_logs(ep: SshEndpoint, serving_state: dict, local_path: Path) -> str:
+def _collect_serving_logs(
+    ep: SshEndpoint, serving_state: dict, local_path: Path
+) -> str:
     """Fetch vLLM logs from the serving skill's runtime directory.
 
     Combines both stdout and stderr since critical memory info (weight load
@@ -605,7 +724,9 @@ def _main_attach(
 
     model = args.model or svc_model
     if not model:
-        raise SystemExit("Cannot determine model path. Provide --model or ensure serving state has it.")
+        raise SystemExit(
+            "Cannot determine model path. Provide --model or ensure serving state has it."
+        )
     tp = args.tp if args.tp is not None else (svc_tp or 1)
     dp = args.dp if args.dp is not None else (svc_dp or 1)
     port = args.port if args.port is not None else svc_port
@@ -619,7 +740,9 @@ def _main_attach(
     if served_model_name:
         progress(f"  served_model_name={served_model_name}")
     if not service_alive:
-        progress("  Service is stopped — will only collect msprof CSVs, weight manifest, and config")
+        progress(
+            "  Service is stopped — will only collect msprof CSVs, weight manifest, and config"
+        )
 
     _extract_serve_config_from_extra_args(args, svc_extra_args)
 
@@ -642,7 +765,9 @@ def _main_attach(
     svc_wrap = serving_state.get("wrap_script", "")
     svc_runtime_dir = serving_state.get("runtime_dir", "")
     msprof_used = MSPROF_WRAPPER_REMOTE_PATH in svc_wrap
-    msprof_data_dir = f"{svc_runtime_dir}/msprof_data" if msprof_used and svc_runtime_dir else ""
+    msprof_data_dir = (
+        f"{svc_runtime_dir}/msprof_data" if msprof_used and svc_runtime_dir else ""
+    )
     if not msprof_used:
         progress(
             "WARNING: 服务未使用 msprof wrapper 启动，报告中将无法提供组件级内存拆分。"
@@ -664,7 +789,8 @@ def _main_attach(
         "run_dir": str(run_dir),
         "serving_state_ref": (
             f".vaws-local/sessions/{args.session_id}/serving.json"
-            if args.session_id else f".vaws-local/serving/{alias}.json"
+            if args.session_id
+            else f".vaws-local/serving/{alias}.json"
         ),
         "serving_runtime_dir": svc_runtime_dir,
         "speculative_config": args.speculative_config,
@@ -702,7 +828,10 @@ def _main_attach(
 
         api_model = served_model_name or model
         manifest["inference_response"] = send_inference(
-            ep, args, model_name=api_model, port=port,
+            ep,
+            args,
+            model_name=api_model,
+            port=port,
         )
         manifest["after_infer_hbm"] = collect_npu_smi(ep, "after_infer", run_dir)
     else:
@@ -720,18 +849,30 @@ def _main_attach(
 
     # Collect msprof CSVs if service was wrapped with msprof
     if msprof_used and msprof_data_dir:
-        r = ssh_exec(ep, f"find {shlex.quote(msprof_data_dir)} -name '*.csv' -size +100c 2>/dev/null | head -1", check=False)
+        r = ssh_exec(
+            ep,
+            f"find {shlex.quote(msprof_data_dir)} -name '*.csv' -size +100c 2>/dev/null | head -1",
+            check=False,
+        )
         if r.stdout.strip():
             progress("Collecting msprof CSVs from serving runtime...")
             manifest["msprof_csvs"] = collect_msprof_csvs(
-                ep, msprof_data_dir, run_dir, msprof_data_subdir=False,
+                ep,
+                msprof_data_dir,
+                run_dir,
+                msprof_data_subdir=False,
             )
         elif not service_alive:
             # Service stopped but CSVs not found → run export first
-            progress("Running msprof export (service stopped, data not yet exported)...")
+            progress(
+                "Running msprof export (service stopped, data not yet exported)..."
+            )
             run_msprof_export(ep, msprof_data_dir)
             manifest["msprof_csvs"] = collect_msprof_csvs(
-                ep, msprof_data_dir, run_dir, msprof_data_subdir=False,
+                ep,
+                msprof_data_dir,
+                run_dir,
+                msprof_data_subdir=False,
             )
         else:
             progress("msprof data will be available after service stop + export")
@@ -740,7 +881,9 @@ def _main_attach(
     if service_alive:
         progress("Attach-mode collection complete (service left running)")
     else:
-        progress("Attach-mode collection complete (service was stopped, collected available data)")
+        progress(
+            "Attach-mode collection complete (service was stopped, collected available data)"
+        )
 
     # When resuming, merge into the existing manifest so both phases
     # contribute to a single complete run.
@@ -748,12 +891,21 @@ def _main_attach(
     if args.resume_run and existing_manifest_path.exists():
         existing = json.loads(existing_manifest_path.read_text())
         for key, val in manifest.items():
-            if val in (None, {}, [], "", False, 0) and existing.get(key) not in (None, {}, [], "", False, 0):
+            if val in (None, {}, [], "", False, 0) and existing.get(key) not in (
+                None,
+                {},
+                [],
+                "",
+                False,
+                0,
+            ):
                 continue
             existing[key] = val
         manifest = existing
 
-    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+    (run_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False)
+    )
     progress(f"Data saved to {run_dir}")
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
 
@@ -789,7 +941,11 @@ def _extract_serve_config_from_extra_args(
             i += 1
         elif i + 1 < len(extra_args):
             current = getattr(args, attr, "")
-            if not current or current == "" or (isinstance(current, float) and attr == "gpu_memory_utilization"):
+            if (
+                not current
+                or current == ""
+                or (isinstance(current, float) and attr == "gpu_memory_utilization")
+            ):
                 val = extra_args[i + 1]
                 field_type = type(getattr(args, attr))
                 if field_type == float:
@@ -819,7 +975,11 @@ def _main_standalone(
     args.port = port
     if not args.devices:
         session = getattr(args, "_session", None)
-        leased_devices = session.get("leases", {}).get("npu_devices", []) if isinstance(session, dict) else []
+        leased_devices = (
+            session.get("leases", {}).get("npu_devices", [])
+            if isinstance(session, dict)
+            else []
+        )
         if leased_devices:
             selected = sorted(int(item) for item in leased_devices)
             need = tp * dp
@@ -903,7 +1063,9 @@ def _main_standalone(
         collect_weight_manifest(ep, python, args.model, run_dir)
     )
 
-    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+    (run_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False)
+    )
     progress(f"Collection complete. Data saved to {run_dir}")
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
 

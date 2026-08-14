@@ -65,7 +65,9 @@ def tail_output(value: str | bytes | None, limit: int = 500) -> str:
     return value[-limit:]
 
 
-def run_git(args: list[str], *, cwd: Path = ROOT, check: bool = True) -> subprocess.CompletedProcess[str]:
+def run_git(
+    args: list[str], *, cwd: Path = ROOT, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
         ["git", "-C", str(cwd), *args],
         check=False,
@@ -73,7 +75,9 @@ def run_git(args: list[str], *, cwd: Path = ROOT, check: bool = True) -> subproc
         text=True,
     )
     if check and proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or f"git {' '.join(args)} failed")
+        raise RuntimeError(
+            proc.stderr.strip() or proc.stdout.strip() or f"git {' '.join(args)} failed"
+        )
     return proc
 
 
@@ -99,7 +103,9 @@ def parse_host_npu_devices(stdout: str) -> list[int]:
     return sorted(devices)
 
 
-def probe_host_npu_devices(record: dict[str, Any]) -> tuple[list[int] | None, dict[str, Any]]:
+def probe_host_npu_devices(
+    record: dict[str, Any],
+) -> tuple[list[int] | None, dict[str, Any]]:
     host = record["host"]
     target = machine_ops.SshTarget(
         host=host["ip"],
@@ -113,7 +119,9 @@ def probe_host_npu_devices(record: dict[str, Any]) -> tuple[list[int] | None, di
         shlex.quote("npu-smi info 2>/dev/null"),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=30)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=30
+        )
     except subprocess.TimeoutExpired as exc:
         return None, {
             "status": "timeout",
@@ -137,7 +145,9 @@ def host_port_available(record: dict[str, Any]) -> Any:
     host = record["host"]
 
     def check(port: int) -> bool:
-        script = f"! ss -ltnH 2>/dev/null | awk '{{print $4}}' | grep -Eq '[:.]({port})$'"
+        script = (
+            f"! ss -ltnH 2>/dev/null | awk '{{print $4}}' | grep -Eq '[:.]({port})$'"
+        )
         cmd = [
             "ssh",
             "-o",
@@ -215,7 +225,9 @@ def verify_session_ssh(
 ) -> dict[str, Any]:
     """Verify only host/container SSH for a newly bootstrapped session container."""
     try:
-        identity_file = machine_ops.private_key_for_public_key(machine_ops.find_public_key(public_key_file))
+        identity_file = machine_ops.private_key_for_public_key(
+            machine_ops.find_public_key(public_key_file)
+        )
     except machine_ops.MachineManagementError:
         identity_file = None
 
@@ -230,7 +242,9 @@ def verify_session_ssh(
         port=container_ssh_port,
     )
     host_check = machine_ops.check_direct_ssh(host, identity_file=identity_file)
-    container_check = machine_ops.check_direct_ssh(container, identity_file=identity_file)
+    container_check = machine_ops.check_direct_ssh(
+        container, identity_file=identity_file
+    )
     payload: dict[str, Any] = {
         "verification_mode": "ssh",
         "identity_file": str(identity_file) if identity_file is not None else None,
@@ -245,7 +259,9 @@ def verify_session_ssh(
     local_tool_errors = []
     for check in (host_check, container_check):
         stderr = check.get("stderr")
-        if isinstance(stderr, str) and stderr.startswith("required local command not found:"):
+        if isinstance(stderr, str) and stderr.startswith(
+            "required local command not found:"
+        ):
             local_tool_errors.append(stderr)
     if local_tool_errors:
         payload.update(
@@ -300,16 +316,32 @@ def ensure_worktree(
     if worktree_root.exists():
         bound = existing_worktree_bound(worktree_root)
         if bound == session_id:
-            emit_progress("worktree", "reusing bound worktree", path=str(worktree_root), branch=branch)
-            emit_progress("worktree", "initializing submodules", path=str(worktree_root))
+            emit_progress(
+                "worktree",
+                "reusing bound worktree",
+                path=str(worktree_root),
+                branch=branch,
+            )
+            emit_progress(
+                "worktree", "initializing submodules", path=str(worktree_root)
+            )
             run_git(["submodule", "update", "--init", "--recursive"], cwd=worktree_root)
-            return worktree_root, {"action": "reused", "path": str(worktree_root), "branch": branch}
+            return worktree_root, {
+                "action": "reused",
+                "path": str(worktree_root),
+                "branch": branch,
+            }
         raise SessionStateError(
             f"worktree path already exists and is not bound to session {session_id}: {worktree_root}"
         )
 
     emit_progress("worktree", f"creating worktree {worktree_root}", branch=branch)
-    branch_exists = run_git(["show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], check=False).returncode == 0
+    branch_exists = (
+        run_git(
+            ["show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], check=False
+        ).returncode
+        == 0
+    )
     worktree_root.parent.mkdir(parents=True, exist_ok=True)
     if branch_exists:
         run_git(["worktree", "add", str(worktree_root), branch])
@@ -336,22 +368,42 @@ def ensure_worktree(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--machine", required=True, help="base machine alias or host IP")
-    parser.add_argument("--session-id", help="explicit session id; otherwise resolver fallback is used")
+    parser.add_argument(
+        "--machine", required=True, help="base machine alias or host IP"
+    )
+    parser.add_argument(
+        "--session-id", help="explicit session id; otherwise resolver fallback is used"
+    )
     parser.add_argument("--base-ref", default="main")
     parser.add_argument("--branch", help="worktree branch; defaults to session/<id>")
-    parser.add_argument("--worktree-root", type=Path, help="override local worktree path")
-    parser.add_argument("--no-worktree", action="store_true", help="bind the session to the current repo root")
-    parser.add_argument("--image", help="override the base machine image for this session container")
+    parser.add_argument(
+        "--worktree-root", type=Path, help="override local worktree path"
+    )
+    parser.add_argument(
+        "--no-worktree",
+        action="store_true",
+        help="bind the session to the current repo root",
+    )
+    parser.add_argument(
+        "--image", help="override the base machine image for this session container"
+    )
     parser.add_argument("--devices", help="comma-separated NPU device ids to lease")
-    parser.add_argument("--npu-count", type=int, help="lease the first N locally unleased devices")
-    parser.add_argument("--container-ssh-port", type=int, help="explicit session container SSH port")
-    parser.add_argument("--container-ssh-port-range", default=DEFAULT_CONTAINER_SSH_PORT_RANGE)
+    parser.add_argument(
+        "--npu-count", type=int, help="lease the first N locally unleased devices"
+    )
+    parser.add_argument(
+        "--container-ssh-port", type=int, help="explicit session container SSH port"
+    )
+    parser.add_argument(
+        "--container-ssh-port-range", default=DEFAULT_CONTAINER_SSH_PORT_RANGE
+    )
     parser.add_argument("--runtime-profile", default="vllm-ascend")
     parser.add_argument("--runtime-root", default=None)
     parser.add_argument("--workdir", default=None)
     parser.add_argument("--reuse-existing", action="store_true")
-    parser.add_argument("--skip-container-bootstrap", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--skip-container-bootstrap", action="store_true", help=argparse.SUPPRESS
+    )
     parser.add_argument(
         "--disable-prepared-image-cache",
         action="store_true",
@@ -389,15 +441,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "status": existing.session.get("status", "ready"),
                         "session_id": sid,
                         "session_file": str(existing.session_file),
-                        "worktree_root": existing.session.get("local", {}).get("worktree_root"),
-                        "container": existing.session.get("remote", {}).get("container"),
+                        "worktree_root": existing.session.get("local", {}).get(
+                            "worktree_root"
+                        ),
+                        "container": existing.session.get("remote", {}).get(
+                            "container"
+                        ),
                         "reused": True,
                     }
                 )
                 return 0
             except SessionStateError as exc:
-                if "session id or session file is required" not in str(exc) and "session file does not exist" not in str(exc):
-                    print_json({"status": "needs_repair", "session_id": sid, "error": str(exc)})
+                if "session id or session file is required" not in str(
+                    exc
+                ) and "session file does not exist" not in str(exc):
+                    print_json(
+                        {"status": "needs_repair", "session_id": sid, "error": str(exc)}
+                    )
                     return 1
 
         emit_progress("resolve-machine", f"loading base machine {args.machine}")
@@ -409,7 +469,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             namespace = profile.get("machine_username") if profile else None
 
         image = args.image or base_record["container"]["image"]
-        workdir = args.workdir or base_record["container"].get("workdir", "/vllm-workspace")
+        workdir = args.workdir or base_record["container"].get(
+            "workdir", "/vllm-workspace"
+        )
         runtime_root = args.runtime_root or workdir
         branch = args.branch or default_branch(sid)
         worktree_root = args.worktree_root or default_worktree_root(ROOT, sid)
@@ -420,9 +482,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise SessionStateError("--npu-count must be >= 1")
         available_devices, npu_probe = probe_host_npu_devices(base_record)
         if available_devices is None:
-            emit_progress("probe-npus", "host NPU device probe unavailable; validating syntax only", **npu_probe)
+            emit_progress(
+                "probe-npus",
+                "host NPU device probe unavailable; validating syntax only",
+                **npu_probe,
+            )
         else:
-            emit_progress("probe-npus", "host NPU device probe succeeded", devices=available_devices)
+            emit_progress(
+                "probe-npus",
+                "host NPU device probe succeeded",
+                devices=available_devices,
+            )
 
         local_root, worktree_payload = ensure_worktree(
             session_id=sid,
@@ -485,7 +555,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "host_user": base_record["host"].get("user", "root"),
                 "host_port": base_record["host"].get("port", 22),
                 "namespace": namespace,
-                "machine_type": base_record["host"].get("machine_type") or base_record["container"].get("machine_type"),
+                "machine_type": base_record["host"].get("machine_type")
+                or base_record["container"].get("machine_type"),
                 "soc": base_record["host"].get("soc"),
                 "container": {
                     "name": container_name,
@@ -493,7 +564,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "image": image,
                     "workdir": workdir,
                     "runtime_root": runtime_root,
-                    "machine_type": base_record["container"].get("machine_type") or base_record["host"].get("machine_type"),
+                    "machine_type": base_record["container"].get("machine_type")
+                    or base_record["host"].get("machine_type"),
                 },
             },
             "leases": {
@@ -523,9 +595,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             binding_payload = {"action": "written", "path": str(binding_path)}
 
-        container_payload: dict[str, Any] = {"status": "skipped"} if args.skip_container_bootstrap else {}
+        container_payload: dict[str, Any] = (
+            {"status": "skipped"} if args.skip_container_bootstrap else {}
+        )
         if not args.skip_container_bootstrap:
-            emit_progress("container", f"bootstrapping session container {container_name}", machine=alias)
+            emit_progress(
+                "container",
+                f"bootstrapping session container {container_name}",
+                machine=alias,
+            )
             target = host_target(
                 host=base_record["host"]["ip"],
                 user=base_record["host"].get("user", "root"),
@@ -539,13 +617,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 image=image,
                 workdir=workdir,
                 namespace=namespace,
-                machine_type=base_record["host"].get("machine_type") or base_record["container"].get("machine_type"),
+                machine_type=base_record["host"].get("machine_type")
+                or base_record["container"].get("machine_type"),
                 soc=base_record["host"].get("soc"),
                 public_key_file=args.public_key_file,
                 replace_container_on_image_change=args.replace_container_on_image_change,
                 use_prepared_image_cache=not args.disable_prepared_image_cache,
             )
-            if container_payload.get("status") in {"needs_input", "needs_repair", "blocked"}:
+            if container_payload.get("status") in {
+                "needs_input",
+                "needs_repair",
+                "blocked",
+            }:
                 session["status"] = "failed"
                 session["failure"] = container_payload
                 save_session(session, repo_root=ROOT)
@@ -559,18 +642,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                     }
                 )
                 return 1
-            selected_image = container_payload.get("selected_image") or container_payload.get("image")
+            selected_image = container_payload.get(
+                "selected_image"
+            ) or container_payload.get("image")
             if selected_image:
                 session["remote"]["container"]["image"] = selected_image
             if container_payload.get("container_type"):
-                session["remote"]["container"]["machine_type"] = container_payload["container_type"]
+                session["remote"]["container"]["machine_type"] = container_payload[
+                    "container_type"
+                ]
             record = session_record_for_execution(session)
             if args.verification_mode == "full":
-                emit_progress("verify", "running full session verification", session_id=sid)
+                emit_progress(
+                    "verify", "running full session verification", session_id=sid
+                )
                 verify = verify_machine(record)
                 verify["verification_mode"] = "full"
             else:
-                emit_progress("verify", "checking session SSH readiness", session_id=sid)
+                emit_progress(
+                    "verify", "checking session SSH readiness", session_id=sid
+                )
                 verify = verify_session_ssh(
                     base_record,
                     container_ssh_port=leases["container_ssh_port"],
@@ -578,7 +669,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             container_payload["verify"] = verify
             if verify.get("status") != "ready":
-                session["status"] = "blocked" if verify.get("status") == "blocked" else "needs_repair"
+                session["status"] = (
+                    "blocked" if verify.get("status") == "blocked" else "needs_repair"
+                )
                 session["verify"] = verify
                 save_session(session, repo_root=ROOT)
                 print_json(
@@ -623,7 +716,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 release_all_session_leases(repo_root=ROOT, session_id=sid)
             if session_path is not None:
                 with contextlib.suppress(Exception):
-                    failed_session = load_session_lookup(session_file=session_path, repo_root=ROOT).session
+                    failed_session = load_session_lookup(
+                        session_file=session_path, repo_root=ROOT
+                    ).session
                     failed_session["status"] = "failed"
                     failed_session["failure"] = {"error": str(exc)}
                     save_session(failed_session, repo_root=ROOT)

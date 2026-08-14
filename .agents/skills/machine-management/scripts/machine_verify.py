@@ -24,8 +24,12 @@ from _workflow_common import (  # noqa: E402
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--machine", required=True, help="machine alias or host IP from inventory")
-    parser.add_argument("--python", help="optional explicit python path inside the container")
+    parser.add_argument(
+        "--machine", required=True, help="machine alias or host IP from inventory"
+    )
+    parser.add_argument(
+        "--python", help="optional explicit python path inside the container"
+    )
     return parser
 
 
@@ -44,11 +48,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
             return 0
-        emit_progress(action="verify", phase="verify", message="running managed-machine verification", machine=record["alias"])
+        emit_progress(
+            action="verify",
+            phase="verify",
+            message="running managed-machine verification",
+            machine=record["alias"],
+        )
         verified = verify_machine(
             record,
             python=args.python,
-            progress_cb=lambda phase, message: emit_progress(action="verify", phase=phase, message=message, machine=record["alias"]),
+            progress_cb=lambda phase, message: emit_progress(
+                action="verify", phase=phase, message=message, machine=record["alias"]
+            ),
         )
         if verified.get("status") == "ready":
             print_json(verified)
@@ -68,10 +79,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     except WorkflowError as exc:
-        print_json({"success": False, "status": "blocked", "action": "failed", "error": str(exc)})
+        print_json(
+            {
+                "success": False,
+                "status": "blocked",
+                "action": "failed",
+                "error": str(exc),
+            }
+        )
         return 2
     except Exception as exc:  # noqa: BLE001
-        print_json({"success": False, "status": "blocked", "action": "failed", "error": str(exc)})
+        print_json(
+            {
+                "success": False,
+                "status": "blocked",
+                "action": "failed",
+                "error": str(exc),
+            }
+        )
         return 2
 
 

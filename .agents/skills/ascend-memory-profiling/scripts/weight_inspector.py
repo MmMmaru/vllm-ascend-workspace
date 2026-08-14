@@ -7,6 +7,7 @@ machine where model weights live.
 Input: model directory path
 Output: JSON on stdout with full tensor manifest
 """
+
 from __future__ import annotations
 
 import glob
@@ -17,9 +18,18 @@ import sys
 from pathlib import Path
 
 DTYPE_SIZES = {
-    "F64": 8, "F32": 4, "F16": 2, "BF16": 2,
-    "F8_E5M2": 1, "F8_E4M3": 1, "I64": 8, "I32": 4,
-    "I16": 2, "I8": 1, "U8": 1, "BOOL": 1,
+    "F64": 8,
+    "F32": 4,
+    "F16": 2,
+    "BF16": 2,
+    "F8_E5M2": 1,
+    "F8_E4M3": 1,
+    "I64": 8,
+    "I32": 4,
+    "I16": 2,
+    "I8": 1,
+    "U8": 1,
+    "BOOL": 1,
 }
 
 
@@ -49,14 +59,16 @@ def parse_tensor_info(header: dict) -> list[dict]:
         numel = 1
         for d in shape:
             numel *= d
-        tensors.append({
-            "name": name,
-            "dtype": dtype,
-            "shape": shape,
-            "numel": numel,
-            "byte_size": byte_size,
-            "bytes_per_element": DTYPE_SIZES.get(dtype, 2),
-        })
+        tensors.append(
+            {
+                "name": name,
+                "dtype": dtype,
+                "shape": shape,
+                "numel": numel,
+                "byte_size": byte_size,
+                "bytes_per_element": DTYPE_SIZES.get(dtype, 2),
+            }
+        )
     return tensors
 
 
@@ -190,7 +202,12 @@ def classify_shard_strategy(name: str, category: str) -> str:
             return SHARD_REPLICATED
         if "qkv" in n or "linear_fc1" in n or "gate_up" in n:
             return SHARD_COL_PARALLEL
-        if "proj.weight" in n or "proj.bias" in n or "linear_fc2" in n or "down_proj" in n:
+        if (
+            "proj.weight" in n
+            or "proj.bias" in n
+            or "linear_fc2" in n
+            or "down_proj" in n
+        ):
             return SHARD_ROW_PARALLEL
         return SHARD_COL_PARALLEL
 
@@ -216,15 +233,28 @@ def classify_shard_strategy(name: str, category: str) -> str:
 
 def main():
     import argparse as _ap
-    p = _ap.ArgumentParser(description="Inspect safetensors weight files and produce a JSON manifest")
-    p.add_argument("model_dir", help="Path to model directory containing *.safetensors files")
+
+    p = _ap.ArgumentParser(
+        description="Inspect safetensors weight files and produce a JSON manifest"
+    )
+    p.add_argument(
+        "model_dir", help="Path to model directory containing *.safetensors files"
+    )
     args = p.parse_args()
 
     model_dir = args.model_dir
 
     st_files = sorted(glob.glob(os.path.join(model_dir, "*.safetensors")))
     if not st_files:
-        print(json.dumps({"status": "error", "error": "no safetensors files found", "model_dir": model_dir}))
+        print(
+            json.dumps(
+                {
+                    "status": "error",
+                    "error": "no safetensors files found",
+                    "model_dir": model_dir,
+                }
+            )
+        )
         sys.exit(1)
 
     all_tensors = []
@@ -242,8 +272,10 @@ def main():
         cat = t["category"]
         if cat not in categories:
             categories[cat] = {
-                "total_bytes": 0, "total_params": 0,
-                "tensor_count": 0, "dtypes": set()
+                "total_bytes": 0,
+                "total_params": 0,
+                "tensor_count": 0,
+                "dtypes": set(),
             }
         categories[cat]["total_bytes"] += t["byte_size"]
         categories[cat]["total_params"] += t["numel"]

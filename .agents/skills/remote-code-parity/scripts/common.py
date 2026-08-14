@@ -16,33 +16,33 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
-WORKSPACE_ID_PATTERN = re.compile(r'[^A-Za-z0-9._-]+')
-STATE_SUBDIR = Path('.vaws-local/remote-code-parity')
-LEGACY_STATE_DIR = Path('.vaws-local')
+WORKSPACE_ID_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
+STATE_SUBDIR = Path(".vaws-local/remote-code-parity")
+LEGACY_STATE_DIR = Path(".vaws-local")
 
 DEFAULT_DENYLIST = (
-    '.vaws-local/',
-    '.workspace.local/',
-    '.machine-inventory.json',
-    '.codex/',
-    '.claude/settings.local.json',
-    '.env',
-    '.env.*',
-    '.venv/',
-    'venv/',
-    '__pycache__/',
-    '.pytest_cache/',
-    '.mypy_cache/',
-    '.ruff_cache/',
-    '*.log',
-    '*.out',
-    '.DS_Store',
-    '._*',
-    'Thumbs.db',
+    ".vaws-local/",
+    ".workspace.local/",
+    ".machine-inventory.json",
+    ".codex/",
+    ".claude/settings.local.json",
+    ".env",
+    ".env.*",
+    ".venv/",
+    "venv/",
+    "__pycache__/",
+    ".pytest_cache/",
+    ".mypy_cache/",
+    ".ruff_cache/",
+    "*.log",
+    "*.out",
+    ".DS_Store",
+    "._*",
+    "Thumbs.db",
 )
 
-PROGRESS_SENTINEL = '__VAWS_PARITY_PROGRESS__='
-STATE_LOCK_SUFFIX = '.lock'
+PROGRESS_SENTINEL = "__VAWS_PARITY_PROGRESS__="
+STATE_LOCK_SUFFIX = ".lock"
 DEFAULT_STATE_LOCK_TIMEOUT_SECONDS = 15.0
 DEFAULT_STATE_LOCK_POLL_SECONDS = 0.05
 DEFAULT_STATE_LOCK_STALE_SECONDS = 60 * 60 * 6
@@ -59,7 +59,7 @@ class SshEndpoint:
     user: str
 
     def destination(self) -> str:
-        return f'{self.user}@{self.host}'
+        return f"{self.user}@{self.host}"
 
 
 @dataclass(frozen=True)
@@ -87,22 +87,22 @@ def run(
             check=False,
             capture_output=capture_output,
             text=True,
-            encoding='utf-8',
-            errors='replace',
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
             f"command timed out after {timeout:.0f}s: "
             f"{' '.join(shlex.quote(part) for part in cmd)}\n"
-            f'stdout:\n{exc.stdout or ""}\n'
-            f'stderr:\n{exc.stderr or ""}'
+            f"stdout:\n{exc.stdout or ''}\n"
+            f"stderr:\n{exc.stderr or ''}"
         ) from exc
     if check and result.returncode != 0:
         raise RuntimeError(
             f"command failed ({result.returncode}): {' '.join(shlex.quote(part) for part in cmd)}\n"
-            f'stdout:\n{result.stdout}\n'
-            f'stderr:\n{result.stderr}'
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
         )
     return result
 
@@ -115,16 +115,16 @@ def git(
     check: bool = True,
     timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return run(['git', '-C', str(repo), *args], env=env, check=check, timeout=timeout)
+    return run(["git", "-C", str(repo), *args], env=env, check=check, timeout=timeout)
 
 
 def repo_root_from(path: Path) -> Path:
     current = path.resolve()
     while True:
-        if (current / '.git').exists():
+        if (current / ".git").exists():
             return current
         if current.parent == current:
-            raise RuntimeError(f'could not find git repo root above {path}')
+            raise RuntimeError(f"could not find git repo root above {path}")
         current = current.parent
 
 
@@ -145,19 +145,21 @@ def legacy_state_path(repo_root: Path, filename: str) -> Path:
 def load_state(repo_root: Path, filename: str, default: Any) -> Any:
     canonical = canonical_state_path(repo_root, filename)
     if canonical.exists():
-        return json.loads(canonical.read_text(encoding='utf-8'))
+        return json.loads(canonical.read_text(encoding="utf-8"))
     legacy = legacy_state_path(repo_root, filename)
     if legacy.exists():
-        return json.loads(legacy.read_text(encoding='utf-8'))
+        return json.loads(legacy.read_text(encoding="utf-8"))
     return default
 
 
 def _atomic_write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle, temp_name = tempfile.mkstemp(prefix=f'.{path.name}.', suffix='.tmp', dir=str(path.parent))
+    handle, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
     try:
-        with os.fdopen(handle, 'w', encoding='utf-8') as fh:
-            fh.write(json.dumps(data, indent=2, sort_keys=True) + '\n')
+        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(data, indent=2, sort_keys=True) + "\n")
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(temp_name, path)
@@ -195,7 +197,7 @@ def state_lock(
     while True:
         try:
             fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-            os.write(fd, (json.dumps(owner, sort_keys=True) + "\n").encode('utf-8'))
+            os.write(fd, (json.dumps(owner, sort_keys=True) + "\n").encode("utf-8"))
             break
         except FileExistsError:
             try:
@@ -207,7 +209,7 @@ def state_lock(
                     lock_path.unlink()
                 continue
             if time.monotonic() >= deadline:
-                raise RuntimeError(f'timed out waiting for state lock {lock_path}')
+                raise RuntimeError(f"timed out waiting for state lock {lock_path}")
             time.sleep(poll_seconds)
     try:
         yield lock_path
@@ -218,7 +220,9 @@ def state_lock(
             lock_path.unlink()
 
 
-def update_state(repo_root: Path, filename: str, default: Any, updater: Any) -> tuple[Any, Path, Any]:
+def update_state(
+    repo_root: Path, filename: str, default: Any, updater: Any
+) -> tuple[Any, Path, Any]:
     with state_lock(repo_root, filename):
         state = load_state(repo_root, filename, default)
         result = updater(state)
@@ -229,11 +233,16 @@ def update_state(repo_root: Path, filename: str, default: Any, updater: Any) -> 
 def now_utc() -> str:
     import datetime as _dt
 
-    return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    return (
+        _dt.datetime.now(_dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def sanitize_repo_id(relpath: str) -> str:
-    return 'workspace' if relpath in ('', '.') else relpath.replace('/', '__')
+    return "workspace" if relpath in ("", ".") else relpath.replace("/", "__")
 
 
 def json_dump(data: Any) -> str:
@@ -246,20 +255,20 @@ def quoted(script: str) -> str:
 
 def _ssh_base_cmd(endpoint: SshEndpoint) -> list[str]:
     return [
-        'ssh',
-        '-o',
-        'BatchMode=yes',
-        '-o',
-        'ConnectTimeout=15',
-        '-o',
-        'ServerAliveInterval=15',
-        '-o',
-        'ServerAliveCountMax=3',
-        '-o',
-        'StrictHostKeyChecking=accept-new',
-        '-o',
-        'LogLevel=ERROR',
-        '-p',
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=15",
+        "-o",
+        "ServerAliveInterval=15",
+        "-o",
+        "ServerAliveCountMax=3",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "LogLevel=ERROR",
+        "-p",
         str(endpoint.port),
         endpoint.destination(),
     ]
@@ -285,7 +294,7 @@ def ssh_exec(
     capture_output: bool = True,
     timeout: float | None = DEFAULT_SSH_COMMAND_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
-    cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
+    cmd = [*_ssh_base_cmd(endpoint), "bash", "-c", shlex.quote(script)]
     return run(cmd, check=check, capture_output=capture_output, timeout=timeout)
 
 
@@ -297,14 +306,14 @@ def ssh_exec_stream(
     stream_progress: bool = True,
     timeout: float | None = DEFAULT_SSH_STREAM_TIMEOUT_SECONDS,
 ) -> SshStreamingResult:
-    cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
+    cmd = [*_ssh_base_cmd(endpoint), "bash", "-c", shlex.quote(script)]
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        encoding='utf-8',
-        errors='replace',
+        encoding="utf-8",
+        errors="replace",
     )
 
     assert proc.stdout is not None
@@ -323,8 +332,8 @@ def ssh_exec_stream(
             q.put((stream_name, None))
 
     threads = [
-        threading.Thread(target=reader, args=('stdout', proc.stdout), daemon=True),
-        threading.Thread(target=reader, args=('stderr', proc.stderr), daemon=True),
+        threading.Thread(target=reader, args=("stdout", proc.stdout), daemon=True),
+        threading.Thread(target=reader, args=("stderr", proc.stderr), daemon=True),
     ]
     for thread in threads:
         thread.start()
@@ -344,14 +353,14 @@ def ssh_exec_stream(
         if line is None:
             done_streams.add(stream_name)
             continue
-        if stream_name == 'stdout':
+        if stream_name == "stdout":
             stdout_parts.append(line)
             continue
         event = parse_progress_event(line)
         if event is not None:
             progress_events.append(event)
             if stream_progress:
-                sys.stderr.write(line if line.endswith('\n') else line + '\n')
+                sys.stderr.write(line if line.endswith("\n") else line + "\n")
                 sys.stderr.flush()
             continue
         stderr_parts.append(line)
@@ -361,12 +370,12 @@ def ssh_exec_stream(
         thread.join(timeout=1)
 
     if timed_out:
-        rendered_cmd = ' '.join(shlex.quote(part) for part in cmd)
-        timeout_text = 'disabled' if timeout is None else f'{timeout:.0f}s'
+        rendered_cmd = " ".join(shlex.quote(part) for part in cmd)
+        timeout_text = "disabled" if timeout is None else f"{timeout:.0f}s"
         raise RuntimeError(
-            f'command timed out after {timeout_text}: {rendered_cmd}\n'
-            f'stdout:\n{"".join(stdout_parts)}\n'
-            f'stderr:\n{"".join(stderr_parts)}'
+            f"command timed out after {timeout_text}: {rendered_cmd}\n"
+            f"stdout:\n{''.join(stdout_parts)}\n"
+            f"stderr:\n{''.join(stderr_parts)}"
         )
 
     while True:
@@ -376,7 +385,7 @@ def ssh_exec_stream(
             break
         if line is None:
             continue
-        if stream_name == 'stdout':
+        if stream_name == "stdout":
             stdout_parts.append(line)
             continue
         event = parse_progress_event(line)
@@ -384,19 +393,19 @@ def ssh_exec_stream(
             if event not in progress_events:
                 progress_events.append(event)
             if stream_progress:
-                sys.stderr.write(line if line.endswith('\n') else line + '\n')
+                sys.stderr.write(line if line.endswith("\n") else line + "\n")
                 sys.stderr.flush()
             continue
         stderr_parts.append(line)
 
-    stdout = ''.join(stdout_parts)
-    stderr = ''.join(stderr_parts)
+    stdout = "".join(stdout_parts)
+    stderr = "".join(stderr_parts)
     if check and returncode != 0:
-        rendered_cmd = ' '.join(shlex.quote(part) for part in cmd)
+        rendered_cmd = " ".join(shlex.quote(part) for part in cmd)
         raise RuntimeError(
-            f'command failed ({returncode}): {rendered_cmd}\n'
-            f'stdout:\n{stdout}\n'
-            f'stderr:\n{stderr}'
+            f"command failed ({returncode}): {rendered_cmd}\n"
+            f"stdout:\n{stdout}\n"
+            f"stderr:\n{stderr}"
         )
     return SshStreamingResult(
         returncode=returncode,
@@ -413,24 +422,26 @@ def ssh_stream_to_file(
     *,
     timeout: float | None = DEFAULT_SSH_COMMAND_TIMEOUT_SECONDS,
 ) -> None:
-    script = f'mkdir -p {quoted(PurePosixPath(remote_path).parent.as_posix())} && cat > {quoted(remote_path)}'
-    cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
+    script = f"mkdir -p {quoted(PurePosixPath(remote_path).parent.as_posix())} && cat > {quoted(remote_path)}"
+    cmd = [*_ssh_base_cmd(endpoint), "bash", "-c", shlex.quote(script)]
     try:
         result = subprocess.run(
             cmd,
             input=payload,
             text=True,
-            encoding='utf-8',
-            errors='replace',
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        timeout_text = 'disabled' if timeout is None else f'{timeout:.0f}s'
-        raise RuntimeError(f'command timed out after {timeout_text} while streaming {remote_path}') from exc
+        timeout_text = "disabled" if timeout is None else f"{timeout:.0f}s"
+        raise RuntimeError(
+            f"command timed out after {timeout_text} while streaming {remote_path}"
+        ) from exc
     if result.returncode != 0:
         raise RuntimeError(
-            f'failed to stream payload to {remote_path}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}'
+            f"failed to stream payload to {remote_path}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
 
 
@@ -442,28 +453,32 @@ def ssh_stream_bytes_to_file(
     timeout: float | None = DEFAULT_SSH_STREAM_TIMEOUT_SECONDS,
 ) -> None:
     script = (
-        f'mkdir -p {quoted(PurePosixPath(remote_path).parent.as_posix())} && '
-        f'head -c {len(payload)} > {quoted(remote_path)}'
+        f"mkdir -p {quoted(PurePosixPath(remote_path).parent.as_posix())} && "
+        f"head -c {len(payload)} > {quoted(remote_path)}"
     )
-    cmd = [*_ssh_base_cmd(endpoint), 'bash', '-c', shlex.quote(script)]
+    cmd = [*_ssh_base_cmd(endpoint), "bash", "-c", shlex.quote(script)]
     try:
-        result = subprocess.run(cmd, input=payload, capture_output=True, timeout=timeout)
+        result = subprocess.run(
+            cmd, input=payload, capture_output=True, timeout=timeout
+        )
     except subprocess.TimeoutExpired as exc:
-        timeout_text = 'disabled' if timeout is None else f'{timeout:.0f}s'
-        raise RuntimeError(f'command timed out after {timeout_text} while streaming {remote_path}') from exc
+        timeout_text = "disabled" if timeout is None else f"{timeout:.0f}s"
+        raise RuntimeError(
+            f"command timed out after {timeout_text} while streaming {remote_path}"
+        ) from exc
     if result.returncode != 0:
         raise RuntimeError(
-            f'failed to stream binary payload to {remote_path}\n'
-            f'stdout:\n{result.stdout.decode("utf-8", errors="replace")}\n'
-            f'stderr:\n{result.stderr.decode("utf-8", errors="replace")}'
+            f"failed to stream binary payload to {remote_path}\n"
+            f"stdout:\n{result.stdout.decode('utf-8', errors='replace')}\n"
+            f"stderr:\n{result.stderr.decode('utf-8', errors='replace')}"
         )
 
 
 def is_git_worktree(path: Path) -> bool:
-    result = git(path, ['rev-parse', '--is-inside-work-tree'], check=False)
-    if result.returncode != 0 or result.stdout.strip() != 'true':
+    result = git(path, ["rev-parse", "--is-inside-work-tree"], check=False)
+    if result.returncode != 0 or result.stdout.strip() != "true":
         return False
-    top = git(path, ['rev-parse', '--show-toplevel'], check=False)
+    top = git(path, ["rev-parse", "--show-toplevel"], check=False)
     if top.returncode != 0:
         return False
     try:
@@ -473,13 +488,17 @@ def is_git_worktree(path: Path) -> bool:
 
 
 def ensure_local_git_identity(repo: Path) -> tuple[str | None, str | None]:
-    name = git(repo, ['config', '--get', 'user.name'], check=False).stdout.strip() or None
-    email = git(repo, ['config', '--get', 'user.email'], check=False).stdout.strip() or None
+    name = (
+        git(repo, ["config", "--get", "user.name"], check=False).stdout.strip() or None
+    )
+    email = (
+        git(repo, ["config", "--get", "user.email"], check=False).stdout.strip() or None
+    )
     return name, email
 
 
 def glob_match_any(path: str, patterns: Iterable[str]) -> bool:
     import fnmatch
 
-    normalized = path.replace('\\', '/')
+    normalized = path.replace("\\", "/")
     return any(fnmatch.fnmatch(normalized, pattern) for pattern in patterns)

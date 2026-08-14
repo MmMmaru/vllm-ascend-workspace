@@ -72,7 +72,7 @@ MiniMax-M3
 ### 17.111 /mnt/weight
 Qwen3-30B-A3B
 Qwen3.5-35B-A3B
-DeepSeek-V4-Flash
+DeepSeek-V4-Flash-w4a8
 
 
 查看/mnt/a800_weights

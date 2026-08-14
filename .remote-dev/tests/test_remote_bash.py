@@ -54,7 +54,9 @@ class RemoteBashTests(unittest.TestCase):
         endpoint = Endpoint(host="1.2.3.4", port=46000, root="/vllm-workspace")
         payload = shell_ops.remote_bash(endpoint, command="pwd", cwd="tmp")
         self.assertEqual(payload["result"]["outcome"], "blocked")
-        self.assertEqual(payload["result"]["next"]["suggested_action"], "rerun_with_absolute_cwd")
+        self.assertEqual(
+            payload["result"]["next"]["suggested_action"], "rerun_with_absolute_cwd"
+        )
         self.assertNotIn("endpoint_patch", payload["result"]["next"])
 
     def test_remote_bash_success_writes_log_refs(self) -> None:
@@ -115,9 +117,16 @@ class RemoteBashTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 state_store.substrate_root = lambda: Path(tmp)  # type: ignore[assignment]
-                state_store.atomic_write_json(state_store.job_record_path(endpoint, "job-existing"), {"job_id": "job-existing", "target": endpoint.to_result_target()})
-                job_ops.run_script = lambda *_args, **_kwargs: RemoteCompleted(0, "", "")  # type: ignore[assignment]
-                payload = job_ops.start_remote_job(endpoint, command="echo ok", job_id="job-existing")
+                state_store.atomic_write_json(
+                    state_store.job_record_path(endpoint, "job-existing"),
+                    {"job_id": "job-existing", "target": endpoint.to_result_target()},
+                )
+                job_ops.run_script = lambda *_args, **_kwargs: RemoteCompleted(
+                    0, "", ""
+                )  # type: ignore[assignment]
+                payload = job_ops.start_remote_job(
+                    endpoint, command="echo ok", job_id="job-existing"
+                )
                 self.assertEqual(payload["result"]["outcome"], "blocked")
                 self.assertEqual(payload["result"]["status"], "job_id_exists")
         finally:
@@ -135,7 +144,11 @@ class RemoteBashTests(unittest.TestCase):
                 job_id = "job-tail-test"
                 state_store.atomic_write_json(
                     state_store.job_record_path(endpoint, job_id),
-                    {"job_id": job_id, "target": endpoint.to_result_target(), "remote_dir": "/vllm-workspace/.remote-dev/jobs/job-tail-test"},
+                    {
+                        "job_id": job_id,
+                        "target": endpoint.to_result_target(),
+                        "remote_dir": "/vllm-workspace/.remote-dev/jobs/job-tail-test",
+                    },
                 )
 
                 def fake_run_script(_endpoint, script, **_kwargs):

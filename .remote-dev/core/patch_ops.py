@@ -13,7 +13,7 @@ from .result import make_result, utc_now_iso
 from .ssh_transport import run_remote_python, run_script
 from .state_store import atomic_write_json, ensure_endpoint_state
 
-REMOTE_CODEX_PATCH_PY = r'''
+REMOTE_CODEX_PATCH_PY = r"""
 import difflib
 import hashlib
 import json
@@ -199,7 +199,7 @@ for item in changed:
     item["after_sha256"] = sha(path.read_bytes()) if path.exists() and path.is_file() else None
     item["size"] = path.stat().st_size if path.exists() else 0
 print(json.dumps({"status": "applied", "changed_files": changed, "diff_preview": "".join(diffs)[:16000]}, sort_keys=True))
-'''
+"""
 
 
 class PatchParseError(ValueError):
@@ -232,7 +232,9 @@ def parse_codex_patch(patch: str) -> list[dict[str, Any]]:
             content: list[str] = []
             while i < len(lines) and not lines[i].startswith("*** "):
                 if not lines[i].startswith("+"):
-                    raise PatchParseError(f"add file line must start with '+': {lines[i]!r}")
+                    raise PatchParseError(
+                        f"add file line must start with '+': {lines[i]!r}"
+                    )
                 content.append(lines[i][1:])
                 i += 1
             ops.append({"kind": "add", "path": path, "content": "".join(content)})
@@ -255,7 +257,9 @@ def parse_codex_patch(patch: str) -> list[dict[str, Any]]:
                 stripped_line = line.strip("\r\n")
                 if stripped_line.startswith("*** Move to: "):
                     if move_to is not None:
-                        raise PatchParseError(f"update patch for {path} has multiple move targets")
+                        raise PatchParseError(
+                            f"update patch for {path} has multiple move targets"
+                        )
                     move_to = stripped_line.removeprefix("*** Move to: ").strip()
                     i += 1
                     continue
@@ -264,7 +268,9 @@ def parse_codex_patch(patch: str) -> list[dict[str, Any]]:
                     continue
                 if line.startswith("@@"):
                     if saw_hunk_line and (old_parts or new_parts):
-                        hunks.append({"old": "".join(old_parts), "new": "".join(new_parts)})
+                        hunks.append(
+                            {"old": "".join(old_parts), "new": "".join(new_parts)}
+                        )
                         old_parts = []
                         new_parts = []
                     saw_hunk_line = True
@@ -350,9 +356,13 @@ def remote_apply_patch(
     started = utc_now_iso()
     start = time.monotonic()
     try:
-        effective_cwd = join_under_root(endpoint.root, endpoint.effective_cwd, cwd or endpoint.effective_cwd)
+        effective_cwd = join_under_root(
+            endpoint.root, endpoint.effective_cwd, cwd or endpoint.effective_cwd
+        )
     except PathPolicyError as exc:
-        return _patch_failed(endpoint, started, start, "path_outside_root", str(exc), outcome="blocked")
+        return _patch_failed(
+            endpoint, started, start, "path_outside_root", str(exc), outcome="blocked"
+        )
     if payload.lstrip().startswith("*** Begin Patch"):
         try:
             ops = parse_codex_patch(payload)
@@ -363,7 +373,14 @@ def remote_apply_patch(
         except PatchParseError as exc:
             return _patch_failed(endpoint, started, start, "invalid_patch", str(exc))
         except PathPolicyError as exc:
-            return _patch_failed(endpoint, started, start, "path_outside_root", str(exc), outcome="blocked")
+            return _patch_failed(
+                endpoint,
+                started,
+                start,
+                "path_outside_root",
+                str(exc),
+                outcome="blocked",
+            )
         data = run_remote_python(
             endpoint,
             REMOTE_CODEX_PATCH_PY,
@@ -378,8 +395,12 @@ def remote_apply_patch(
     except PatchParseError as exc:
         return _patch_failed(endpoint, started, start, "invalid_patch", str(exc))
     except PathPolicyError as exc:
-        return _patch_failed(endpoint, started, start, "path_outside_root", str(exc), outcome="blocked")
-    return _apply_unified_patch(endpoint, payload, paths, effective_cwd, started, start, timeout_ms=timeout_ms)
+        return _patch_failed(
+            endpoint, started, start, "path_outside_root", str(exc), outcome="blocked"
+        )
+    return _apply_unified_patch(
+        endpoint, payload, paths, effective_cwd, started, start, timeout_ms=timeout_ms
+    )
 
 
 def _apply_unified_patch(
@@ -399,12 +420,18 @@ def _apply_unified_patch(
             "set -e",
             f"cd {shlex.quote(cwd)}",
             "tmp=$(mktemp)",
-            "tmp_before=\"$tmp.before\"",
-            "tmp_stat=\"$tmp.stat\"",
+            'tmp_before="$tmp.before"',
+            'tmp_stat="$tmp.stat"',
             f"cat > \"$tmp\" <<'{delimiter}'",
             patch,
             delimiter,
-            "python3 - \"$tmp_before\" " + shlex.quote(endpoint.root) + " " + shlex.quote(cwd) + " " + path_args + " <<'REMOTE_DEV_BEFORE'",
+            'python3 - "$tmp_before" '
+            + shlex.quote(endpoint.root)
+            + " "
+            + shlex.quote(cwd)
+            + " "
+            + path_args
+            + " <<'REMOTE_DEV_BEFORE'",
             "import hashlib, json, pathlib, sys",
             "def fail(status, error):",
             "    print(f'REMOTE_DEV_PATCH_PREFLIGHT {status}: {error}', file=sys.stderr)",
@@ -432,14 +459,16 @@ def _apply_unified_patch(
             "        before[raw]=None",
             "pathlib.Path(sys.argv[1]).write_text(json.dumps(before), encoding='utf-8')",
             "REMOTE_DEV_BEFORE",
-            "git apply --stat \"$tmp\" > \"$tmp_stat\" 2>&1 || true",
-            "if ! git apply --check \"$tmp\" >/tmp/remote-dev-git-apply-check.out 2>&1; then",
+            'git apply --stat "$tmp" > "$tmp_stat" 2>&1 || true',
+            'if ! git apply --check "$tmp" >/tmp/remote-dev-git-apply-check.out 2>&1; then',
             "  cat /tmp/remote-dev-git-apply-check.out >&2",
-            "  rm -f \"$tmp\" \"$tmp_before\" \"$tmp_stat\" /tmp/remote-dev-git-apply-check.out",
+            '  rm -f "$tmp" "$tmp_before" "$tmp_stat" /tmp/remote-dev-git-apply-check.out',
             "  exit 73",
             "fi",
-            "git apply \"$tmp\"",
-            "python3 - \"$tmp_before\" \"$tmp_stat\" " + path_args + " <<'REMOTE_DEV_CHANGED'",
+            'git apply "$tmp"',
+            'python3 - "$tmp_before" "$tmp_stat" '
+            + path_args
+            + " <<'REMOTE_DEV_CHANGED'",
             "import hashlib, json, pathlib, sys",
             "before=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'))",
             "diffstat=pathlib.Path(sys.argv[2]).read_text(encoding='utf-8')",
@@ -453,12 +482,19 @@ def _apply_unified_patch(
             "    changed.append({'path': str(p), 'before_sha256': before.get(raw), 'after_sha256': digest, 'size': size})",
             "print(json.dumps({'status':'applied','changed_files':changed,'diffstat':diffstat}))",
             "REMOTE_DEV_CHANGED",
-            "rm -f \"$tmp\" \"$tmp_before\" \"$tmp_stat\" /tmp/remote-dev-git-apply-check.out",
+            'rm -f "$tmp" "$tmp_before" "$tmp_stat" /tmp/remote-dev-git-apply-check.out',
         ]
     )
     completed = run_script(endpoint, script, timeout_ms=timeout_ms)
     if completed.timed_out:
-        return _patch_failed(endpoint, started, start, "timeout", "RemoteApplyPatch timed out", outcome="timeout")
+        return _patch_failed(
+            endpoint,
+            started,
+            start,
+            "timeout",
+            "RemoteApplyPatch timed out",
+            outcome="timeout",
+        )
     if completed.returncode == 72:
         error = completed.stderr[-4000:]
         status = "failed"
@@ -466,18 +502,28 @@ def _apply_unified_patch(
             if line.startswith("REMOTE_DEV_PATCH_PREFLIGHT "):
                 status = line.split(" ", 1)[1].split(":", 1)[0]
                 break
-        outcome = "blocked" if status in {"path_outside_root", "symlink_not_allowed", "not_file"} else "failed"
+        outcome = (
+            "blocked"
+            if status in {"path_outside_root", "symlink_not_allowed", "not_file"}
+            else "failed"
+        )
         return _patch_failed(endpoint, started, start, status, error, outcome=outcome)
     if completed.returncode == 73:
-        return _patch_failed(endpoint, started, start, "context_mismatch", completed.stderr[-4000:])
+        return _patch_failed(
+            endpoint, started, start, "context_mismatch", completed.stderr[-4000:]
+        )
     if completed.returncode != 0:
-        return _patch_failed(endpoint, started, start, "failed", completed.stderr[-4000:])
+        return _patch_failed(
+            endpoint, started, start, "failed", completed.stderr[-4000:]
+        )
     import json
 
     try:
         data = json.loads(completed.stdout.strip().splitlines()[-1])
     except Exception as exc:  # noqa: BLE001
-        return _patch_failed(endpoint, started, start, "failed", f"could not parse apply output: {exc}")
+        return _patch_failed(
+            endpoint, started, start, "failed", f"could not parse apply output: {exc}"
+        )
     return _patch_result(endpoint, started, start, cwd, data)
 
 
@@ -514,8 +560,21 @@ def _patch_result(
     data: dict[str, Any],
 ) -> dict[str, Any]:
     status = str(data.get("status", "failed"))
-    changed = data.get("changed_files", []) if isinstance(data.get("changed_files"), list) else []
-    outcome = "success" if status == "applied" else ("blocked" if status in {"path_outside_root", "symlink_not_allowed", "not_file", "file_exists"} else "failed")
+    changed = (
+        data.get("changed_files", [])
+        if isinstance(data.get("changed_files"), list)
+        else []
+    )
+    outcome = (
+        "success"
+        if status == "applied"
+        else (
+            "blocked"
+            if status
+            in {"path_outside_root", "symlink_not_allowed", "not_file", "file_exists"}
+            else "failed"
+        )
+    )
     patch_dir = ensure_endpoint_state(endpoint) / "patches"
     result = make_result(
         tool="remote.apply_patch",
@@ -525,7 +584,10 @@ def _patch_result(
         summary=f"RemoteApplyPatch {status} on {endpoint.user}@{endpoint.host}:{endpoint.port}.",
         started_at=started,
         duration_ms=_duration_ms(start),
-        preview={"diff": data.get("diff_preview", ""), "diffstat": data.get("diffstat", "")},
+        preview={
+            "diff": data.get("diff_preview", ""),
+            "diffstat": data.get("diffstat", ""),
+        },
         changed_files=changed,
         extra={"error": data.get("error")},
     )

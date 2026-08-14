@@ -25,8 +25,11 @@ def class_id(prefix, structure, scope_label, pairs, fallback_id):
     if not pairs:
         digest = blake2b(fallback_id.encode(), digest_size=6).hexdigest()
         return f"{prefix}_unknown_shape_{digest}"
-    payload = json.dumps([structure or "", scope_label or "", list(pairs)],
-                         separators=(",", ":"), ensure_ascii=False)
+    payload = json.dumps(
+        [structure or "", scope_label or "", list(pairs)],
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
     digest = blake2b(payload.encode(), digest_size=8).hexdigest()
     return f"{prefix}_{digest}"
 ```

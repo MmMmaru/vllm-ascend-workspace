@@ -55,7 +55,9 @@ def tail_text(value: str, limit: int = DEFAULT_TAIL_CHARS) -> str:
 def compact_text(value: str, *, limit: int = MAX_TEXT_CHARS) -> str:
     if len(value) <= limit:
         return value
-    marker = "\n<remote-dev text truncated; full output is available via refs/resources>\n"
+    marker = (
+        "\n<remote-dev text truncated; full output is available via refs/resources>\n"
+    )
     keep = max(0, limit - len(marker))
     head = keep // 2
     tail = keep - head

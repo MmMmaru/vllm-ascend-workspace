@@ -27,7 +27,10 @@ from vaws_local_state import (  # noqa: E402
     validate_machine_username,
 )
 
-from _profile_choice_common import detect_git_username_candidate, fixed_machine_username_question  # noqa: E402
+from _profile_choice_common import (
+    detect_git_username_candidate,
+    fixed_machine_username_question,
+)  # noqa: E402
 
 
 Status = str
@@ -88,7 +91,9 @@ def cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
-def _create_profile_from_choice(choice: str, custom_username: str | None, cwd: pathlib.Path | None = None) -> dict[str, Any]:
+def _create_profile_from_choice(
+    choice: str, custom_username: str | None, cwd: pathlib.Path | None = None
+) -> dict[str, Any]:
     if choice == "git-username":
         detected = detect_git_username_candidate(cwd)
         if not detected["available"] or not detected["candidate"]:
@@ -101,7 +106,9 @@ def _create_profile_from_choice(choice: str, custom_username: str | None, cwd: p
                 profile=profile_summary(),
                 question=fixed_machine_username_question(cwd),
             )
-        profile, action = ensure_profile(machine_username=detected["candidate"], allow_update=False, generate=False)
+        profile, action = ensure_profile(
+            machine_username=detected["candidate"], allow_update=False, generate=False
+        )
         return status_payload(
             "ready",
             success=True,
@@ -121,7 +128,9 @@ def _create_profile_from_choice(choice: str, custom_username: str | None, cwd: p
         )
 
     if choice == "random":
-        profile, action = ensure_profile(machine_username=None, allow_update=False, generate=True)
+        profile, action = ensure_profile(
+            machine_username=None, allow_update=False, generate=True
+        )
         return status_payload(
             "ready",
             success=True,
@@ -171,7 +180,9 @@ def _create_profile_from_choice(choice: str, custom_username: str | None, cwd: p
             question=fixed_machine_username_question(cwd),
         )
 
-    profile, action = ensure_profile(machine_username=normalized, allow_update=False, generate=False)
+    profile, action = ensure_profile(
+        machine_username=normalized, allow_update=False, generate=False
+    )
     return status_payload(
         "ready",
         success=True,
@@ -209,10 +220,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    plan = subparsers.add_parser("plan", help="summarize the exact machine-username choices for broad init", allow_abbrev=False)
+    plan = subparsers.add_parser(
+        "plan",
+        help="summarize the exact machine-username choices for broad init",
+        allow_abbrev=False,
+    )
     plan.set_defaults(func=cmd_plan)
 
-    apply = subparsers.add_parser("apply", help="materialize one approved machine-username choice", allow_abbrev=False)
+    apply = subparsers.add_parser(
+        "apply",
+        help="materialize one approved machine-username choice",
+        allow_abbrev=False,
+    )
     apply.add_argument(
         "--choice",
         required=True,
@@ -233,7 +252,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return args.func(args)
     except WorkspaceStateError as exc:
-        print_json(status_payload("blocked", success=False, action="failed", message=str(exc)))
+        print_json(
+            status_payload("blocked", success=False, action="failed", message=str(exc))
+        )
         return 2
 
 

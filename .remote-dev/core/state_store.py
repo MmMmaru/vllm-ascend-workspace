@@ -11,7 +11,12 @@ from .endpoint import Endpoint, substrate_root
 from .path_policy import path_fingerprint
 from .result import dumps, new_invocation_id, utc_now_iso
 
-LEDGER_SCOPE_ENV_VARS = ("CLAUDE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_RUN_ID", "REMOTE_DEV_SESSION_ID")
+LEDGER_SCOPE_ENV_VARS = (
+    "CLAUDE_SESSION_ID",
+    "CODEX_SESSION_ID",
+    "CODEX_RUN_ID",
+    "REMOTE_DEV_SESSION_ID",
+)
 LEDGER_SCOPE_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
@@ -49,7 +54,9 @@ def ensure_endpoint_state(endpoint: Endpoint) -> Path:
 
 def atomic_write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    handle, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as fh:
             fh.write(dumps(data) + "\n")
@@ -65,7 +72,9 @@ def atomic_write_json(path: Path, data: Any) -> None:
 
 def atomic_write_text(path: Path, data: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    handle, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as fh:
             fh.write(data)
@@ -83,7 +92,9 @@ def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def new_log_dir(endpoint: Endpoint, tool_kind: str, invocation_id: str | None = None) -> Path:
+def new_log_dir(
+    endpoint: Endpoint, tool_kind: str, invocation_id: str | None = None
+) -> Path:
     base = ensure_endpoint_state(endpoint)
     token = invocation_id or new_invocation_id()
     path = base / "logs" / tool_kind / token
@@ -109,12 +120,21 @@ def resolve_ledger_scope(client_context_id: str | None = None) -> str:
     return safe
 
 
-def read_ledger_path(endpoint: Endpoint, file_path: str, client_context_id: str | None = None) -> Path:
+def read_ledger_path(
+    endpoint: Endpoint, file_path: str, client_context_id: str | None = None
+) -> Path:
     scope = resolve_ledger_scope(client_context_id)
-    return ensure_endpoint_state(endpoint) / "reads" / scope / f"{path_fingerprint(file_path)}.json"
+    return (
+        ensure_endpoint_state(endpoint)
+        / "reads"
+        / scope
+        / f"{path_fingerprint(file_path)}.json"
+    )
 
 
-def write_read_ledger(endpoint: Endpoint, file_info: dict[str, Any], client_context_id: str | None = None) -> Path:
+def write_read_ledger(
+    endpoint: Endpoint, file_info: dict[str, Any], client_context_id: str | None = None
+) -> Path:
     scope = resolve_ledger_scope(client_context_id)
     path = read_ledger_path(endpoint, str(file_info["path"]), client_context_id)
     payload = {
@@ -134,7 +154,9 @@ def write_read_ledger(endpoint: Endpoint, file_info: dict[str, Any], client_cont
     return path
 
 
-def load_read_ledger(endpoint: Endpoint, file_path: str, client_context_id: str | None = None) -> dict[str, Any] | None:
+def load_read_ledger(
+    endpoint: Endpoint, file_path: str, client_context_id: str | None = None
+) -> dict[str, Any] | None:
     path = read_ledger_path(endpoint, file_path, client_context_id)
     if not path.exists():
         return None

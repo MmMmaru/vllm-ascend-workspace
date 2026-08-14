@@ -37,7 +37,9 @@ def tail_output(value: str | bytes | None, limit: int = 500) -> str:
     return value[-limit:]
 
 
-def ssh_check(host: str, port: int, user: str = "root", script: str = "true") -> dict[str, Any]:
+def ssh_check(
+    host: str, port: int, user: str = "root", script: str = "true"
+) -> dict[str, Any]:
     cmd = [
         "ssh",
         "-o",

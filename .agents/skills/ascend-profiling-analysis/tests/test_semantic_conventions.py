@@ -23,10 +23,7 @@ YAML = pytest.importorskip("yaml", reason="pyyaml not installed; semconv test sk
 
 
 KNOWLEDGE_DIR = (
-    Path(__file__).resolve().parent.parent
-    / "scripts"
-    / "ascend_profile"
-    / "knowledge"
+    Path(__file__).resolve().parent.parent / "scripts" / "ascend_profile" / "knowledge"
 )
 SEMCONV_PATH = KNOWLEDGE_DIR / "semantic_conventions.yaml"
 
@@ -52,7 +49,15 @@ def test_op_type_enum_matches_python():
 
     python_values = set(common._OP_TYPE_BY_CORE.values())
     # ``op_type_from_event`` adds these via fallbacks:
-    python_values |= {"aic", "aiv", "mix_cv", "communication", "aicpu", "mix_comm_aiv", "unknown"}
+    python_values |= {
+        "aic",
+        "aiv",
+        "mix_cv",
+        "communication",
+        "aicpu",
+        "mix_comm_aiv",
+        "unknown",
+    }
     yaml_values = _load_enum("op_type")
     missing = python_values - yaml_values
     assert not missing, (
@@ -87,9 +92,7 @@ def test_alignment_method_enum_matches_cross_rank():
         / "ascend_profile"
         / "cross_rank.py"
     ).read_text()
-    python_values = set(
-        re.findall(r"_ALIGNMENT_METHOD\s*=\s*[\"']([^\"']+)[\"']", src)
-    )
+    python_values = set(re.findall(r"_ALIGNMENT_METHOD\s*=\s*[\"']([^\"']+)[\"']", src))
     yaml_values = _load_enum("alignment_method")
     missing = python_values - yaml_values
     assert not missing, (

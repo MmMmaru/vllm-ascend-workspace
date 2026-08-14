@@ -1,6 +1,15 @@
 ## 环境配置
 阅读docs/instructions获取最新的环境配置方案。
 
+### 远端机器与大模型部署方法论（08-13 Kimi-K2.5 验证沉淀）
+
+- 机器选型先看物理/逻辑卡映射：17.111 是 8 物理 NPU × 2 chip = 16 逻辑卡（`logical = physical * 2 + chip`，每逻辑卡 64GB，共 1TB）；17.110 只有 8 物理卡共 512GB，放不下 K2.5 w4a8（仅权重 500GB）。K2.5 权重在 NFS `/mnt/share/weights/kimi-k2.5-w4a8_modelscope`（126 分片，多机可见）。
+- 17.111 容器运行时以 `/vllm-workspace` 为准，`/etc/profile.d/vaws-ascend-env.sh` 必须包含：PYTHONPATH 指向该树、ATB 路径（`ATB_HOME_PATH` + `LD_LIBRARY_PATH` 含 `nnal/atb/latest/atb/cxx_abi_1/lib`，缺了 worker 起不来报 `libatb.so` 找不到）、代理 `http_proxy=80.253.137.110:7897` 且 `no_proxy` 必须含本机 IP——否则 `vllm bench serve` 主会话 `trust_env=True` 会把打向本机的请求送进代理，造成 50/50 全挂且服务端无 access 日志。
+- parity 快照仓库无 git tag，`vllm.__version__` 变成 `0.1.dev1+...`，`vllm_version_is()` 分支会走错（典型报错：取不到 `FusedMoEFactory`）；在快照运行时上服务必须显式 `--extra-env VLLM_VERSION=0.26.0`。
+- parity 全量安装被 requirements pin 阻断时（如 `triton-ascend==3.2.2` 在各 pip 源不存在）的降级路径：parity materialize 源码 → `COMPILE_CUSTOM_KERNELS=0 pip install --no-deps --no-build-isolation -ve .`（vllm 和 vllm-ascend）→ 从旧树复制编译产物（`vllm_ascend_C*.so`、`libvllm_ascend_kernels.so`、`_cann_ops_custom/`）→ `serve_start --skip-parity`。
+- 大模型加载慢（K2.5 约 610s），serving 默认 300s 健康超时不够；`bench_run.py` 需显式 `--health-timeout 1800`。
+- bench 全挂排障顺序：先查客户端（代理泄漏、tokenizer 需 `--trust-remote-code`、`--backend` 与 `--endpoint` 必须配对如 openai+/v1/completions）→ 再查服务端 stdout 和 stderr 双日志 → 重跑全量前用手工单发→并发最小复现确认服务端健康，避免 10 分钟级启动空转。K2.5 的完整 serve/bench 配置与结果见 [benchmark-delete-flashcomm.md](benchmark-delete-flashcomm.md) model&setup 4。
+
 ## 项目架构
 
 这是一个 vLLM 上游框架加 Ascend 硬件插件的双仓工作区。请求从 vLLM v1 EngineCore 进入 scheduler，经过 NPU Worker/ModelRunner 调度，进入模型 forward；Ascend 插件通过 platform interface、patch、custom op 和编译后端接入上游执行链。
@@ -53,6 +62,8 @@ vllm-ascend/worker/model_runner_v1.py
 
 ### 当前主要修改文件
 
+- [`.agents/skills/vllm-ascend-serving/scripts/_common.py`](.agents/skills/vllm-ascend-serving/scripts/_common.py)：`select_devices` 支持 2 chip/物理卡机器的逻辑卡 id 校验（请求 id 超出物理范围时整体按 `physical = logical // 2` 映射）。
+- [`.agents/skills/vllm-ascend-benchmark/scripts/_common.py`](.agents/skills/vllm-ascend-benchmark/scripts/_common.py) 和 [`bench_run.py`](.agents/skills/vllm-ascend-benchmark/scripts/bench_run.py)：新增 `--health-timeout` 透传 serve_start；bench 客户端输出强制 UTF-8（修 Windows GBK reader 崩溃）并落盘 `.vaws-local/benchmark/<machine>/client_output_*.log`。
 - [`vllm-ascend/vllm_ascend/ops/fused_moe/fused_moe.py`](vllm-ascend/vllm_ascend/ops/fused_moe/fused_moe.py)：`AscendMoERunner._maybe_reduce_final_output()` 在原生 MoE SP 时跳过最终 TP all-reduce，保留 token-sharded 结果给 Qwen3 MoE 后续 all-gather。
 - [`vllm-ascend/vllm_ascend/ops/register_custom_ops.py`](vllm-ascend/vllm_ascend/ops/register_custom_ops.py)：SP+EP 的 all-gather 后按 DP local sizes 去除无效尾部，reduce-scatter 前恢复等长 padding；fake shape 使用 EP group world size。
 - [`vllm-ascend/tests/ut/ops/test_fused_moe.py`](vllm-ascend/tests/ut/ops/test_fused_moe.py)：回归测试 SP 时不调用最终 all-reduce、非 SP 时保留 all-reduce。

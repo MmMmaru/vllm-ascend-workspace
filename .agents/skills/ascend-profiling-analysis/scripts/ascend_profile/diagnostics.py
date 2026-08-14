@@ -9,12 +9,30 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 try:
-    from .common import DiagnosisFinding, SCHEMA_VERSION, TOOL_VERSION, csv_rows, emit_stage_json, stable_id, utc_now, write_json
+    from .common import (
+        DiagnosisFinding,
+        SCHEMA_VERSION,
+        TOOL_VERSION,
+        csv_rows,
+        emit_stage_json,
+        stable_id,
+        utc_now,
+        write_json,
+    )
 except ImportError:  # pragma: no cover
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from common import DiagnosisFinding, SCHEMA_VERSION, TOOL_VERSION, csv_rows, emit_stage_json, stable_id, utc_now, write_json  # type: ignore[no-redef]
+    from common import (
+        DiagnosisFinding,
+        SCHEMA_VERSION,
+        TOOL_VERSION,
+        csv_rows,
+        emit_stage_json,
+        stable_id,
+        utc_now,
+        write_json,
+    )  # type: ignore[no-redef]
 
 
 CROSS_RANK_SKEW_RATIO = 2.0
@@ -74,7 +92,9 @@ def finding(
     )
 
 
-def diagnose_cross_rank(alignment_rows: Sequence[Mapping[str, Any]]) -> list[DiagnosisFinding]:
+def diagnose_cross_rank(
+    alignment_rows: Sequence[Mapping[str, Any]],
+) -> list[DiagnosisFinding]:
     findings: list[DiagnosisFinding] = []
     for row in alignment_rows:
         alignment_id = str(row.get("alignment_id") or "")
@@ -98,7 +118,10 @@ def diagnose_cross_rank(alignment_rows: Sequence[Mapping[str, Any]]) -> list[Dia
                     metrics=dict(row),
                 )
             )
-        if role == "communication.collective" and (duration_ratio >= CROSS_RANK_SKEW_RATIO or duration_skew >= CROSS_RANK_SKEW_US):
+        if role == "communication.collective" and (
+            duration_ratio >= CROSS_RANK_SKEW_RATIO
+            or duration_skew >= CROSS_RANK_SKEW_US
+        ):
             findings.append(
                 finding(
                     finding_type="communication_collective_slow",
@@ -112,7 +135,8 @@ def diagnose_cross_rank(alignment_rows: Sequence[Mapping[str, Any]]) -> list[Dia
                 )
             )
         if role in {"moe.dispatch_expert_compute", "moe.dispatch_or_combine"} and (
-            duration_ratio >= CROSS_RANK_SKEW_RATIO or duration_skew >= CROSS_RANK_SKEW_US
+            duration_ratio >= CROSS_RANK_SKEW_RATIO
+            or duration_skew >= CROSS_RANK_SKEW_US
         ):
             findings.append(
                 finding(
@@ -142,12 +166,27 @@ def diagnose_cross_rank(alignment_rows: Sequence[Mapping[str, Any]]) -> list[Dia
     return findings
 
 
-def diagnose_rank_workload(rank_rows: Sequence[Mapping[str, Any]], step_rows: Sequence[Mapping[str, Any]]) -> list[DiagnosisFinding]:
+def diagnose_rank_workload(
+    rank_rows: Sequence[Mapping[str, Any]], step_rows: Sequence[Mapping[str, Any]]
+) -> list[DiagnosisFinding]:
     findings: list[DiagnosisFinding] = []
-    attention_by_rank = {str(row.get("rank_id")): str(row.get("has_attention")).lower() == "true" for row in rank_rows}
-    if attention_by_rank and any(attention_by_rank.values()) and not all(attention_by_rank.values()):
-        reduced = [rank for rank, has_attention in attention_by_rank.items() if not has_attention]
-        full = [rank for rank, has_attention in attention_by_rank.items() if has_attention]
+    attention_by_rank = {
+        str(row.get("rank_id")): str(row.get("has_attention")).lower() == "true"
+        for row in rank_rows
+    }
+    if (
+        attention_by_rank
+        and any(attention_by_rank.values())
+        and not all(attention_by_rank.values())
+    ):
+        reduced = [
+            rank
+            for rank, has_attention in attention_by_rank.items()
+            if not has_attention
+        ]
+        full = [
+            rank for rank, has_attention in attention_by_rank.items() if has_attention
+        ]
         findings.append(
             finding(
                 finding_type="reduced_work_or_dummy_rank",
@@ -156,11 +195,18 @@ def diagnose_rank_workload(rank_rows: Sequence[Mapping[str, Any]], step_rows: Se
                 severity="medium",
                 confidence="medium",
                 rank_ids=tuple(sorted(reduced + full)),
-                metrics={"full_work_ranks": full, "reduced_work_candidate_ranks": reduced},
-                limitations=("This is structural evidence only; semantic dummy-run labeling requires workload context.",),
+                metrics={
+                    "full_work_ranks": full,
+                    "reduced_work_candidate_ranks": reduced,
+                },
+                limitations=(
+                    "This is structural evidence only; semantic dummy-run labeling requires workload context.",
+                ),
             )
         )
-    wall_by_rank = {str(row.get("rank_id")): as_float(row, "wall_ms") for row in rank_rows}
+    wall_by_rank = {
+        str(row.get("rank_id")): as_float(row, "wall_ms") for row in rank_rows
+    }
     if wall_by_rank:
         values = [value for value in wall_by_rank.values() if value > 0]
         if values and max(values) / max(1e-6, min(values)) >= DP_WALL_SKEW_RATIO:
@@ -172,8 +218,13 @@ def diagnose_rank_workload(rank_rows: Sequence[Mapping[str, Any]], step_rows: Se
                     severity="medium",
                     confidence="low",
                     rank_ids=tuple(sorted(wall_by_rank)),
-                    metrics={"rank_wall_ms": wall_by_rank, "wall_ratio": max(values) / max(1e-6, min(values))},
-                    limitations=("Wall-time skew alone is not root cause evidence; shape-level corroboration is required.",),
+                    metrics={
+                        "rank_wall_ms": wall_by_rank,
+                        "wall_ratio": max(values) / max(1e-6, min(values)),
+                    },
+                    limitations=(
+                        "Wall-time skew alone is not root cause evidence; shape-level corroboration is required.",
+                    ),
                 )
             )
     for row in step_rows:
@@ -269,7 +320,18 @@ def diagnose_profile(output_dir: Path) -> dict[str, Any]:
         "diagnosis_findings": findings,
         "counts": {
             "finding_count": len(findings),
-            "by_type": dict(sorted({item.finding_type: sum(1 for finding_item in findings if finding_item.finding_type == item.finding_type) for item in findings}.items())),
+            "by_type": dict(
+                sorted(
+                    {
+                        item.finding_type: sum(
+                            1
+                            for finding_item in findings
+                            if finding_item.finding_type == item.finding_type
+                        )
+                        for item in findings
+                    }.items()
+                )
+            ),
         },
     }
     write_json(output_dir / "diagnosis_findings.json", payload)

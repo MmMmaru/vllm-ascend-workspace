@@ -39,7 +39,9 @@ class RemoteReadTests(unittest.TestCase):
                         "content": "1 | abc",
                     },
                 }
-                payload = file_ops.remote_read(endpoint, file_path="/vllm-workspace/foo.py")
+                payload = file_ops.remote_read(
+                    endpoint, file_path="/vllm-workspace/foo.py"
+                )
                 self.assertEqual(payload["result"]["outcome"], "success")
                 self.assertTrue(Path(payload["result"]["refs"]["read_ledger"]).exists())
         finally:
@@ -81,7 +83,9 @@ class RemoteReadTests(unittest.TestCase):
                     }
 
                 file_ops.run_remote_python = fake_run_remote_python  # type: ignore[assignment]
-                payload = file_ops.remote_read(endpoint, file_path="/vllm-workspace/big.log", limit=100000)
+                payload = file_ops.remote_read(
+                    endpoint, file_path="/vllm-workspace/big.log", limit=100000
+                )
                 self.assertEqual(captured["limit"], file_ops.MAX_READ_LINES)
                 self.assertIn("clamped", payload["result"]["warnings"][0])
                 self.assertLessEqual(len(payload["text"]), MAX_TEXT_CHARS)

@@ -156,14 +156,20 @@ def download_with_retry(args: argparse.Namespace) -> Path:
     if args.cache_dir is not None:
         args.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    if os.environ.get("MODELSCOPE_TOKEN") and not os.environ.get("MODELSCOPE_API_TOKEN"):
+    if os.environ.get("MODELSCOPE_TOKEN") and not os.environ.get(
+        "MODELSCOPE_API_TOKEN"
+    ):
         os.environ["MODELSCOPE_API_TOKEN"] = os.environ["MODELSCOPE_TOKEN"]
 
     print(f"ModelScope model      : {args.model_id}")
     print(f"Revision              : {args.revision}")
     print(f"Download target       : {args.local_dir}")
-    print(f"ModelScope cache      : {args.cache_dir if args.cache_dir is not None else 'SDK default'}")
-    print(f"Proxy                 : {args.proxy if args.proxy and not args.no_proxy else 'disabled'}")
+    print(
+        f"ModelScope cache      : {args.cache_dir if args.cache_dir is not None else 'SDK default'}"
+    )
+    print(
+        f"Proxy                 : {args.proxy if args.proxy and not args.no_proxy else 'disabled'}"
+    )
     print(f"File parallels        : {args.download_parallels}")
     print(f"Parallel threshold MB : {args.parallel_threshold_mb}")
 
@@ -188,7 +194,9 @@ def download_with_retry(args: argparse.Namespace) -> Path:
             if attempt < args.max_retries:
                 time.sleep(10)
 
-    raise RuntimeError(f"download failed after {args.max_retries} attempts") from last_error
+    raise RuntimeError(
+        f"download failed after {args.max_retries} attempts"
+    ) from last_error
 
 
 def main() -> int:

@@ -58,7 +58,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def bytes_to_gib(value: int) -> str:
-    return f"{value / (1024 ** 3):.2f} GiB"
+    return f"{value / (1024**3):.2f} GiB"
 
 
 def local_size_for_files(root: Path, files: list[dict[str, Any]]) -> int:

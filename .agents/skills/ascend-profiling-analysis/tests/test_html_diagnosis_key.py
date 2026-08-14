@@ -2,6 +2,7 @@
 (the schema actually written by diagnostics.py). Older drafts used the
 shorter `findings` key — accept both, but the modern key wins.
 """
+
 from __future__ import annotations
 
 import json
@@ -54,17 +55,23 @@ def _load_findings_from_payload(payload):
 
 def test_modern_key_resolves() -> None:
     payload = {"diagnosis_findings": [{"finding_type": "device_idle_bubble"}]}
-    assert _load_findings_from_payload(payload) == [{"finding_type": "device_idle_bubble"}]
+    assert _load_findings_from_payload(payload) == [
+        {"finding_type": "device_idle_bubble"}
+    ]
 
 
 def test_legacy_findings_key_resolves() -> None:
     payload = {"findings": [{"finding_type": "device_idle_bubble"}]}
-    assert _load_findings_from_payload(payload) == [{"finding_type": "device_idle_bubble"}]
+    assert _load_findings_from_payload(payload) == [
+        {"finding_type": "device_idle_bubble"}
+    ]
 
 
 def test_legacy_claims_key_resolves() -> None:
     payload = {"claims": [{"finding_type": "device_idle_bubble"}]}
-    assert _load_findings_from_payload(payload) == [{"finding_type": "device_idle_bubble"}]
+    assert _load_findings_from_payload(payload) == [
+        {"finding_type": "device_idle_bubble"}
+    ]
 
 
 def test_empty_payload_returns_empty_list() -> None:

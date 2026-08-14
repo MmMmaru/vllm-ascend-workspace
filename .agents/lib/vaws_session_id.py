@@ -39,7 +39,9 @@ def normalize_session_id(value: str | None) -> str | None:
     if not normalized:
         return None
     if len(normalized) > MAX_SESSION_ID_LENGTH:
-        digest = hashlib.sha1(value.encode("utf-8")).hexdigest()[:SESSION_ID_HASH_LENGTH]
+        digest = hashlib.sha1(value.encode("utf-8")).hexdigest()[
+            :SESSION_ID_HASH_LENGTH
+        ]
         keep = MAX_SESSION_ID_LENGTH - len(digest) - 1
         normalized = f"{normalized[:keep].rstrip('.-_')}-{digest}"
     if len(normalized) < 3:
@@ -48,7 +50,13 @@ def normalize_session_id(value: str | None) -> str | None:
 
 
 def generate_session_id() -> str:
-    stamp = utc_now_iso().replace("-", "").replace(":", "").replace("T", "-").replace("Z", "")
+    stamp = (
+        utc_now_iso()
+        .replace("-", "")
+        .replace(":", "")
+        .replace("T", "-")
+        .replace("Z", "")
+    )
     token = secrets.token_hex(3)
     return f"sess-{stamp}-{token}"
 
@@ -80,10 +88,18 @@ def load_session_id_sources(state_dir: Path = STATE_DIR) -> dict[str, Any]:
         )
     allowlist = data.get("env_allowlist", [])
     prefixes = data.get("prefix_by_source", {})
-    if not isinstance(allowlist, list) or not all(isinstance(item, str) for item in allowlist):
-        raise WorkspaceStateError("session-id-sources.env_allowlist must be a list of strings")
-    if not isinstance(prefixes, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in prefixes.items()):
-        raise WorkspaceStateError("session-id-sources.prefix_by_source must be a string map")
+    if not isinstance(allowlist, list) or not all(
+        isinstance(item, str) for item in allowlist
+    ):
+        raise WorkspaceStateError(
+            "session-id-sources.env_allowlist must be a list of strings"
+        )
+    if not isinstance(prefixes, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in prefixes.items()
+    ):
+        raise WorkspaceStateError(
+            "session-id-sources.prefix_by_source must be a string map"
+        )
     return data
 
 
@@ -158,7 +174,9 @@ def derive_from_branch(branch: str | None) -> str | None:
     return None
 
 
-def _candidate_from_env(name: str, *, prefix: str | None = None) -> tuple[str, str] | None:
+def _candidate_from_env(
+    name: str, *, prefix: str | None = None
+) -> tuple[str, str] | None:
     value = os.environ.get(name)
     if not value:
         return None
@@ -207,5 +225,7 @@ def resolve_session_id(
 
     generated = generate_session_id()
     if persist_generated:
-        write_current_session_binding(repo_root, session_id=generated, source="generated")
+        write_current_session_binding(
+            repo_root, session_id=generated, source="generated"
+        )
     return SessionId(value=generated, source="generated")

@@ -47,16 +47,25 @@ def find_kernel_details(search_root: Path) -> list[Path]:
     return sorted(
         path
         for path in search_root.rglob("kernel_details.csv")
-        if not any(part in ignored_parts or ".bak" in part or part.startswith("bak_") for part in path.parts)
+        if not any(
+            part in ignored_parts or ".bak" in part or part.startswith("bak_")
+            for part in path.parts
+        )
     )
 
 
 def rank_dir_from_csv(csv_path: Path) -> Path:
-    return csv_path.parent.parent if csv_path.parent.name == "ASCEND_PROFILER_OUTPUT" else csv_path.parent
+    return (
+        csv_path.parent.parent
+        if csv_path.parent.name == "ASCEND_PROFILER_OUTPUT"
+        else csv_path.parent
+    )
 
 
 def has_direct_kernel_details(path: Path) -> bool:
-    return (path / "kernel_details.csv").is_file() or (path / "ASCEND_PROFILER_OUTPUT" / "kernel_details.csv").is_file()
+    return (path / "kernel_details.csv").is_file() or (
+        path / "ASCEND_PROFILER_OUTPUT" / "kernel_details.csv"
+    ).is_file()
 
 
 def looks_like_rank_dir(path: Path) -> bool:
@@ -115,7 +124,15 @@ def step_inventory(output_dir: Path) -> dict[str, Any]:
         rank_counts = by_rank.setdefault(rank_id, {})
         rank_counts[key] = rank_counts.get(key, 0) + 1
     return {
-        "rank_layer_inventory": {rank: dict(sorted(counts.items(), key=lambda item: int(item[0]) if item[0].isdigit() else -1)) for rank, counts in sorted(by_rank.items())},
+        "rank_layer_inventory": {
+            rank: dict(
+                sorted(
+                    counts.items(),
+                    key=lambda item: int(item[0]) if item[0].isdigit() else -1,
+                )
+            )
+            for rank, counts in sorted(by_rank.items())
+        },
         "union_layers": sorted(union),
     }
 
@@ -129,7 +146,9 @@ def _f(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def cross_root_rollup_rows(results: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def cross_root_rollup_rows(
+    results: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     """Build a one-row-per-root cross-root comparison table.
 
     Each row captures the root's "headline" numbers so the user can
@@ -150,15 +169,25 @@ def cross_root_rollup_rows(results: Sequence[Mapping[str, Any]]) -> list[dict[st
     rollup_rows: list[dict[str, Any]] = []
     for entry in results:
         if entry.get("status") != "ok":
-            rollup_rows.append({"root": entry.get("root"), "status": entry.get("status"), "error": entry.get("error")})
+            rollup_rows.append(
+                {
+                    "root": entry.get("root"),
+                    "status": entry.get("status"),
+                    "error": entry.get("error"),
+                }
+            )
             continue
         root = entry.get("root")
         out_dir = Path(entry.get("output_dir") or "")
         if not out_dir.exists():
-            rollup_rows.append({"root": root, "status": "missing_output", "error": str(out_dir)})
+            rollup_rows.append(
+                {"root": root, "status": "missing_output", "error": str(out_dir)}
+            )
             continue
 
-        normalize_manifest = read_json(out_dir / "normalize_manifest.json", default={}) or {}
+        normalize_manifest = (
+            read_json(out_dir / "normalize_manifest.json", default={}) or {}
+        )
         rank_summary = csv_rows(out_dir / "rank_summary.csv")
         wall_total_ms = sum(_f(row.get("wall_ms")) for row in rank_summary)
         step_total = sum(int(row.get("step_count") or 0) for row in rank_summary)
@@ -184,11 +213,15 @@ def cross_root_rollup_rows(results: Sequence[Mapping[str, Any]]) -> list[dict[st
             kind_total_grand += wall_sum
         kind_share: dict[str, float] = {}
         for kind, value in kind_total.items():
-            kind_share[kind] = round(value / kind_total_grand, 6) if kind_total_grand > 0 else 0.0
+            kind_share[kind] = (
+                round(value / kind_total_grand, 6) if kind_total_grand > 0 else 0.0
+            )
 
         # HCCL summary.
         hccl_class_rows = csv_rows(out_dir / "hccl_class_summary.csv")
-        hccl_wall_ms = sum(_f(row.get("duration_sum_us")) for row in hccl_class_rows) / 1000.0
+        hccl_wall_ms = (
+            sum(_f(row.get("duration_sum_us")) for row in hccl_class_rows) / 1000.0
+        )
         heaviest_hccl = None
         heaviest_hccl_score = -1.0
         for row in hccl_class_rows:
@@ -196,7 +229,9 @@ def cross_root_rollup_rows(results: Sequence[Mapping[str, Any]]) -> list[dict[st
             if score > heaviest_hccl_score:
                 heaviest_hccl_score = score
                 heaviest_hccl = row
-        max_skew = max((_f(row.get("rank_skew_ratio")) for row in hccl_class_rows), default=0.0)
+        max_skew = max(
+            (_f(row.get("rank_skew_ratio")) for row in hccl_class_rows), default=0.0
+        )
 
         rollup_row = {
             "root": root,
@@ -218,16 +253,23 @@ def cross_root_rollup_rows(results: Sequence[Mapping[str, Any]]) -> list[dict[st
             "top_step_wall_ms_mean": _f((heaviest_step or {}).get("wall_ms_mean")),
             "top_step_wall_ms_p50": _f((heaviest_step or {}).get("wall_ms_p50")),
             "top_step_wall_ms_p90": _f((heaviest_step or {}).get("wall_ms_p90")),
-            "top_step_bubble_ratio_mean": _f((heaviest_step or {}).get("bubble_ratio_mean")),
+            "top_step_bubble_ratio_mean": _f(
+                (heaviest_step or {}).get("bubble_ratio_mean")
+            ),
             "block_kind_wall_share": kind_share,
             "block_kind_wall_ms_sum": kind_total,
             "hccl_total_ms": round(hccl_wall_ms, 3),
-            "hccl_share_of_wall": round(hccl_wall_ms / wall_total_ms, 6) if wall_total_ms > 0 else 0.0,
+            "hccl_share_of_wall": round(hccl_wall_ms / wall_total_ms, 6)
+            if wall_total_ms > 0
+            else 0.0,
             "hccl_top_kind": (heaviest_hccl or {}).get("hccl_op_kind"),
             "hccl_top_comm_aiv_fused": (heaviest_hccl or {}).get("comm_aiv_fused"),
             "hccl_top_calls": int((heaviest_hccl or {}).get("call_count") or 0),
-            "hccl_top_duration_ms": _f((heaviest_hccl or {}).get("duration_sum_us")) / 1000.0,
-            "hccl_top_rank_skew_ratio": _f((heaviest_hccl or {}).get("rank_skew_ratio")),
+            "hccl_top_duration_ms": _f((heaviest_hccl or {}).get("duration_sum_us"))
+            / 1000.0,
+            "hccl_top_rank_skew_ratio": _f(
+                (heaviest_hccl or {}).get("rank_skew_ratio")
+            ),
             "hccl_max_rank_skew_ratio": round(max_skew, 6),
             "profile_root_label": normalize_manifest.get("profile_root"),
         }
@@ -262,18 +304,30 @@ def _analyze_one(
     if reuse_existing and manifest_path.is_file():
         try:
             manifest = read_json(manifest_path, default={}) or {}
-            item.update({
-                "status": "ok",
-                "elapsed_s": 0.0,
-                "reused": True,
-                "stage_timings": manifest.get("stage_timings"),
-                "rank_count": manifest.get("stage_results", {}).get("normalize", {}).get("rank_count"),
-                "event_count": manifest.get("stage_results", {}).get("normalize", {}).get("event_count"),
-                "segment_count": manifest.get("stage_results", {}).get("segment", {}).get("segment_count"),
-                "layer_count": manifest.get("stage_results", {}).get("segment", {}).get("layer_count"),
-                "diagnosis_counts": manifest.get("stage_results", {}).get("diagnostics", {}).get("counts"),
-                **step_inventory(root_out),
-            })
+            item.update(
+                {
+                    "status": "ok",
+                    "elapsed_s": 0.0,
+                    "reused": True,
+                    "stage_timings": manifest.get("stage_timings"),
+                    "rank_count": manifest.get("stage_results", {})
+                    .get("normalize", {})
+                    .get("rank_count"),
+                    "event_count": manifest.get("stage_results", {})
+                    .get("normalize", {})
+                    .get("event_count"),
+                    "segment_count": manifest.get("stage_results", {})
+                    .get("segment", {})
+                    .get("segment_count"),
+                    "layer_count": manifest.get("stage_results", {})
+                    .get("segment", {})
+                    .get("layer_count"),
+                    "diagnosis_counts": manifest.get("stage_results", {})
+                    .get("diagnostics", {})
+                    .get("counts"),
+                    **step_inventory(root_out),
+                }
+            )
             return item
         except Exception:  # noqa: BLE001
             # Fall through to re-analyze if reuse fails for any reason.
@@ -292,16 +346,32 @@ def _analyze_one(
                 "status": "ok",
                 "elapsed_s": round(time.time() - t0, 6),
                 "stage_timings": manifest.get("stage_timings"),
-                "rank_count": manifest.get("stage_results", {}).get("normalize", {}).get("rank_count"),
-                "event_count": manifest.get("stage_results", {}).get("normalize", {}).get("event_count"),
-                "segment_count": manifest.get("stage_results", {}).get("segment", {}).get("segment_count"),
-                "layer_count": manifest.get("stage_results", {}).get("segment", {}).get("layer_count"),
-                "diagnosis_counts": manifest.get("stage_results", {}).get("diagnostics", {}).get("counts"),
+                "rank_count": manifest.get("stage_results", {})
+                .get("normalize", {})
+                .get("rank_count"),
+                "event_count": manifest.get("stage_results", {})
+                .get("normalize", {})
+                .get("event_count"),
+                "segment_count": manifest.get("stage_results", {})
+                .get("segment", {})
+                .get("segment_count"),
+                "layer_count": manifest.get("stage_results", {})
+                .get("segment", {})
+                .get("layer_count"),
+                "diagnosis_counts": manifest.get("stage_results", {})
+                .get("diagnostics", {})
+                .get("counts"),
                 **step_inventory(root_out),
             }
         )
     except Exception as exc:  # noqa: BLE001
-        item.update({"status": "error", "elapsed_s": round(time.time() - t0, 6), "error": repr(exc)})
+        item.update(
+            {
+                "status": "error",
+                "elapsed_s": round(time.time() - t0, 6),
+                "error": repr(exc),
+            }
+        )
     return item
 
 
@@ -328,9 +398,14 @@ def sweep_roots(
         for idx, root in enumerate(roots, 1):
             results.append(
                 _analyze_one(
-                    idx, total, root, output_dir,
-                    verbose=verbose, skip_html=skip_html,
-                    report_mode=report_mode, reuse_existing=reuse_existing,
+                    idx,
+                    total,
+                    root,
+                    output_dir,
+                    verbose=verbose,
+                    skip_html=skip_html,
+                    report_mode=report_mode,
+                    reuse_existing=reuse_existing,
                 )
             )
     else:
@@ -347,9 +422,14 @@ def sweep_roots(
             future_to_idx = {
                 pool.submit(
                     _analyze_one,
-                    idx, total, root, output_dir,
-                    verbose=verbose, skip_html=skip_html,
-                    report_mode=report_mode, reuse_existing=reuse_existing,
+                    idx,
+                    total,
+                    root,
+                    output_dir,
+                    verbose=verbose,
+                    skip_html=skip_html,
+                    report_mode=report_mode,
+                    reuse_existing=reuse_existing,
                 ): idx
                 for idx, root in enumerate(roots, 1)
             }

@@ -40,6 +40,7 @@ PROGRESS_SENTINEL = "__VAWS_SERVING_PROGRESS__="
 # SSH
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class ExecutionTarget:
     mode: str
@@ -57,10 +58,14 @@ class ExecutionTarget:
 def _ssh_base_cmd(endpoint: SshEndpoint) -> list[str]:
     return [
         "ssh",
-        "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "LogLevel=ERROR",
-        "-p", str(endpoint.port),
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "LogLevel=ERROR",
+        "-p",
+        str(endpoint.port),
         endpoint.destination(),
     ]
 
@@ -85,6 +90,7 @@ def ssh_exec(
 # Inventory
 # ---------------------------------------------------------------------------
 
+
 def resolve_machine(identifier: str) -> dict[str, Any]:
     read_path = inventory_store.read_inventory_path(
         inventory_store.preferred_inventory_path(inventory_store.DEFAULT_PATH)
@@ -94,7 +100,9 @@ def resolve_machine(identifier: str) -> dict[str, Any]:
     if not matches:
         raise RuntimeError(f"machine {identifier!r} not found in inventory")
     if len(matches) > 1:
-        raise RuntimeError(f"machine {identifier!r} matched multiple records; use a unique alias")
+        raise RuntimeError(
+            f"machine {identifier!r} matched multiple records; use a unique alias"
+        )
     return matches[0]
 
 
@@ -147,6 +155,7 @@ def resolve_execution_target(
 # ---------------------------------------------------------------------------
 # Local serving state
 # ---------------------------------------------------------------------------
+
 
 def load_serving_state(
     machine_alias: str,
@@ -242,11 +251,13 @@ def _parse_npu_smi(output: str) -> dict[str, Any]:
             m = re.match(r"\|\s*(\d+)\s+\S+\s+(\d+)\s+(\S+)\s+(\S+)", line)
             if m:
                 dev = int(m.group(1))
-                proc_busy.setdefault(dev, []).append({
-                    "pid": int(m.group(2)),
-                    "owner": m.group(3),
-                    "name": m.group(4),
-                })
+                proc_busy.setdefault(dev, []).append(
+                    {
+                        "pid": int(m.group(2)),
+                        "owner": m.group(3),
+                        "name": m.group(4),
+                    }
+                )
 
     busy: dict[int, list[dict[str, Any]]] = {}
     for dev in sorted(dev_ids):
@@ -255,12 +266,14 @@ def _parse_npu_smi(output: str) -> dict[str, Any]:
             reasons.extend(proc_busy[dev])
         h = hbm.get(dev)
         if h and h["used_mb"] >= _HBM_BUSY_THRESHOLD_MB and dev not in proc_busy:
-            reasons.append({
-                "pid": None,
-                "name": "unknown (HBM occupied, likely another container)",
-                "hbm_used_mb": h["used_mb"],
-                "detection": "hbm_threshold",
-            })
+            reasons.append(
+                {
+                    "pid": None,
+                    "name": "unknown (HBM occupied, likely another container)",
+                    "hbm_used_mb": h["used_mb"],
+                    "detection": "hbm_threshold",
+                }
+            )
         if reasons:
             busy[dev] = reasons
 
@@ -291,8 +304,7 @@ def probe_npus(host_ep: SshEndpoint) -> dict[str, Any]:
     result = ssh_exec(host_ep, "npu-smi info", check=False)
     if result.returncode != 0:
         raise RuntimeError(
-            f"npu-smi on host failed (rc={result.returncode}): "
-            f"{result.stderr[:500]}"
+            f"npu-smi on host failed (rc={result.returncode}): {result.stderr[:500]}"
         )
     parsed = _parse_npu_smi(result.stdout)
     parsed["npu_smi_ok"] = True
@@ -317,16 +329,29 @@ def select_devices(
     if requested_devices is not None:
         requested = parse_device_csv(requested_devices) or []
         visible = set(npu_info.get("devices", []))
-        missing = [d for d in requested if d not in visible]
+
+        # Host npu-smi reports physical NPU ids. On boards with 2 chips per
+        # NPU each physical NPU exposes two logical devices
+        # (logical = physical * 2 + chip). If any requested id falls outside
+        # the visible physical range, the whole request is in logical-id
+        # space, so every id is validated via its physical NPU.
+        logical_mode = any(d not in visible for d in requested)
+
+        def _physical_id(d: int) -> int:
+            return d // 2 if logical_mode else d
+
+        missing = [d for d in requested if _physical_id(d) not in visible]
         if missing:
             return None, (
                 f"requested devices {missing} are not visible on host; "
                 f"visible={sorted(visible)}"
             )
-        conflicts = [d for d in requested if str(d) in busy]
+        conflicts = [d for d in requested if str(_physical_id(d)) in busy]
         if conflicts:
             details = {
-                str(d): busy[str(d)] for d in conflicts if str(d) in busy
+                str(d): busy[str(_physical_id(d))]
+                for d in conflicts
+                if str(_physical_id(d)) in busy
             }
             return None, (
                 f"requested devices {conflicts} are busy: {json.dumps(details)}; "
@@ -351,6 +376,7 @@ def select_devices(
 # Progress / output
 # ---------------------------------------------------------------------------
 
+
 def emit_progress(phase: str, message: str, **extra: Any) -> None:
     payload: dict[str, Any] = {"phase": phase, "message": message}
     payload.update({k: v for k, v in extra.items() if v is not None})
@@ -364,6 +390,7 @@ def print_json(data: dict[str, Any]) -> None:
 
 def now_utc() -> str:
     from datetime import datetime, timezone
+
     return (
         datetime.now(timezone.utc)
         .replace(microsecond=0)

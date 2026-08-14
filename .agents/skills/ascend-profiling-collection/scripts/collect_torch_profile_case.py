@@ -76,14 +76,13 @@ POST_STOP_FLUSH_SECONDS = 5
 # the profiler workload on the tunnel and out of the proxy path.
 _DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-VL_DEFAULT_IMAGE = (
-    ROOT / "vllm-ascend" / "tests" / "e2e" / "310p" / "data" / "qwen.png"
-)
+VL_DEFAULT_IMAGE = ROOT / "vllm-ascend" / "tests" / "e2e" / "310p" / "data" / "qwen.png"
 
 
 # ---------------------------------------------------------------------------
 # Workload payload helpers (multimodal + text)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class RequestResult:
@@ -128,7 +127,9 @@ def _parse_sips_dimensions(path: Path) -> tuple[int, int]:
     return width, height
 
 
-def _build_image_data_url(image_path: Path, target_height: int) -> tuple[str, dict[str, Any]]:
+def _build_image_data_url(
+    image_path: Path, target_height: int
+) -> tuple[str, dict[str, Any]]:
     src_w, src_h = _parse_sips_dimensions(image_path)
     if src_h != target_height:
         target_w = max(1, round(src_w * target_height / src_h))
@@ -137,16 +138,21 @@ def _build_image_data_url(image_path: Path, target_height: int) -> tuple[str, di
         result = subprocess.run(
             [
                 "sips",
-                "--resampleHeightWidth", str(target_height), str(target_w),
+                "--resampleHeightWidth",
+                str(target_height),
+                str(target_w),
                 str(image_path),
-                "--out", str(resized_path),
+                "--out",
+                str(resized_path),
             ],
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode != 0:
-            raise RuntimeError(f"failed to resize image via sips: {result.stderr[:500]}")
+            raise RuntimeError(
+                f"failed to resize image via sips: {result.stderr[:500]}"
+            )
         use_path = resized_path
         final_w, final_h = _parse_sips_dimensions(use_path)
     else:
@@ -206,8 +212,10 @@ def _send_chat_request(
 ) -> RequestResult:
     url = base_url.rstrip("/") + "/v1/chat/completions"
     payload = _build_chat_payload(
-        model=model, prompt_text=prompt_text,
-        max_tokens=max_tokens, image_url=image_url,
+        model=model,
+        prompt_text=prompt_text,
+        max_tokens=max_tokens,
+        image_url=image_url,
     )
     start = time.time()
     try:
@@ -218,21 +226,32 @@ def _send_chat_request(
         except json.JSONDecodeError:
             body = {"raw": raw.decode("utf-8", errors="replace")[:2000]}
         return RequestResult(
-            index=index, ok=200 <= status < 300, status=status,
-            latency_sec=latency, body=body, error=None,
+            index=index,
+            ok=200 <= status < 300,
+            status=status,
+            latency_sec=latency,
+            body=body,
+            error=None,
         )
     except urllib.error.HTTPError as exc:
         latency = time.time() - start
         return RequestResult(
-            index=index, ok=False, status=exc.code,
-            latency_sec=latency, body=None,
+            index=index,
+            ok=False,
+            status=exc.code,
+            latency_sec=latency,
+            body=None,
             error=exc.read().decode("utf-8", errors="replace")[:2000],
         )
     except Exception as exc:  # noqa: BLE001
         latency = time.time() - start
         return RequestResult(
-            index=index, ok=False, status=None,
-            latency_sec=latency, body=None, error=str(exc),
+            index=index,
+            ok=False,
+            status=None,
+            latency_sec=latency,
+            body=None,
+            error=str(exc),
         )
 
 
@@ -253,14 +272,22 @@ def _run_benchmark_wave(
         futures = []
         for idx in range(total_requests):
             prompt_text = _build_long_text(
-                input_tokens, prefix=prompt_prefix, request_index=idx,
+                input_tokens,
+                prefix=prompt_prefix,
+                request_index=idx,
             )
-            futures.append(pool.submit(
-                _send_chat_request,
-                base_url=base_url, model=model,
-                prompt_text=prompt_text, max_tokens=output_tokens,
-                image_url=image_url, index=idx, timeout=request_timeout,
-            ))
+            futures.append(
+                pool.submit(
+                    _send_chat_request,
+                    base_url=base_url,
+                    model=model,
+                    prompt_text=prompt_text,
+                    max_tokens=output_tokens,
+                    image_url=image_url,
+                    index=idx,
+                    timeout=request_timeout,
+                )
+            )
         for future in as_completed(futures):
             results.append(future.result())
     results.sort(key=lambda item: item.index)
@@ -320,11 +347,17 @@ def _evaluate_workload(
 # Serving args assembly
 # ---------------------------------------------------------------------------
 
-def _build_serve_args(args: argparse.Namespace, profiler_config: dict[str, Any]) -> list[str]:
+
+def _build_serve_args(
+    args: argparse.Namespace, profiler_config: dict[str, Any]
+) -> list[str]:
     serve_args: list[str] = [
-        "--model", args.model,
-        "--served-model-name", args.served_model_name,
-        "--tp", str(args.tp),
+        "--model",
+        args.model,
+        "--served-model-name",
+        args.served_model_name,
+        "--tp",
+        str(args.tp),
     ]
     if args.session_file:
         serve_args[:0] = ["--session-file", args.session_file]
@@ -336,39 +369,54 @@ def _build_serve_args(args: argparse.Namespace, profiler_config: dict[str, Any])
         serve_args.extend(["--dp", str(args.dp)])
     if args.devices:
         serve_args.extend(["--devices", args.devices])
-    serve_args.extend([
-        "--extra-env",
-        "PYTORCH_NPU_ALLOC_CONF=expandable_segments:True",
-    ])
+    serve_args.extend(
+        [
+            "--extra-env",
+            "PYTORCH_NPU_ALLOC_CONF=expandable_segments:True",
+        ]
+    )
     for item in args.extra_env:
         serve_args.extend(["--extra-env", item])
     if args.skip_parity:
         serve_args.append("--skip-parity")
 
     serve_args.append("--")
-    serve_args.extend([
-        "--max-model-len", str(args.max_model_len),
-        "--trust-remote-code",
-        "--gpu-memory-utilization", str(args.gpu_memory_utilization),
-        "--max-num-seqs", str(args.max_num_seqs),
-        "--max-num-batched-tokens", str(args.max_num_batched_tokens),
-    ])
+    serve_args.extend(
+        [
+            "--max-model-len",
+            str(args.max_model_len),
+            "--trust-remote-code",
+            "--gpu-memory-utilization",
+            str(args.gpu_memory_utilization),
+            "--max-num-seqs",
+            str(args.max_num_seqs),
+            "--max-num-batched-tokens",
+            str(args.max_num_batched_tokens),
+        ]
+    )
     if args.api_server_count is not None:
         serve_args.extend(["--api-server-count", str(args.api_server_count)])
 
-    serve_args.extend([
-        "--profiler-config", json.dumps(profiler_config, separators=(",", ":")),
-    ])
+    serve_args.extend(
+        [
+            "--profiler-config",
+            json.dumps(profiler_config, separators=(",", ":")),
+        ]
+    )
 
     if args.speculative_tokens > 0:
-        serve_args.extend([
-            "--speculative-config",
-            json.dumps(
-                {"method": args.speculative_method,
-                 "num_speculative_tokens": args.speculative_tokens},
-                separators=(",", ":"),
-            ),
-        ])
+        serve_args.extend(
+            [
+                "--speculative-config",
+                json.dumps(
+                    {
+                        "method": args.speculative_method,
+                        "num_speculative_tokens": args.speculative_tokens,
+                    },
+                    separators=(",", ":"),
+                ),
+            ]
+        )
 
     if args.enable_expert_parallel:
         serve_args.append("--enable-expert-parallel")
@@ -387,20 +435,24 @@ def _build_serve_args(args: argparse.Namespace, profiler_config: dict[str, Any])
             compilation_config = {"cudagraph_mode": "PIECEWISE"}
         else:
             raise ValueError(f"unknown --mode: {args.mode}")
-        serve_args.extend([
-            "--compilation-config",
-            json.dumps(compilation_config, separators=(",", ":")),
-        ])
+        serve_args.extend(
+            [
+                "--compilation-config",
+                json.dumps(compilation_config, separators=(",", ":")),
+            ]
+        )
 
     if args.additional_config:
         try:
             additional_config = json.loads(args.additional_config)
         except json.JSONDecodeError as exc:
             raise ValueError("--additional-config must be valid JSON") from exc
-        serve_args.extend([
-            "--additional-config",
-            json.dumps(additional_config, separators=(",", ":")),
-        ])
+        serve_args.extend(
+            [
+                "--additional-config",
+                json.dumps(additional_config, separators=(",", ":")),
+            ]
+        )
 
     return serve_args
 
@@ -409,21 +461,28 @@ def _build_serve_args(args: argparse.Namespace, profiler_config: dict[str, Any])
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
 
     # Required: target + workload identity
-    p.add_argument("--machine",
-                   help="machine alias or host IP (must be ready in inventory)")
+    p.add_argument(
+        "--machine", help="machine alias or host IP (must be ready in inventory)"
+    )
     p.add_argument("--session-id", help="VAWS session id")
     p.add_argument("--session-file", help="explicit session.json path")
-    p.add_argument("--model", required=True,
-                   help="absolute remote path to model weights")
-    p.add_argument("--served-model-name", required=True,
-                   help="name vLLM exposes via /v1/models")
+    p.add_argument(
+        "--model", required=True, help="absolute remote path to model weights"
+    )
+    p.add_argument(
+        "--served-model-name", required=True, help="name vLLM exposes via /v1/models"
+    )
     p.add_argument("--tp", type=int, required=True, help="tensor-parallel size")
-    p.add_argument("--tag", required=True,
-                   help="stable identifier for this collection run; used in run dir name")
+    p.add_argument(
+        "--tag",
+        required=True,
+        help="stable identifier for this collection run; used in run dir name",
+    )
     p.add_argument(
         "--mode",
         required=True,
@@ -436,35 +495,51 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("text", "vl"),
         help="workload kind sent during the profile window",
     )
-    p.add_argument("--benchmark-output-tokens", type=int, required=True,
-                   help="max_tokens per benchmark-wave request")
+    p.add_argument(
+        "--benchmark-output-tokens",
+        type=int,
+        required=True,
+        help="max_tokens per benchmark-wave request",
+    )
 
     # Optional: parallelism / speculative / EP
-    p.add_argument("--dp", type=int, default=None,
-                   help="data-parallel size (forwarded to serving as --dp)")
+    p.add_argument(
+        "--dp",
+        type=int,
+        default=None,
+        help="data-parallel size (forwarded to serving as --dp)",
+    )
     p.add_argument("--enable-expert-parallel", action="store_true")
     p.add_argument(
-        "--devices", default=None,
+        "--devices",
+        default=None,
         help="ASCEND_RT_VISIBLE_DEVICES forwarded to serving, e.g. 0,3,4,5",
     )
     p.add_argument(
-        "--extra-env", action="append", default=[],
+        "--extra-env",
+        action="append",
+        default=[],
         help="KEY=VALUE forwarded to serving (repeatable)",
     )
     p.add_argument(
-        "--compilation-config", default=None,
+        "--compilation-config",
+        default=None,
         help="JSON override for vLLM --compilation-config",
     )
     p.add_argument(
-        "--additional-config", default=None,
+        "--additional-config",
+        default=None,
         help="JSON forwarded to vLLM --additional-config",
     )
     p.add_argument(
-        "--speculative-tokens", type=int, default=0,
+        "--speculative-tokens",
+        type=int,
+        default=0,
         help="num_speculative_tokens; 0 disables --speculative-config",
     )
     p.add_argument(
-        "--speculative-method", default="qwen3_5_mtp",
+        "--speculative-method",
+        default="qwen3_5_mtp",
         help="speculative method name; only used when --speculative-tokens > 0",
     )
 
@@ -474,15 +549,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-num-seqs", type=int, default=2)
     p.add_argument("--max-num-batched-tokens", type=int, default=1024)
     p.add_argument(
-        "--api-server-count", type=int, default=None,
+        "--api-server-count",
+        type=int,
+        default=None,
         help="override vLLM --api-server-count (for isolating multi-api-server issues)",
     )
 
     # Optional: workload shape during the profile window
-    p.add_argument("--prompt-tokens", type=int, default=2000,
-                   help="input length for benchmark wave + follow-up")
-    p.add_argument("--followup-output-tokens", type=int, default=5,
-                   help="max_tokens for the single tail request")
+    p.add_argument(
+        "--prompt-tokens",
+        type=int,
+        default=2000,
+        help="input length for benchmark wave + follow-up",
+    )
+    p.add_argument(
+        "--followup-output-tokens",
+        type=int,
+        default=5,
+        help="max_tokens for the single tail request",
+    )
     p.add_argument("--benchmark-total-requests", type=int, default=10)
     p.add_argument("--benchmark-concurrency", type=int, default=5)
     p.add_argument(
@@ -496,29 +581,44 @@ def build_parser() -> argparse.ArgumentParser:
             "always required to succeed independently of this threshold"
         ),
     )
-    p.add_argument("--request-timeout", type=int, default=DEFAULT_REQUEST_TIMEOUT,
-                   help="per chat-completions request timeout (seconds)")
     p.add_argument(
-        "--profile-control-timeout", type=int,
+        "--request-timeout",
+        type=int,
+        default=DEFAULT_REQUEST_TIMEOUT,
+        help="per chat-completions request timeout (seconds)",
+    )
+    p.add_argument(
+        "--profile-control-timeout",
+        type=int,
         default=DEFAULT_PROFILE_CONTROL_TIMEOUT,
-        help=("timeout for /start_profile and /stop_profile; multi-rank "
-              "torch profiler setup/finalization can take much longer than "
-              "an ordinary request"),
+        help=(
+            "timeout for /start_profile and /stop_profile; multi-rank "
+            "torch profiler setup/finalization can take much longer than "
+            "an ordinary request"
+        ),
     )
 
     # Optional: profiler depth
-    p.add_argument("--torch-profiler-dir", default=DEFAULT_TORCH_PROFILER_DIRNAME,
-                   help="relative dir under runtime_dir where vLLM writes traces")
+    p.add_argument(
+        "--torch-profiler-dir",
+        default=DEFAULT_TORCH_PROFILER_DIRNAME,
+        help="relative dir under runtime_dir where vLLM writes traces",
+    )
     p.add_argument("--torch-profiler-with-stack", action="store_true")
 
     # Optional: VL workload
     p.add_argument(
-        "--image-path", default=None,
+        "--image-path",
+        default=None,
         help="path to image used for --request-kind vl; defaults to the "
-             "qwen.png test image inside vllm-ascend submodule",
+        "qwen.png test image inside vllm-ascend submodule",
     )
-    p.add_argument("--image-height", type=int, default=480,
-                   help="resize the image to this pixel height before encoding")
+    p.add_argument(
+        "--image-height",
+        type=int,
+        default=480,
+        help="resize the image to this pixel height before encoding",
+    )
 
     # Optional: parity opt-out (forwarded to serving)
     p.add_argument("--skip-parity", action="store_true")
@@ -530,13 +630,16 @@ def build_parser() -> argparse.ArgumentParser:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if not args.machine and not args.session_id and not args.session_file:
-        print_json({
-            "status": "failed",
-            "error": "--machine is required unless --session-id or --session-file is used",
-        })
+        print_json(
+            {
+                "status": "failed",
+                "error": "--machine is required unless --session-id or --session-file is used",
+            }
+        )
         return 2
 
     session_target = None
@@ -547,7 +650,11 @@ def main(argv: list[str] | None = None) -> int:
             session_file=args.session_file,
         )
         args.session_id = session_target.session_id
-        args.session_file = str(session_target.session_file) if session_target.session_file else args.session_file
+        args.session_file = (
+            str(session_target.session_file)
+            if session_target.session_file
+            else args.session_file
+        )
         if not args.machine:
             args.machine = session_target.alias
 
@@ -568,11 +675,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.request_kind == "vl":
         image_path = Path(args.image_path) if args.image_path else VL_DEFAULT_IMAGE
         if not image_path.exists():
-            print_json({
-                "status": "failed",
-                "error": f"image path does not exist: {image_path}",
-                "tag": args.tag,
-            })
+            print_json(
+                {
+                    "status": "failed",
+                    "error": f"image path does not exist: {image_path}",
+                    "tag": args.tag,
+                }
+            )
             return 2
         image_url, image_meta = _build_image_data_url(image_path, args.image_height)
 
@@ -621,7 +730,9 @@ def main(argv: list[str] | None = None) -> int:
     service_result: dict[str, Any] | None = None
     stop_result: dict[str, Any] | None = None
     try:
-        emit_progress("serve_start", f"starting service on {args.session_id or args.machine}")
+        emit_progress(
+            "serve_start", f"starting service on {args.session_id or args.machine}"
+        )
         service_result = call_serve_start(serve_args)
         manifest["service_result"] = service_result
         if service_result.get("status") != "ready":
@@ -649,7 +760,10 @@ def main(argv: list[str] | None = None) -> int:
 
             emit_progress("profile_control", "POST /start_profile")
             manifest["start_profile"] = post_remote_action(
-                ep, port, "start_profile", args.profile_control_timeout,
+                ep,
+                port,
+                "start_profile",
+                args.profile_control_timeout,
             )
 
             emit_progress(
@@ -688,13 +802,18 @@ def main(argv: list[str] | None = None) -> int:
             manifest["followup_result"] = _render_request_results([followup_result])[0]
 
             workload_status = _evaluate_workload(
-                bench_results, followup_result, args.benchmark_success_threshold,
+                bench_results,
+                followup_result,
+                args.benchmark_success_threshold,
             )
             manifest["workload_status"] = workload_status
 
             emit_progress("profile_control", "POST /stop_profile")
             manifest["stop_profile"] = post_remote_action(
-                ep, port, "stop_profile", args.profile_control_timeout,
+                ep,
+                port,
+                "stop_profile",
+                args.profile_control_timeout,
             )
 
         # Give multi-rank torch profiler a small window to flush trailing data
@@ -716,7 +835,9 @@ def main(argv: list[str] | None = None) -> int:
             f"analysing {profile_root} (expected_ranks={expected_ranks})",
         )
         analyse_bundle = analyse_profile_root(
-            ep, profile_root, expected_ranks=expected_ranks,
+            ep,
+            profile_root,
+            expected_ranks=expected_ranks,
         )
         manifest["remote_profile_root"] = profile_root
         manifest["remote_profile_dirs"] = analyse_bundle["dirs"]

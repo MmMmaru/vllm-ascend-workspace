@@ -10,7 +10,14 @@ from typing import Any, Callable, Sequence
 
 try:
     from .classify import classify_profile
-    from .common import SCHEMA_VERSION, TOOL_VERSION, emit_stage_json, read_json, utc_now, write_json
+    from .common import (
+        SCHEMA_VERSION,
+        TOOL_VERSION,
+        emit_stage_json,
+        read_json,
+        utc_now,
+        write_json,
+    )
     from .cross_rank import cross_rank_profile
     from .diagnostics import diagnose_profile
     from .normalize import normalize_profile
@@ -22,7 +29,14 @@ except ImportError:  # pragma: no cover
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from classify import classify_profile  # type: ignore[no-redef]
-    from common import SCHEMA_VERSION, TOOL_VERSION, emit_stage_json, read_json, utc_now, write_json  # type: ignore[no-redef]
+    from common import (
+        SCHEMA_VERSION,
+        TOOL_VERSION,
+        emit_stage_json,
+        read_json,
+        utc_now,
+        write_json,
+    )  # type: ignore[no-redef]
     from cross_rank import cross_rank_profile  # type: ignore[no-redef]
     from diagnostics import diagnose_profile  # type: ignore[no-redef]
     from normalize import normalize_profile  # type: ignore[no-redef]
@@ -31,7 +45,9 @@ except ImportError:  # pragma: no cover
     from summarize import summarize_profile  # type: ignore[no-redef]
 
 
-def run_stage(name: str, func: Callable[[], dict[str, Any]], *, verbose: bool) -> tuple[dict[str, Any], dict[str, Any]]:
+def run_stage(
+    name: str, func: Callable[[], dict[str, Any]], *, verbose: bool
+) -> tuple[dict[str, Any], dict[str, Any]]:
     start = time.time()
     if verbose:
         print(f"[ascend_profile] start {name}", flush=True)
@@ -80,9 +96,7 @@ def _resolve_stage_window(
     start = STAGE_ORDER.index(from_stage) if from_stage else 0
     end = STAGE_ORDER.index(to_stage) if to_stage else len(STAGE_ORDER) - 1
     if start > end:
-        raise ValueError(
-            f"--from-stage={from_stage} comes after --to-stage={to_stage}"
-        )
+        raise ValueError(f"--from-stage={from_stage} comes after --to-stage={to_stage}")
     return start, end
 
 
@@ -127,8 +141,8 @@ def analyze_profile(
         stage_results[name] = result
 
     maybe_run("normalize", lambda: normalize_profile(profile_root, output_dir))
-    maybe_run("segment",   lambda: segment_profile(output_dir))
-    maybe_run("classify",  lambda: classify_profile(output_dir))
+    maybe_run("segment", lambda: segment_profile(output_dir))
+    maybe_run("classify", lambda: classify_profile(output_dir))
     maybe_run("summarize", lambda: summarize_profile(output_dir))
     maybe_run("cross_rank", lambda: cross_rank_profile(output_dir))
     maybe_run("diagnostics", lambda: diagnose_profile(output_dir))
@@ -244,17 +258,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         to_stage=args.to_stage,
         only_stage=args.only_stage,
     )
-    emit_stage_json({
-        "stage": "full_pipeline",
-        "output_dir": manifest["output_dir"],
-        "stages_executed": manifest.get("stages_executed"),
-        "stage_timings": manifest["stage_timings"],
-        "skip_html": bool(args.skip_html),
-        "report_mode": args.report_mode,
-    })
+    emit_stage_json(
+        {
+            "stage": "full_pipeline",
+            "output_dir": manifest["output_dir"],
+            "stages_executed": manifest.get("stages_executed"),
+            "stage_timings": manifest["stage_timings"],
+            "skip_html": bool(args.skip_html),
+            "report_mode": args.report_mode,
+        }
+    )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

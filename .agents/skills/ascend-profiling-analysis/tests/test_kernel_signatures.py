@@ -24,7 +24,9 @@ from pathlib import Path
 
 import pytest
 
-YAML = pytest.importorskip("yaml", reason="pyyaml not installed; kernel sig test skipped")
+YAML = pytest.importorskip(
+    "yaml", reason="pyyaml not installed; kernel sig test skipped"
+)
 
 
 _SKILL_ROOT = Path(__file__).resolve().parent.parent
@@ -111,7 +113,11 @@ _CASES: list[tuple[str, set[str], set[str]]] = [
     (
         "KVQuantSparseAttnSharedKV",
         {"attention.sparse_sharedkv"},
-        {"attention.sparse_sharedkv.metadata", "attention.mla", "attention.flash_score"},
+        {
+            "attention.sparse_sharedkv.metadata",
+            "attention.mla",
+            "attention.flash_score",
+        },
     ),
     (
         "KVQuantSparseAttnSharedKVMetadata",
@@ -282,12 +288,20 @@ _CASES: list[tuple[str, set[str], set[str]]] = [
     (
         "RopeKernel",
         {"attention.rope"},
-        {"attention.rope.interleave", "attention.rope.partial", "attention.rope.indexed"},
+        {
+            "attention.rope.interleave",
+            "attention.rope.partial",
+            "attention.rope.indexed",
+        },
     ),
     (
         "AtbRopeKernel",
         {"attention.rope"},
-        {"attention.rope.interleave", "attention.rope.partial", "attention.rope.indexed"},
+        {
+            "attention.rope.interleave",
+            "attention.rope.partial",
+            "attention.rope.indexed",
+        },
     ),
     (
         "RopeWithSinCosCache_0_high_performance_20",
@@ -463,7 +477,9 @@ _CASES: list[tuple[str, set[str], set[str]]] = [
 ]
 
 
-@pytest.mark.parametrize("name,must_have,must_not_have", _CASES, ids=[c[0] for c in _CASES])
+@pytest.mark.parametrize(
+    "name,must_have,must_not_have", _CASES, ids=[c[0] for c in _CASES]
+)
 def test_kernel_classification_matches_knowledge(
     name: str, must_have: set[str], must_not_have: set[str]
 ) -> None:
@@ -502,7 +518,9 @@ def test_kernel_classification_matches_knowledge(
         ),
     ],
 )
-def test_exact_categories_for_fused_mc2_kernels(name, expected_categories, expected_roles):
+def test_exact_categories_for_fused_mc2_kernels(
+    name, expected_categories, expected_roles
+):
     """For kernels with a single declared category in
     ``kernel_signatures.yaml``, assert exact set equality. Subset-style
     assertions (used elsewhere in this file) would let an accidental
@@ -552,10 +570,15 @@ def test_deprecated_category_names_not_emitted_by_python() -> None:
         "FlashAttentionScore",
     ]
     deprecated = {
-        "attention.csa", "attention.csa.compressor", "attention.csa.indexer",
+        "attention.csa",
+        "attention.csa.compressor",
+        "attention.csa.indexer",
         "attention.csa.metadata",
-        "attention.sfa", "attention.sfa.compressor", "attention.sfa.indexer",
-        "attention.sfa.metadata", "attention.sfa.v_up_proj",
+        "attention.sfa",
+        "attention.sfa.compressor",
+        "attention.sfa.indexer",
+        "attention.sfa.metadata",
+        "attention.sfa.v_up_proj",
         "attention.gqa_or_mha",
     }
     for name in samples:

@@ -66,7 +66,9 @@ def print_json(data: dict[str, Any]) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False))
 
 
-def emit_progress(*, action: str, phase: str, message: str, machine: str | None = None, **extra: Any) -> None:
+def emit_progress(
+    *, action: str, phase: str, message: str, machine: str | None = None, **extra: Any
+) -> None:
     payload: dict[str, Any] = {
         "action": action,
         "phase": phase,
@@ -75,7 +77,9 @@ def emit_progress(*, action: str, phase: str, message: str, machine: str | None 
     if machine is not None:
         payload["machine"] = machine
     payload.update({key: value for key, value in extra.items() if value is not None})
-    sys.stderr.write(machine_ops.PROGRESS_SENTINEL + json.dumps(payload, ensure_ascii=False) + "\n")
+    sys.stderr.write(
+        machine_ops.PROGRESS_SENTINEL + json.dumps(payload, ensure_ascii=False) + "\n"
+    )
     sys.stderr.flush()
 
 
@@ -166,7 +170,11 @@ def image_selection_needs_input_payload(
                     "recommended": True,
                     "resolution": prerelease_resolution_note,
                     "use_when": "recommended default for active development when you want the newest release-candidate image with matched container dependencies",
-                    **({"resolved_tag": latest_prerelease_tag} if latest_prerelease_tag else {}),
+                    **(
+                        {"resolved_tag": latest_prerelease_tag}
+                        if latest_prerelease_tag
+                        else {}
+                    ),
                 },
                 {
                     "value": machine_ops.IMAGE_SELECTOR_MAIN,
@@ -181,7 +189,11 @@ def image_selection_needs_input_payload(
                     "recommended": False,
                     "resolution": release_resolution_note,
                     "use_when": "reproducing the newest official non-prerelease container release",
-                    **({"resolved_tag": latest_release_tag} if latest_release_tag else {}),
+                    **(
+                        {"resolved_tag": latest_release_tag}
+                        if latest_release_tag
+                        else {}
+                    ),
                 },
                 {
                     "value": "custom",
@@ -195,7 +207,10 @@ def image_selection_needs_input_payload(
                 "*:latest",
                 "bare repositories without a tag",
             ],
-            "mirror_order": [machine_ops.IMAGE_REGISTRY_NJU, machine_ops.IMAGE_REGISTRY_OFFICIAL],
+            "mirror_order": [
+                machine_ops.IMAGE_REGISTRY_NJU,
+                machine_ops.IMAGE_REGISTRY_OFFICIAL,
+            ],
         },
     )
 
@@ -242,7 +257,9 @@ def resolve_workflow_image(
     return current_image, None
 
 
-def image_request_matches_record(explicit_image: str | None, record: dict[str, Any] | None) -> bool:
+def image_request_matches_record(
+    explicit_image: str | None, record: dict[str, Any] | None
+) -> bool:
     if explicit_image is None or record is None:
         return False
     current_image = record.get("container", {}).get("image")
@@ -264,7 +281,9 @@ def image_request_matches_record(explicit_image: str | None, record: dict[str, A
     if machine_type is None:
         machine_type = machine_ops.infer_machine_type_from_image(current_image)
     try:
-        resolution = machine_ops.resolve_image_request(explicit_image.strip(), machine_type=machine_type)
+        resolution = machine_ops.resolve_image_request(
+            explicit_image.strip(), machine_type=machine_type
+        )
     except machine_ops.MachineManagementError:
         return False
     return current_image in resolution.candidates
@@ -289,13 +308,19 @@ def host_password_needs_input_payload(target: machine_ops.SshTarget) -> dict[str
 
 
 def load_inventory_state() -> InventoryState:
-    requested_path = inventory_store.preferred_inventory_path(inventory_store.DEFAULT_PATH)
+    requested_path = inventory_store.preferred_inventory_path(
+        inventory_store.DEFAULT_PATH
+    )
     active_path = inventory_store.read_inventory_path(requested_path)
     inventory = inventory_store.load_inventory(active_path)
-    return InventoryState(requested_path=requested_path, active_path=active_path, inventory=inventory)
+    return InventoryState(
+        requested_path=requested_path, active_path=active_path, inventory=inventory
+    )
 
 
-def find_record(identifier: str, state: InventoryState | None = None) -> dict[str, Any] | None:
+def find_record(
+    identifier: str, state: InventoryState | None = None
+) -> dict[str, Any] | None:
     current = state or load_inventory_state()
     matches = inventory_store._find_matches(current.inventory, identifier=identifier)  # noqa: SLF001
     if not matches:
@@ -354,7 +379,9 @@ def load_or_create_profile(
             return profile, None, action
         profile = load_profile()
         if profile is None:
-            raise WorkflowError("profile summary reported exists=true but the profile could not be loaded")
+            raise WorkflowError(
+                "profile summary reported exists=true but the profile could not be loaded"
+            )
         return profile, None, "existing"
 
     if machine_username is None and not generate_machine_username:
@@ -385,7 +412,11 @@ def ensure_local_public_key(
 
 def resolve_password_args(args: argparse.Namespace) -> PasswordInput:
     if getattr(args, "password", None) is not None:
-        return PasswordInput(value=args.password, source="password", env_name=machine_ops.DEFAULT_PASSWORD_ENV)
+        return PasswordInput(
+            value=args.password,
+            source="password",
+            env_name=machine_ops.DEFAULT_PASSWORD_ENV,
+        )
     if getattr(args, "password_env", None):
         env_name = machine_ops.validate_env_name(args.password_env)
         value = os.environ.get(env_name)
@@ -399,8 +430,14 @@ def resolve_password_args(args: argparse.Namespace) -> PasswordInput:
         value = value.rstrip("\r\n")
         if not value:
             raise WorkflowError("no password received on stdin")
-        return PasswordInput(value=value, source="password-stdin", env_name=machine_ops.DEFAULT_PASSWORD_ENV)
-    return PasswordInput(value=None, source=None, env_name=machine_ops.DEFAULT_PASSWORD_ENV)
+        return PasswordInput(
+            value=value,
+            source="password-stdin",
+            env_name=machine_ops.DEFAULT_PASSWORD_ENV,
+        )
+    return PasswordInput(
+        value=None, source=None, env_name=machine_ops.DEFAULT_PASSWORD_ENV
+    )
 
 
 def host_target(*, host: str, user: str, port: int) -> machine_ops.SshTarget:
@@ -415,7 +452,9 @@ def container_target(record: dict[str, Any]) -> machine_ops.SshTarget:
     )
 
 
-def check_host_key(target: machine_ops.SshTarget, private_key: pathlib.Path | None) -> dict[str, Any]:
+def check_host_key(
+    target: machine_ops.SshTarget, private_key: pathlib.Path | None
+) -> dict[str, Any]:
     return machine_ops.check_direct_ssh(target, identity_file=private_key)
 
 
@@ -425,7 +464,9 @@ def bootstrap_host_key(
     public_key_file: str | None,
     password: PasswordInput,
 ) -> dict[str, Any]:
-    key_path, private_key, public_key, needs_input = ensure_local_public_key(public_key_file)
+    key_path, private_key, public_key, needs_input = ensure_local_public_key(
+        public_key_file
+    )
     if needs_input is not None:
         return needs_input
     assert key_path is not None and public_key is not None
@@ -439,7 +480,9 @@ def bootstrap_host_key(
         "needs_interactive_terminal": False,
     }
     if before["ok"]:
-        payload.update({"success": True, "result": "already-configured", "executed": False})
+        payload.update(
+            {"success": True, "result": "already-configured", "executed": False}
+        )
         return payload
     if password.value is None:
         return host_password_needs_input_payload(target)
@@ -449,7 +492,9 @@ def bootstrap_host_key(
         key_path=key_path,
         public_key=public_key,
     )
-    proc = machine_ops.run_with_askpass(command, password=password.value, env_name=password.env_name)
+    proc = machine_ops.run_with_askpass(
+        command, password=password.value, env_name=password.env_name
+    )
     after = check_host_key(target, private_key)
     payload.update(
         {
@@ -486,7 +531,11 @@ def probe_host(
     result = machine_ops.run_remote_script(
         target,
         machine_ops.render_host_probe_script(),
-        args=[json.dumps(image_request, ensure_ascii=False), port_range, managed_prefix],
+        args=[
+            json.dumps(image_request, ensure_ascii=False),
+            port_range,
+            managed_prefix,
+        ],
         batch_mode=True,
         timeout_seconds=machine_ops.DEFAULT_PROBE_TIMEOUT_SECONDS,
     )
@@ -501,7 +550,11 @@ def probe_host(
             target={"host": target.host, "user": target.user, "host_port": target.port},
             stderr_tail=machine_ops.compact_failure_tail(result.stderr),
         )
-    payload["target"] = {"host": target.host, "user": target.user, "host_port": target.port}
+    payload["target"] = {
+        "host": target.host,
+        "user": target.user,
+        "host_port": target.port,
+    }
     if result.progress_events:
         payload["progress_events"] = result.progress_events
     return payload
@@ -522,7 +575,9 @@ def bootstrap_container(
     replace_container_on_image_change: bool = False,
     use_prepared_image_cache: bool = False,
 ) -> dict[str, Any]:
-    key_path, private_key, public_key, needs_input = ensure_local_public_key(public_key_file)
+    key_path, private_key, public_key, needs_input = ensure_local_public_key(
+        public_key_file
+    )
     if needs_input is not None:
         return needs_input
     assert key_path is not None and public_key is not None
@@ -597,7 +652,9 @@ def bootstrap_container(
     return payload
 
 
-def smoke_machine(record: dict[str, Any], *, python: str | None = None) -> dict[str, Any]:
+def smoke_machine(
+    record: dict[str, Any], *, python: str | None = None
+) -> dict[str, Any]:
     args = argparse.Namespace(
         host=record["host"]["ip"],
         user=record["host"]["user"],
@@ -623,7 +680,9 @@ def verify_machine(
     progress_cb: Callable[[str, str], None] | None = None,
 ) -> dict[str, Any]:
     try:
-        identity_file = machine_ops.private_key_for_public_key(machine_ops.find_public_key(None))
+        identity_file = machine_ops.private_key_for_public_key(
+            machine_ops.find_public_key(None)
+        )
     except machine_ops.MachineManagementError:
         identity_file = None
 
@@ -639,7 +698,9 @@ def verify_machine(
     host_check = machine_ops.check_direct_ssh(host, identity_file=identity_file)
     if progress_cb is not None:
         progress_cb("container-ssh", "checking direct container SSH")
-    container_check = machine_ops.check_direct_ssh(container, identity_file=identity_file)
+    container_check = machine_ops.check_direct_ssh(
+        container, identity_file=identity_file
+    )
     payload: dict[str, Any] = {
         "machine": machine_summary(record),
         "identity_file": str(identity_file) if identity_file is not None else None,
@@ -649,7 +710,9 @@ def verify_machine(
     local_tool_errors = []
     for check in (host_check, container_check):
         stderr = check.get("stderr")
-        if isinstance(stderr, str) and stderr.startswith("required local command not found:"):
+        if isinstance(stderr, str) and stderr.startswith(
+            "required local command not found:"
+        ):
             local_tool_errors.append(stderr)
     if local_tool_errors:
         payload.update(
@@ -660,7 +723,10 @@ def verify_machine(
                 "message": "required local SSH tooling is missing",
                 "local_tool_errors": sorted(set(local_tool_errors)),
                 "ready": False,
-                "smoke": {"success": False, "skipped": "local ssh command is unavailable"},
+                "smoke": {
+                    "success": False,
+                    "skipped": "local ssh command is unavailable",
+                },
             }
         )
         return payload
@@ -671,7 +737,9 @@ def verify_machine(
     else:
         smoke = {"success": False, "skipped": "container SSH failed"}
     payload["smoke"] = smoke
-    payload["ready"] = bool(host_check["ok"] and container_check["ok"] and smoke.get("success") is True)
+    payload["ready"] = bool(
+        host_check["ok"] and container_check["ok"] and smoke.get("success") is True
+    )
     if progress_cb is not None:
         progress_cb("complete", "machine verification finished")
     if payload["ready"]:
@@ -703,7 +771,9 @@ def export_mesh_key(record: dict[str, Any]) -> dict[str, Any]:
     return machine_ops.assert_remote_success(result)
 
 
-def add_mesh_peer(record: dict[str, Any], *, peer_public_key: str, peer_host: str, peer_port: int) -> dict[str, Any]:
+def add_mesh_peer(
+    record: dict[str, Any], *, peer_public_key: str, peer_host: str, peer_port: int
+) -> dict[str, Any]:
     target = container_target(record)
     result = machine_ops.run_remote_script(
         target,
@@ -714,7 +784,9 @@ def add_mesh_peer(record: dict[str, Any], *, peer_public_key: str, peer_host: st
     return machine_ops.assert_remote_success(result)
 
 
-def remove_mesh_peer(record: dict[str, Any], *, peer_comment: str, peer_host: str, peer_port: int) -> dict[str, Any]:
+def remove_mesh_peer(
+    record: dict[str, Any], *, peer_comment: str, peer_host: str, peer_port: int
+) -> dict[str, Any]:
     target = container_target(record)
     result = machine_ops.run_remote_script(
         target,
@@ -725,7 +797,9 @@ def remove_mesh_peer(record: dict[str, Any], *, peer_comment: str, peer_host: st
     return machine_ops.assert_remote_success(result)
 
 
-def sync_mesh(record: dict[str, Any], *, peers: Sequence[dict[str, Any]]) -> dict[str, Any]:
+def sync_mesh(
+    record: dict[str, Any], *, peers: Sequence[dict[str, Any]]
+) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     if not peers:
         return {"attempted": 0, "success": True, "peers": results}
@@ -761,7 +835,9 @@ def sync_mesh(record: dict[str, Any], *, peers: Sequence[dict[str, Any]]) -> dic
     return {"attempted": len(peers), "success": overall_success, "peers": results}
 
 
-def cleanup_mesh(record: dict[str, Any], *, peers: Sequence[dict[str, Any]]) -> dict[str, Any]:
+def cleanup_mesh(
+    record: dict[str, Any], *, peers: Sequence[dict[str, Any]]
+) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     comment = mesh_comment_for_record(record)
     overall_success = True
@@ -805,23 +881,37 @@ def upsert_machine_record(
     host_soc: str | None = None,
     container_machine_type: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    requested_path = inventory_store.preferred_inventory_path(inventory_store.DEFAULT_PATH)
+    requested_path = inventory_store.preferred_inventory_path(
+        inventory_store.DEFAULT_PATH
+    )
     try:
         with inventory_store.inventory_lock(requested_path):
             active_path = inventory_store.read_inventory_path(requested_path)
             inventory = inventory_store.load_inventory(active_path)
-            state = InventoryState(requested_path=requested_path, active_path=active_path, inventory=inventory)
+            state = InventoryState(
+                requested_path=requested_path,
+                active_path=active_path,
+                inventory=inventory,
+            )
 
             alias_matches = inventory_store._find_matches(state.inventory, alias=alias)  # noqa: SLF001
             ip_matches = inventory_store._find_matches(state.inventory, host_ip=host_ip)  # noqa: SLF001
             alias_record = alias_matches[0] if alias_matches else None
             ip_record = ip_matches[0] if ip_matches else None
-            if alias_record is not None and ip_record is not None and alias_record is not ip_record:
+            if (
+                alias_record is not None
+                and ip_record is not None
+                and alias_record is not ip_record
+            ):
                 raise WorkflowError(
                     "alias and host IP match different existing records; resolve the conflict manually"
                 )
             target = alias_record or ip_record
-            normalized_namespace = inventory_store.validate_machine_username(namespace) if namespace else None
+            normalized_namespace = (
+                inventory_store.validate_machine_username(namespace)
+                if namespace
+                else None
+            )
             record = {
                 "alias": alias,
                 "namespace": normalized_namespace,
@@ -887,15 +977,25 @@ def upsert_machine_record(
     return payload, record
 
 
-def remove_machine_record(identifier: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    requested_path = inventory_store.preferred_inventory_path(inventory_store.DEFAULT_PATH)
+def remove_machine_record(
+    identifier: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    requested_path = inventory_store.preferred_inventory_path(
+        inventory_store.DEFAULT_PATH
+    )
     try:
         with inventory_store.inventory_lock(requested_path):
             active_path = inventory_store.read_inventory_path(requested_path)
             inventory = inventory_store.load_inventory(active_path)
-            state = InventoryState(requested_path=requested_path, active_path=active_path, inventory=inventory)
+            state = InventoryState(
+                requested_path=requested_path,
+                active_path=active_path,
+                inventory=inventory,
+            )
 
-            matches = inventory_store._find_matches(state.inventory, identifier=identifier)  # noqa: SLF001
+            matches = inventory_store._find_matches(
+                state.inventory, identifier=identifier
+            )  # noqa: SLF001
             if not matches:
                 return status_payload(
                     "unmanaged",
@@ -908,7 +1008,9 @@ def remove_machine_record(identifier: str) -> tuple[dict[str, Any], dict[str, An
                     f"multiple machines matched {identifier!r}; use a unique alias or host IP"
                 )
             target = matches[0]
-            state.inventory["machines"] = [record for record in state.inventory["machines"] if record is not target]
+            state.inventory["machines"] = [
+                record for record in state.inventory["machines"] if record is not target
+            ]
             inventory_store.save_inventory(state.requested_path, state.inventory)
     except inventory_store.InventoryError as exc:
         raise WorkflowError(

@@ -237,7 +237,11 @@ def to_plain(value: Any) -> Any:
 
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(to_plain(payload), ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(to_plain(payload), ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def read_json(path: Path, default: Any = None) -> Any:
@@ -254,6 +258,7 @@ def emit_stage_json(payload: dict[str, Any]) -> None:
     automation can consume valid JSON instead of Python dict repr.
     """
     import sys as _sys
+
     _sys.stdout.write(json.dumps(to_plain(payload), ensure_ascii=False) + "\n")
     _sys.stdout.flush()
 
@@ -262,7 +267,15 @@ def write_jsonl(path: Path, rows: Iterable[Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
-            handle.write(json.dumps(to_plain(row), ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+            handle.write(
+                json.dumps(
+                    to_plain(row),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n"
+            )
 
 
 def read_jsonl(path: Path) -> Iterator[dict[str, Any]]:
@@ -406,12 +419,22 @@ def infer_rank_id(rank_dir: Path, ordinal: int) -> str:
 def discover_rank_dirs(root: Path) -> list[Path]:
     root = root.resolve()
     if root.is_file() and root.name == "kernel_details.csv":
-        return [root.parent.parent if root.parent.name == "ASCEND_PROFILER_OUTPUT" else root.parent]
-    if (root / "kernel_details.csv").is_file() or (root / "ASCEND_PROFILER_OUTPUT" / "kernel_details.csv").is_file():
+        return [
+            root.parent.parent
+            if root.parent.name == "ASCEND_PROFILER_OUTPUT"
+            else root.parent
+        ]
+    if (root / "kernel_details.csv").is_file() or (
+        root / "ASCEND_PROFILER_OUTPUT" / "kernel_details.csv"
+    ).is_file():
         return [root]
     candidates: set[Path] = set()
     for path in root.rglob("kernel_details.csv"):
-        parent = path.parent.parent if path.parent.name == "ASCEND_PROFILER_OUTPUT" else path.parent
+        parent = (
+            path.parent.parent
+            if path.parent.name == "ASCEND_PROFILER_OUTPUT"
+            else path.parent
+        )
         candidates.add(parent)
     return sorted(candidates, key=lambda item: str(item))
 
@@ -453,13 +476,22 @@ def shape_signature(row: Mapping[str, Any]) -> tuple[str | None, dict[str, Any]]
             _PICK_KEY_CACHE[row_keys] = lowered
         shape_columns = tuple(
             lowered[key.lower()]
-            for key in ("Input Shapes", "Input Shape", "Input", "Output Shapes", "Output Shape", "Output")
+            for key in (
+                "Input Shapes",
+                "Input Shape",
+                "Input",
+                "Output Shapes",
+                "Output Shape",
+                "Output",
+            )
             if key.lower() in lowered
         )
         _SHAPE_COLUMN_CACHE[row_keys] = shape_columns
     if not shape_columns:
         return None, {}
-    shape_text = " ".join(str(row.get(key, "")).strip() for key in shape_columns).strip()
+    shape_text = " ".join(
+        str(row.get(key, "")).strip() for key in shape_columns
+    ).strip()
     if not shape_text:
         return None, {}
     dims = [int(value) for value in re.findall(r"-?\d+", shape_text)]
@@ -482,7 +514,11 @@ def task_type_from_row(row: Mapping[str, Any]) -> str:
 
 
 def core_from_row(row: Mapping[str, Any]) -> str:
-    return pick(row, ("Accelerator Core", "Core Type", "Task Type", "Kernel Type", "Type"), "UNKNOWN").upper()
+    return pick(
+        row,
+        ("Accelerator Core", "Core Type", "Task Type", "Kernel Type", "Type"),
+        "UNKNOWN",
+    ).upper()
 
 
 def name_from_row(row: Mapping[str, Any]) -> str:
@@ -494,7 +530,9 @@ def stream_from_row(row: Mapping[str, Any]) -> str:
 
 
 def event_time_from_row(row: Mapping[str, Any]) -> tuple[float, float, float, float]:
-    start = try_float(pick(row, ("Start Time(us)", "Start Time", "Start(us)", "Start", "ts"), "0"))
+    start = try_float(
+        pick(row, ("Start Time(us)", "Start Time", "Start(us)", "Start", "ts"), "0")
+    )
     duration = try_float(pick(row, ("Duration(us)", "Duration", "dur"), "0"))
     wait = try_float(pick(row, ("Wait Time(us)", "Wait Time", "Wait(us)", "wait"), "0"))
     end = try_float(pick(row, ("End Time(us)", "End Time", "End(us)", "End"), "0"))
@@ -516,17 +554,17 @@ def event_time_from_row(row: Mapping[str, Any]) -> tuple[float, float, float, fl
 # unit) and ``aiv_mte2_time`` (GM -> UB for the vector unit) MUST stay
 # separate -- merging them masks the actual bottleneck.
 _PIPELINE_SOURCE_COLUMNS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("aicore_time",      ("aicore_time(us)", "aicore_time", "AI Core Time(us)")),
-    ("aiv_time",         ("aiv_time(us)", "aiv_time", "AI Vector Time(us)")),
-    ("aic_mac_time",     ("aic_mac_time(us)", "aic_mac_time")),
+    ("aicore_time", ("aicore_time(us)", "aicore_time", "AI Core Time(us)")),
+    ("aiv_time", ("aiv_time(us)", "aiv_time", "AI Vector Time(us)")),
+    ("aic_mac_time", ("aic_mac_time(us)", "aic_mac_time")),
     ("aic_fixpipe_time", ("aic_fixpipe_time(us)", "aic_fixpipe_time")),
-    ("aic_mte1_time",    ("aic_mte1_time(us)", "aic_mte1_time")),
-    ("aic_mte2_time",    ("aic_mte2_time(us)", "aic_mte2_time")),
-    ("aic_scalar_time",  ("aic_scalar_time(us)", "aic_scalar_time")),
-    ("aiv_vec_time",     ("aiv_vec_time(us)", "aiv_vec_time")),
-    ("aiv_mte2_time",    ("aiv_mte2_time(us)", "aiv_mte2_time")),
-    ("aiv_mte3_time",    ("aiv_mte3_time(us)", "aiv_mte3_time")),
-    ("aiv_scalar_time",  ("aiv_scalar_time(us)", "aiv_scalar_time")),
+    ("aic_mte1_time", ("aic_mte1_time(us)", "aic_mte1_time")),
+    ("aic_mte2_time", ("aic_mte2_time(us)", "aic_mte2_time")),
+    ("aic_scalar_time", ("aic_scalar_time(us)", "aic_scalar_time")),
+    ("aiv_vec_time", ("aiv_vec_time(us)", "aiv_vec_time")),
+    ("aiv_mte2_time", ("aiv_mte2_time(us)", "aiv_mte2_time")),
+    ("aiv_mte3_time", ("aiv_mte3_time(us)", "aiv_mte3_time")),
+    ("aiv_scalar_time", ("aiv_scalar_time(us)", "aiv_scalar_time")),
 )
 
 
@@ -539,21 +577,32 @@ PIPELINE_FIELDS: tuple[str, ...] = tuple(key for key, _ in _PIPELINE_SOURCE_COLU
 # Stage groups for bound-class derivation.  ``aicore_time`` and
 # ``aiv_time`` are totals and intentionally NOT in any group -- they're
 # just the per-core wall time.
-_AIC_STAGES: tuple[str, ...] = ("aic_mac_time", "aic_fixpipe_time", "aic_mte1_time", "aic_mte2_time", "aic_scalar_time")
-_AIV_STAGES: tuple[str, ...] = ("aiv_vec_time", "aiv_mte2_time", "aiv_mte3_time", "aiv_scalar_time")
+_AIC_STAGES: tuple[str, ...] = (
+    "aic_mac_time",
+    "aic_fixpipe_time",
+    "aic_mte1_time",
+    "aic_mte2_time",
+    "aic_scalar_time",
+)
+_AIV_STAGES: tuple[str, ...] = (
+    "aiv_vec_time",
+    "aiv_mte2_time",
+    "aiv_mte3_time",
+    "aiv_scalar_time",
+)
 _PIPELINE_STAGES: tuple[str, ...] = _AIC_STAGES + _AIV_STAGES
 
 
 _BOUND_FAMILY_BY_STAGE: dict[str, str] = {
-    "aic_mac_time":     "cube",
+    "aic_mac_time": "cube",
     "aic_fixpipe_time": "cube",
-    "aic_mte1_time":    "aic_mte",
-    "aic_mte2_time":    "aic_mte",
-    "aic_scalar_time":  "scalar",
-    "aiv_vec_time":     "vector",
-    "aiv_mte2_time":    "aiv_mte",
-    "aiv_mte3_time":    "aiv_mte",
-    "aiv_scalar_time":  "scalar",
+    "aic_mte1_time": "aic_mte",
+    "aic_mte2_time": "aic_mte",
+    "aic_scalar_time": "scalar",
+    "aiv_vec_time": "vector",
+    "aiv_mte2_time": "aiv_mte",
+    "aiv_mte3_time": "aiv_mte",
+    "aiv_scalar_time": "scalar",
 }
 
 
@@ -616,19 +665,19 @@ def sum_pipeline_breakdown(pipelines: Iterable[Mapping[str, Any]]) -> dict[str, 
 
 
 _OP_TYPE_BY_CORE: dict[str, str] = {
-    "AI_CORE":         "aic",
-    "AICORE":          "aic",
-    "AI_VECTOR_CORE":  "aiv",
-    "AIVECTOR":        "aiv",
-    "AI_VECTORCORE":   "aiv",
-    "MIX_AIC":         "mix_cv",
-    "MIX_AIV":         "mix_cv",
-    "MIX_AICAIV":      "mix_cv",
-    "MIX_AIC_AIV":     "mix_cv",
-    "COMMUNICATION":   "communication",
-    "AI_CPU":          "aicpu",
-    "AICPU":           "aicpu",
-    "DSA_SQE":         "dsa",
+    "AI_CORE": "aic",
+    "AICORE": "aic",
+    "AI_VECTOR_CORE": "aiv",
+    "AIVECTOR": "aiv",
+    "AI_VECTORCORE": "aiv",
+    "MIX_AIC": "mix_cv",
+    "MIX_AIV": "mix_cv",
+    "MIX_AICAIV": "mix_cv",
+    "MIX_AIC_AIV": "mix_cv",
+    "COMMUNICATION": "communication",
+    "AI_CPU": "aicpu",
+    "AICPU": "aicpu",
+    "DSA_SQE": "dsa",
 }
 
 
@@ -714,34 +763,77 @@ def bound_class_from_pipeline(
     op_type_resolved = op_type or "unknown"
 
     if is_aicpu or op_type_resolved == "aicpu":
-        return {"bound_stage": "aicpu", "bound_family": "aicpu", "dominant_core": "none", "op_type": "aicpu"}
+        return {
+            "bound_stage": "aicpu",
+            "bound_family": "aicpu",
+            "dominant_core": "none",
+            "op_type": "aicpu",
+        }
     if op_type_resolved == "dsa":
-        return {"bound_stage": "dsa", "bound_family": "dsa", "dominant_core": "none", "op_type": "dsa"}
-    if op_type_resolved == "communication" or (is_communication and op_type_resolved not in {"mix_comm_aiv"}):
-        return {"bound_stage": "communication", "bound_family": "communication", "dominant_core": "none", "op_type": "communication"}
+        return {
+            "bound_stage": "dsa",
+            "bound_family": "dsa",
+            "dominant_core": "none",
+            "op_type": "dsa",
+        }
+    if op_type_resolved == "communication" or (
+        is_communication and op_type_resolved not in {"mix_comm_aiv"}
+    ):
+        return {
+            "bound_stage": "communication",
+            "bound_family": "communication",
+            "dominant_core": "none",
+            "op_type": "communication",
+        }
 
     pipeline = pipeline or {}
 
     if op_type_resolved == "mix_comm_aiv":
         aiv_us = {key: float(pipeline.get(key) or 0.0) for key in _AIV_STAGES}
         if sum(aiv_us.values()) <= 0:
-            return {"bound_stage": "communication", "bound_family": "comm_aiv_mix", "dominant_core": "none", "op_type": "mix_comm_aiv"}
+            return {
+                "bound_stage": "communication",
+                "bound_family": "comm_aiv_mix",
+                "dominant_core": "none",
+                "op_type": "mix_comm_aiv",
+            }
         bound_stage = max(aiv_us, key=aiv_us.get)
-        return {"bound_stage": bound_stage, "bound_family": "comm_aiv_mix", "dominant_core": "aiv", "op_type": "mix_comm_aiv"}
+        return {
+            "bound_stage": bound_stage,
+            "bound_family": "comm_aiv_mix",
+            "dominant_core": "aiv",
+            "op_type": "mix_comm_aiv",
+        }
 
     if not has_pipeline_signal(pipeline):
-        return {"bound_stage": "unknown", "bound_family": "unknown", "dominant_core": "none", "op_type": op_type_resolved}
+        return {
+            "bound_stage": "unknown",
+            "bound_family": "unknown",
+            "dominant_core": "none",
+            "op_type": op_type_resolved,
+        }
 
-    stage_us: dict[str, float] = {key: float(pipeline.get(key) or 0.0) for key in _PIPELINE_STAGES}
+    stage_us: dict[str, float] = {
+        key: float(pipeline.get(key) or 0.0) for key in _PIPELINE_STAGES
+    }
     total = sum(stage_us.values())
     if total <= 0:
-        return {"bound_stage": "unknown", "bound_family": "unknown", "dominant_core": "none", "op_type": op_type_resolved}
+        return {
+            "bound_stage": "unknown",
+            "bound_family": "unknown",
+            "dominant_core": "none",
+            "op_type": op_type_resolved,
+        }
 
     bound_stage = max(stage_us, key=stage_us.get)
     family_total: dict[str, float] = {}
     for stage, value in stage_us.items():
-        family_total[_BOUND_FAMILY_BY_STAGE[stage]] = family_total.get(_BOUND_FAMILY_BY_STAGE[stage], 0.0) + value
-    sorted_families = sorted(family_total.items(), key=lambda item: item[1], reverse=True)
+        family_total[_BOUND_FAMILY_BY_STAGE[stage]] = (
+            family_total.get(_BOUND_FAMILY_BY_STAGE[stage], 0.0) + value
+        )
+    sorted_families = sorted(
+        family_total.items(), key=lambda item: item[1], reverse=True
+    )
     top_family, top_value = sorted_families[0]
     runner_value = sorted_families[1][1] if len(sorted_families) > 1 else 0.0
     if total > 0 and (top_value - runner_value) / total < mixed_margin:
@@ -764,13 +856,22 @@ def bound_class_from_pipeline(
     else:
         dominant_core = "aiv"
 
-    return {"bound_stage": bound_stage, "bound_family": bound_family, "dominant_core": dominant_core, "op_type": op_type_resolved}
+    return {
+        "bound_stage": bound_stage,
+        "bound_family": bound_family,
+        "dominant_core": dominant_core,
+        "op_type": op_type_resolved,
+    }
 
 
-_CATEGORY_ROLE_CACHE: dict[tuple[str, str, str], tuple[tuple[str, ...], tuple[str, ...]]] = {}
+_CATEGORY_ROLE_CACHE: dict[
+    tuple[str, str, str], tuple[tuple[str, ...], tuple[str, ...]]
+] = {}
 
 
-def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+def categories_and_roles(
+    name: str, task_type: str, accelerator_core: str
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Classify one kernel into op_categories + op_roles.
 
     The rule order and signatures below are the Python mirror of
@@ -807,7 +908,17 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
     roles: set[str] = set()
 
     # --- Communication ----------------------------------------------------
-    if any(token in text for token in ("hccl", "hcom", "allreduce", "allgather", "reducescatter", "alltoall")):
+    if any(
+        token in text
+        for token in (
+            "hccl",
+            "hcom",
+            "allreduce",
+            "allgather",
+            "reducescatter",
+            "alltoall",
+        )
+    ):
         categories.add("communication.collective")
         roles.add("communication")
         if "allreduce" in text:
@@ -826,14 +937,20 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
     #       - kv_compressor + lightning_indexer + sparse_sharedkv  -> CSA (V4)
     #       - lightning_indexer + sparse_sharedkv, no kv_compressor -> DSA (V3.2)
     #       - kv_compressor + dense FIA, no indexer/sparse_sharedkv -> HCA (V4)
-    if any(token in text for token in ("sparseattnsharedkv", "sparseattentionsharedkv", "sharedkv")):
+    if any(
+        token in text
+        for token in ("sparseattnsharedkv", "sparseattentionsharedkv", "sharedkv")
+    ):
         if "metadata" in text:
             categories.add("attention.sparse_sharedkv.metadata")
             roles.add("attention_aux")
         else:
             categories.add("attention.sparse_sharedkv")
             roles.add("attention")
-    if any(token in text for token in ("lightningindex", "lightningindexer", "indexercompressepilog")):
+    if any(
+        token in text
+        for token in ("lightningindex", "lightningindexer", "indexercompressepilog")
+    ):
         categories.add("attention.lightning_indexer")
         roles.add("attention_aux")
     if "compressor" in text or "kvcompressepilog" in text:
@@ -852,13 +969,16 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
     # vllm-ascend): ``mla_prolog``, ``mla_prolog_v2``, plus the
     # vllm-ascend custom kernel ``mla_preprocess``. We accept all three
     # spellings — older traces show "MlaProlog", newer ones "MlaPreprocess".
-    if any(token in text for token in (
-        "mlapreprocess",
-        "mlaprolog",
-        "mlaprologv2",
-        "mlaprologweightnz",
-        "mlapo",
-    )):
+    if any(
+        token in text
+        for token in (
+            "mlapreprocess",
+            "mlaprolog",
+            "mlaprologv2",
+            "mlaprologweightnz",
+            "mlapo",
+        )
+    ):
         categories.add("attention.mla.preprocess")
         categories.add("attention.mla")
         roles.add("attention")
@@ -905,11 +1025,14 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
     #     non-bnsd variants land here. ``fold_text`` strips underscores
     #     so "reshape_and_cache_200000000" reduces to "reshapeandcache..."
     #     and falls through the same "reshapeandcache" substring rule.
-    if "attention.kvcomp.cache_write" not in categories and any(token in text for token in (
-        "pagedcacheload",
-        "scatterpakvcache",
-        "reshapeandcache",
-    )):
+    if "attention.kvcomp.cache_write" not in categories and any(
+        token in text
+        for token in (
+            "pagedcacheload",
+            "scatterpakvcache",
+            "reshapeandcache",
+        )
+    ):
         categories.add("attention.kv_cache_io")
         roles.add("attention_aux")
 
@@ -918,13 +1041,16 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
     # they are dense flash-style score kernels. The ATB variant uses a
     # different name (``PagedAttentionMaskNdKernel``) but feeds the
     # same paged KV cache and supports the same MHA/GQA distinction.
-    if any(token in text for token in (
-        "fusedinferattentionscore",
-        "unpadflashattention",
-        "flashattentionscore",
-        "flashattention",
-        "pagedattentionmask",
-    )):
+    if any(
+        token in text
+        for token in (
+            "fusedinferattentionscore",
+            "unpadflashattention",
+            "flashattentionscore",
+            "flashattention",
+            "pagedattentionmask",
+        )
+    ):
         # ``FusedInferAttentionScore`` (FIA) and ``UnpadFlashAttention``
         # are general-purpose flash-style score kernels — per the CANN
         # docs (aclnnFusedInferAttentionScore* / torch_npu
@@ -953,16 +1079,19 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
     #     because the bare ``fusedqkvzbasplitreshape`` token resembled
     #     the MLA ``splitqkvrmsnormrope`` companion; the ``zba`` marker
     #     is unique to GDN and must drive the linear family instead.
-    if any(token in text for token in (
-        "causalconv",
-        "causalconv1d",
-        "mamba",
-        "deltanet",
-        "gdn",
-        "recurrentgateddelta",
-        "recurrentdelta",
-        "qkvzbasplit",
-    )):
+    if any(
+        token in text
+        for token in (
+            "causalconv",
+            "causalconv1d",
+            "mamba",
+            "deltanet",
+            "gdn",
+            "recurrentgateddelta",
+            "recurrentdelta",
+            "qkvzbasplit",
+        )
+    ):
         categories.add("attention.linear_or_mamba")
         roles.add("attention")
 
@@ -1015,7 +1144,10 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
         roles.add("attention")
 
     # --- MoE: gating top-k ------------------------------------------------
-    if any(token in text for token in ("moegating", "gatingtopk", "topkgating", "topkrouter")):
+    if any(
+        token in text
+        for token in ("moegating", "gatingtopk", "topkgating", "topkrouter")
+    ):
         categories.add("moe.gating")
         roles.add("moe")
     # NOTE on HC* / MHC prefix: kernels such as ``HCPreSinkhorn``,
@@ -1029,7 +1161,8 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
 
     # --- MoE: dispatch / combine / fused MC2 ------------------------------
     is_fused_mc2_kernel = any(
-        token in text for token in ("dispatchffncombine", "ffncombine", "dispatchgmmcombine")
+        token in text
+        for token in ("dispatchffncombine", "ffncombine", "dispatchgmmcombine")
     )
     if is_fused_mc2_kernel:
         categories.add("moe.dispatch_expert_compute")
@@ -1037,7 +1170,10 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
     if "moeinitrouting" in text:
         categories.add("moe.dispatch")
         roles.add("moe")
-    if any(token in text for token in ("moedispatch", "dispatch")) and not is_fused_mc2_kernel:
+    if (
+        any(token in text for token in ("moedispatch", "dispatch"))
+        and not is_fused_mc2_kernel
+    ):
         categories.add("moe.dispatch")
         roles.add("moe")
     if "combine" in text and not is_fused_mc2_kernel:
@@ -1066,7 +1202,9 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
         roles.add("compute")
 
     # --- Compute: matmul / BMM (non-MoE / non-MLA-V-up-proj) --------------
-    if any(token in text for token in ("batchmatmul", "quantbatchmatmul", "matmul", "gemm")):
+    if any(
+        token in text for token in ("batchmatmul", "quantbatchmatmul", "matmul", "gemm")
+    ):
         categories.add("compute.matmul")
         roles.add("compute")
 
@@ -1106,7 +1244,11 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
     if "norm" in text:
         categories.add("normalization")
         roles.add("normalization")
-        if "add" in text or "mhc" in text or (text.startswith("hc") and not is_collective):
+        if (
+            "add" in text
+            or "mhc" in text
+            or (text.startswith("hc") and not is_collective)
+        ):
             categories.add("block_head")
             roles.add("block_head")
 
@@ -1175,12 +1317,14 @@ def categories_and_roles(name: str, task_type: str, accelerator_core: str) -> tu
 # category neutral and resolve the architecture from the *combination*
 # of categories present in a block.
 
-_MLA_CATEGORIES = frozenset((
-    "attention.mla",
-    "attention.mla.preprocess",
-    "attention.mla.kv_norm_rope_cache",
-    "attention.mla.v_up_proj",
-))
+_MLA_CATEGORIES = frozenset(
+    (
+        "attention.mla",
+        "attention.mla.preprocess",
+        "attention.mla.kv_norm_rope_cache",
+        "attention.mla.v_up_proj",
+    )
+)
 
 # Sanity-check guard for shape parsing: the last axis of Q/K tensors fed
 # to FIA / UnpadFlashAttention is the per-head dim. If we accidentally
@@ -1190,10 +1334,31 @@ _MLA_CATEGORIES = frozenset((
 # layers carry their own NoPE+RoPE concat head_dim values (192 / 576)
 # but are resolved earlier in the decision order, so they don't reach
 # the dense refinement path.
-_VALID_HEAD_DIMS = frozenset({
-    16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 192, 224, 256,
-    320, 384, 448, 512, 576, 640, 768, 1024,
-})
+_VALID_HEAD_DIMS = frozenset(
+    {
+        16,
+        32,
+        48,
+        64,
+        80,
+        96,
+        112,
+        128,
+        144,
+        160,
+        192,
+        224,
+        256,
+        320,
+        384,
+        448,
+        512,
+        576,
+        640,
+        768,
+        1024,
+    }
+)
 
 # vLLM model attention heads are within this range (sanity check).
 _MAX_NUM_HEADS = 1024
@@ -1346,7 +1511,7 @@ def _split_cann_shapes_field(value: str) -> list[str]:
             break
     if not v:
         return []
-    return [tok.strip() for tok in v.split(';')]
+    return [tok.strip() for tok in v.split(";")]
 
 
 def refine_dense_attention_from_shapes(events: Iterable[Any]) -> str:
@@ -1435,9 +1600,7 @@ def resolve_attention_family(categories: Iterable[str]) -> str:
         base = "hca"
     elif has_indexer and has_sparse_sharedkv and not has_compressor:
         base = "dsa"
-    elif has_mla_marker and not (
-        has_compressor or has_indexer or has_sparse_sharedkv
-    ):
+    elif has_mla_marker and not (has_compressor or has_indexer or has_sparse_sharedkv):
         # MLA-architected layer. The flash_score kernel may or may not
         # be present (MLA decode reuses FIA for the score step); either
         # way the MLA-specific companions (MlaProlog / KvRmsNormRopeCache
@@ -1472,14 +1635,20 @@ def is_aicpu_event(event: NormalizedEvent) -> bool:
 
 
 def is_comm_event(event: NormalizedEvent) -> bool:
-    return "communication" in event.op_roles or "communication.collective" in event.op_categories
+    return (
+        "communication" in event.op_roles
+        or "communication.collective" in event.op_categories
+    )
 
 
 def is_ai_core_like(event: NormalizedEvent) -> bool:
     text = f"{event.task_type} {event.accelerator_core}".upper()
     if is_aicpu_event(event) or is_comm_event(event):
         return False
-    return any(token in text for token in ("AI_CORE", "AICORE", "AI_VECTOR", "AIVECTOR", "MIX_AIC", "MIXAIC"))
+    return any(
+        token in text
+        for token in ("AI_CORE", "AICORE", "AI_VECTOR", "AIVECTOR", "MIX_AIC", "MIXAIC")
+    )
 
 
 def merge_event_segments(events: Sequence[NormalizedEvent]) -> list[BusySegment]:
@@ -1496,7 +1665,9 @@ def merge_event_segments(events: Sequence[NormalizedEvent]) -> list[BusySegment]
     last_event = ordered[0]
     for event in ordered[1:]:
         if event.start_us <= end:
-            if event.end_us > end or (math.isclose(event.end_us, end) and event.row_idx > last_event.row_idx):
+            if event.end_us > end or (
+                math.isclose(event.end_us, end) and event.row_idx > last_event.row_idx
+            ):
                 end = max(end, event.end_us)
                 last_event = event
             continue
@@ -1529,7 +1700,9 @@ def evidence_event(event: NormalizedEvent | None) -> dict[str, Any] | None:
     }
 
 
-def bubble_windows(events: Sequence[NormalizedEvent], *, limit: int | None = None) -> list[dict[str, Any]]:
+def bubble_windows(
+    events: Sequence[NormalizedEvent], *, limit: int | None = None
+) -> list[dict[str, Any]]:
     if limit is not None and limit <= 0:
         return []
     segments = merge_event_segments(events)
@@ -1554,7 +1727,9 @@ def bubble_windows(events: Sequence[NormalizedEvent], *, limit: int | None = Non
     return rows if limit is None else rows[:limit]
 
 
-def metrics_for_events(events: Sequence[NormalizedEvent], *, top_gap_limit: int = 5) -> dict[str, Any]:
+def metrics_for_events(
+    events: Sequence[NormalizedEvent], *, top_gap_limit: int = 5
+) -> dict[str, Any]:
     if not events:
         return {
             "event_count": 0,
@@ -1602,19 +1777,33 @@ def metrics_for_events(events: Sequence[NormalizedEvent], *, top_gap_limit: int 
         "total_cost_ms": round((kernel_sum_us + wait_sum_us) / 1000.0, 6),
         "wait_sum_ms": round(wait_sum_us / 1000.0, 6),
         "underfeed_ms": round(max(0.0, wall_us - busy_us) / 1000.0, 6),
-        "underfeed_ratio": round((max(0.0, wall_us - busy_us) / wall_us) if wall_us > 0 else 0.0, 6),
+        "underfeed_ratio": round(
+            (max(0.0, wall_us - busy_us) / wall_us) if wall_us > 0 else 0.0, 6
+        ),
         "internal_bubble_total_ms": round(sum(gaps) / 1000.0, 6),
         "largest_internal_bubble_ms": round((max(gaps) if gaps else 0.0) / 1000.0, 6),
         "bubble_count": len(gaps),
         "stream_count": len({event.stream_id for event in events}),
-        "task_type_counts": dict(sorted(Counter(event.task_type for event in events).items())),
-        "role_counts": dict(sorted(Counter(role for event in events for role in event.op_roles).items())),
-        "category_counts": dict(sorted(Counter(cat for event in events for cat in event.op_categories).items())),
-        "top_bubbles": bubble_windows(events, limit=top_gap_limit) if top_gap_limit > 0 else [],
+        "task_type_counts": dict(
+            sorted(Counter(event.task_type for event in events).items())
+        ),
+        "role_counts": dict(
+            sorted(Counter(role for event in events for role in event.op_roles).items())
+        ),
+        "category_counts": dict(
+            sorted(
+                Counter(cat for event in events for cat in event.op_categories).items()
+            )
+        ),
+        "top_bubbles": bubble_windows(events, limit=top_gap_limit)
+        if top_gap_limit > 0
+        else [],
     }
 
 
-def select_events(events: Sequence[NormalizedEvent], row_start: int, row_end: int) -> list[NormalizedEvent]:
+def select_events(
+    events: Sequence[NormalizedEvent], row_start: int, row_end: int
+) -> list[NormalizedEvent]:
     left = int(row_start)
     right = int(row_end)
     return [event for event in events if left <= event.row_idx <= right]
@@ -1649,7 +1838,9 @@ def load_events(path: Path) -> list[NormalizedEvent]:
                 shape_features=dict(item.get("shape_features") or {}),
                 pipeline_us=dict(item.get("pipeline_us") or {}),
                 op_type=str(item.get("op_type") or "unknown"),
-                raw_fields_ref=SourceRef(**raw_ref) if isinstance(raw_ref, dict) else None,
+                raw_fields_ref=SourceRef(**raw_ref)
+                if isinstance(raw_ref, dict)
+                else None,
             )
         )
     return sorted(rows, key=lambda event: (event.rank_id, event.row_idx))
@@ -1706,7 +1897,9 @@ def load_events_csv(path: Path) -> list[NormalizedEvent]:
     return rows
 
 
-def group_by_rank(events: Sequence[NormalizedEvent]) -> dict[str, list[NormalizedEvent]]:
+def group_by_rank(
+    events: Sequence[NormalizedEvent],
+) -> dict[str, list[NormalizedEvent]]:
     grouped: dict[str, list[NormalizedEvent]] = {}
     for event in events:
         grouped.setdefault(event.rank_id, []).append(event)
@@ -1800,10 +1993,12 @@ def write_xlsx(path: Path, sheets: Mapping[str, Sequence[Mapping[str, Any]]]) ->
 <Default Extension="xml" ContentType="application/xml"/>
 <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
 <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
-""" + "".join(
+"""
+            + "".join(
                 f'<Override PartName="/xl/worksheets/sheet{idx}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
                 for idx, _ in enumerate(sheet_items, 1)
-            ) + "\n</Types>",
+            )
+            + "\n</Types>",
         )
         zf.writestr(
             "_rels/.rels",
@@ -1816,20 +2011,24 @@ def write_xlsx(path: Path, sheets: Mapping[str, Sequence[Mapping[str, Any]]]) ->
             "xl/_rels/workbook.xml.rels",
             """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-""" + "".join(
+"""
+            + "".join(
                 f'<Relationship Id="rId{idx}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{idx}.xml"/>'
                 for idx, _ in enumerate(sheet_items, 1)
-            ) + f'<Relationship Id="rId{len(sheet_items)+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            )
+            + f'<Relationship Id="rId{len(sheet_items) + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
             + "\n</Relationships>",
         )
         zf.writestr(
             "xl/workbook.xml",
             """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>
-""" + "".join(
+"""
+            + "".join(
                 f'<sheet name="{escape(name)}" sheetId="{idx}" r:id="rId{idx}"/>'
                 for idx, (name, _) in enumerate(sheet_items, 1)
-            ) + "</sheets></workbook>",
+            )
+            + "</sheets></workbook>",
         )
         zf.writestr(
             "xl/styles.xml",
@@ -1872,12 +2071,14 @@ def sheet_xml(rows: Sequence[Mapping[str, Any]]) -> str:
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 cells.append(f'<c r="{ref}"><v>{value}</v></c>')
             else:
-                cells.append(f'<c r="{ref}" t="inlineStr"><is><t>{escape(str(value))}</t></is></c>')
+                cells.append(
+                    f'<c r="{ref}" t="inlineStr"><is><t>{escape(str(value))}</t></is></c>'
+                )
         xml_rows.append(f'<row r="{r_idx}">{"".join(cells)}</row>')
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        f'<sheetData>{"".join(xml_rows)}</sheetData></worksheet>'
+        f"<sheetData>{''.join(xml_rows)}</sheetData></worksheet>"
     )
 
 

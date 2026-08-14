@@ -64,9 +64,13 @@ REPORT_TOP_FINDING_LIMIT = 24
 
 def top_findings(findings: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-    return sorted(findings, key=lambda item: (severity_order.get(str(item.get("severity")), 9), str(item.get("finding_type"))))[
-        :REPORT_TOP_FINDING_LIMIT
-    ]
+    return sorted(
+        findings,
+        key=lambda item: (
+            severity_order.get(str(item.get("severity")), 9),
+            str(item.get("finding_type")),
+        ),
+    )[:REPORT_TOP_FINDING_LIMIT]
 
 
 def _f(value: Any, default: float = 0.0) -> float:
@@ -86,7 +90,9 @@ def _quantile(values: Sequence[float], q: float) -> float:
     return ordered[idx]
 
 
-def macro_timeline_lines(step_rows: Sequence[Mapping[str, Any]], anatomy_rows: Sequence[Mapping[str, Any]]) -> list[str]:
+def macro_timeline_lines(
+    step_rows: Sequence[Mapping[str, Any]], anatomy_rows: Sequence[Mapping[str, Any]]
+) -> list[str]:
     """Build the Macro Step Timeline section.
 
     Two tables:
@@ -144,11 +150,7 @@ def macro_timeline_lines(step_rows: Sequence[Mapping[str, Any]], anatomy_rows: S
     )
 
     sorted_steps = sorted(
-        (
-            row
-            for row in step_rows
-            if row.get("segment_type") == "step"
-        ),
+        (row for row in step_rows if row.get("segment_type") == "step"),
         key=lambda item: _f(item.get("wall_ms")),
         reverse=True,
     )[:8]
@@ -183,7 +185,9 @@ def step_class_view_lines(
          from "which step class is heaviest" into "which layer drives it".
     """
 
-    layer_class_by_id = {str(row.get("layer_class_id")): row for row in layer_class_rows}
+    layer_class_by_id = {
+        str(row.get("layer_class_id")): row for row in layer_class_rows
+    }
 
     if not step_class_rows:
         return [
@@ -205,7 +209,11 @@ def step_class_view_lines(
         "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---:|",
     ]
     for row in top_classes:
-        unknown = "yes" if str(row.get("has_unknown_shape", "")).lower() in {"true", "1"} else ""
+        unknown = (
+            "yes"
+            if str(row.get("has_unknown_shape", "")).lower() in {"true", "1"}
+            else ""
+        )
         lines.append(
             f"| `{row.get('step_class_id')}` | `{row.get('step_family')}` | "
             f"{row.get('main_layer_count')} | {row.get('member_count')} | "
@@ -232,7 +240,11 @@ def step_class_view_lines(
         for entry in (top_layer_classes or [])[:8]:
             lc = layer_class_by_id.get(str(entry.get("layer_class_id"))) or {}
             kinds = parse_jsonish(lc.get("block_kinds"), [])
-            companion = "yes" if str(lc.get("companion_layer", "")).lower() in {"true", "1"} else ""
+            companion = (
+                "yes"
+                if str(lc.get("companion_layer", "")).lower() in {"true", "1"}
+                else ""
+            )
             lines.append(
                 f"| `{entry.get('layer_class_id')}` | {_f(entry.get('wall_ms_sum')):.3f} | "
                 f"{entry.get('member_count')} | "
@@ -289,7 +301,9 @@ def layer_block_view_lines(
     if layer_class_rows:
         sorted_layers = sorted(
             layer_class_rows,
-            key=lambda row: -(_f(row.get("wall_ms_mean")) * float(row.get("member_count") or 0)),
+            key=lambda row: (
+                -(_f(row.get("wall_ms_mean")) * float(row.get("member_count") or 0))
+            ),
         )[:top_layer]
         lines.extend(
             [
@@ -301,12 +315,19 @@ def layer_block_view_lines(
         )
         for row in sorted_layers:
             kinds = parse_jsonish(row.get("block_kinds"), [])
-            companion = "yes" if str(row.get("companion_layer", "")).lower() in {"true", "1"} else ""
+            companion = (
+                "yes"
+                if str(row.get("companion_layer", "")).lower() in {"true", "1"}
+                else ""
+            )
             shares = parse_jsonish(row.get("block_kind_wall_ms_share_mean"), {})
-            shares_text = " / ".join(
-                f"{kind}={share * 100:.1f}%"
-                for kind, share in (shares or {}).items()
-            ) or "_none_"
+            shares_text = (
+                " / ".join(
+                    f"{kind}={share * 100:.1f}%"
+                    for kind, share in (shares or {}).items()
+                )
+                or "_none_"
+            )
             lines.append(
                 f"| `{row.get('layer_class_id')}` | {row.get('member_count')} | "
                 f"`{'->'.join(str(item) for item in (kinds or []))}` | {companion} | "
@@ -340,10 +361,16 @@ def layer_block_view_lines(
         for kind in ordered_kinds:
             members = by_kind.get(kind) or []
             members.sort(
-                key=lambda row: -(_f(row.get("wall_ms_mean")) * float(row.get("member_count") or 0)),
+                key=lambda row: (
+                    -(_f(row.get("wall_ms_mean")) * float(row.get("member_count") or 0))
+                ),
             )
             for row in members[:top_block]:
-                companion = "yes" if str(row.get("companion_layer", "")).lower() in {"true", "1"} else ""
+                companion = (
+                    "yes"
+                    if str(row.get("companion_layer", "")).lower() in {"true", "1"}
+                    else ""
+                )
                 lines.append(
                     f"| `{kind}` | `{row.get('block_class_id')}` | {companion} | "
                     f"{row.get('member_count')} | {_f(row.get('wall_ms_mean')):.3f} | "
@@ -384,7 +411,8 @@ def operator_view_lines(
     compute_rows = [
         row
         for row in operator_class_rows
-        if str(row.get("op_type") or "") not in {"communication", "mix_comm_aiv", "aicpu", "dsa", "unknown"}
+        if str(row.get("op_type") or "")
+        not in {"communication", "mix_comm_aiv", "aicpu", "dsa", "unknown"}
     ]
     compute_rows.sort(key=lambda row: -_f(row.get("duration_sum_us")))
 
@@ -412,7 +440,9 @@ def operator_view_lines(
                 f"`{row.get('bound_family')}` | `{row.get('dominant_core')}` |"
             )
     else:
-        lines.append("_No compute operators surfaced (operator_class_summary.csv is empty)._")
+        lines.append(
+            "_No compute operators surfaced (operator_class_summary.csv is empty)._"
+        )
 
     if hccl_class_rows:
         lines.extend(
@@ -430,7 +460,11 @@ def operator_view_lines(
             ]
         )
         for row in hccl_class_rows:
-            fused = "yes" if str(row.get("comm_aiv_fused", "")).lower() in {"true", "1"} else ""
+            fused = (
+                "yes"
+                if str(row.get("comm_aiv_fused", "")).lower() in {"true", "1"}
+                else ""
+            )
             lines.append(
                 f"| `{row.get('hccl_op_kind')}` | {fused} | "
                 f"{row.get('rank_count')} | {row.get('call_count')} | "
@@ -448,12 +482,16 @@ def operator_view_lines(
             key=lambda row: _f(row.get("duration_sum_us")),
         )
         heaviest_kind = str(heaviest.get("hccl_op_kind") or "")
-        heaviest_fused = str(heaviest.get("comm_aiv_fused", "")).lower() in {"true", "1"}
+        heaviest_fused = str(heaviest.get("comm_aiv_fused", "")).lower() in {
+            "true",
+            "1",
+        }
         rank_rows = [
             row
             for row in hccl_op_rows
             if str(row.get("hccl_op_kind") or "") == heaviest_kind
-            and (str(row.get("comm_aiv_fused", "")).lower() in {"true", "1"}) == heaviest_fused
+            and (str(row.get("comm_aiv_fused", "")).lower() in {"true", "1"})
+            == heaviest_fused
         ]
         if rank_rows:
             rank_rows.sort(key=lambda row: -_f(row.get("duration_avg_us")))
@@ -487,7 +525,9 @@ def operator_view_lines(
     return lines
 
 
-def pipeline_coverage_lines(summary_manifest: Mapping[str, Any], operator_rows: Sequence[Mapping[str, Any]]) -> list[str]:
+def pipeline_coverage_lines(
+    summary_manifest: Mapping[str, Any], operator_rows: Sequence[Mapping[str, Any]]
+) -> list[str]:
     """Render the Pipeline Coverage section.
 
     Three tables:
@@ -527,10 +567,25 @@ def pipeline_coverage_lines(summary_manifest: Mapping[str, Any], operator_rows: 
     for row in operator_rows:
         op_type = str(row.get("op_type") or "unknown")
         type_counts[op_type] += 1
-        type_duration[op_type] = type_duration.get(op_type, 0.0) + _f(row.get("duration_sum_us")) / 1000.0
-        type_aic[op_type] = type_aic.get(op_type, 0.0) + _f(row.get("aicore_time")) / 1000.0
-        type_aiv[op_type] = type_aiv.get(op_type, 0.0) + _f(row.get("aiv_time")) / 1000.0
-    op_type_order = ("aic", "aiv", "mix_cv", "mix_comm_aiv", "communication", "aicpu", "dsa", "unknown")
+        type_duration[op_type] = (
+            type_duration.get(op_type, 0.0) + _f(row.get("duration_sum_us")) / 1000.0
+        )
+        type_aic[op_type] = (
+            type_aic.get(op_type, 0.0) + _f(row.get("aicore_time")) / 1000.0
+        )
+        type_aiv[op_type] = (
+            type_aiv.get(op_type, 0.0) + _f(row.get("aiv_time")) / 1000.0
+        )
+    op_type_order = (
+        "aic",
+        "aiv",
+        "mix_cv",
+        "mix_comm_aiv",
+        "communication",
+        "aicpu",
+        "dsa",
+        "unknown",
+    )
     for op_type in op_type_order:
         if op_type not in type_counts:
             continue
@@ -562,9 +617,13 @@ def pipeline_coverage_lines(summary_manifest: Mapping[str, Any], operator_rows: 
             continue
         family = str(row.get("bound_family") or "unknown")
         family_counts[family] += 1
-        family_duration[family] = family_duration.get(family, 0.0) + _f(row.get("duration_sum_us")) / 1000.0
+        family_duration[family] = (
+            family_duration.get(family, 0.0) + _f(row.get("duration_sum_us")) / 1000.0
+        )
     for family, count in family_counts.most_common():
-        lines.append(f"| `{family}` | {count} | {family_duration.get(family, 0.0):.3f} |")
+        lines.append(
+            f"| `{family}` | {count} | {family_duration.get(family, 0.0):.3f} |"
+        )
     if not family_counts:
         lines.append("| `none` | 0 | 0.000 |")
     return lines
@@ -587,7 +646,9 @@ def markdown_report(output_dir: Path, report_id: str) -> str:
     layer_class_rows = csv_rows(output_dir / "layer_class_summary.csv")
     block_class_rows = csv_rows(output_dir / "block_class_summary.csv")
     findings = finding_rows(output_dir)
-    finding_counts = Counter(str(item.get("finding_type") or "unknown") for item in findings)
+    finding_counts = Counter(
+        str(item.get("finding_type") or "unknown") for item in findings
+    )
     coverage = summary_manifest.get("pipeline_coverage") or {}
     coverage_pct = _f(coverage.get("events_ratio")) * 100
     lines = [
@@ -682,7 +743,9 @@ def markdown_report(output_dir: Path, report_id: str) -> str:
             "",
         ]
     )
-    lines.extend(operator_view_lines(operator_class_rows, hccl_class_rows, hccl_op_rows))
+    lines.extend(
+        operator_view_lines(operator_class_rows, hccl_class_rows, hccl_op_rows)
+    )
     lines.extend(
         [
             "",
@@ -698,8 +761,12 @@ def markdown_report(output_dir: Path, report_id: str) -> str:
             continue
         key = (str(row.get("step_family")), str(row.get("main_layer_count")))
         grouped.setdefault(key, []).append(row)
-    anatomy_by_segment_for_inv = {str(item.get("segment_id")): item for item in anatomy_rows}
-    for (family, layer_count), items in sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0])):
+    anatomy_by_segment_for_inv = {
+        str(item.get("segment_id")): item for item in anatomy_rows
+    }
+    for (family, layer_count), items in sorted(
+        grouped.items(), key=lambda item: (-len(item[1]), item[0])
+    ):
         wall = [_f(item.get("wall_ms")) for item in items]
         bubble = [_f(item.get("largest_internal_bubble_ms")) for item in items]
         head_ms: list[float] = []
@@ -738,7 +805,9 @@ def markdown_report(output_dir: Path, report_id: str) -> str:
             f"`{ranks}` | `{evidence}` | {str(item.get('summary') or '').replace('|', '/')} |"
         )
     if not findings:
-        lines.append("| info | `none` | high | `[]` | `[]` | No diagnosis findings were emitted. |")
+        lines.append(
+            "| info | `none` | high | `[]` | `[]` | No diagnosis findings were emitted. |"
+        )
     lines.extend(
         [
             "",
@@ -780,11 +849,19 @@ def sheet_rows(output_dir: Path) -> dict[str, list[Mapping[str, Any]]]:
     findings = finding_rows(output_dir)
     case_summary = [
         {
-            "profile_root": read_json(output_dir / "normalize_manifest.json", default={}).get("profile_root"),
-            "rank_count": read_json(output_dir / "normalize_manifest.json", default={}).get("rank_count"),
-            "event_count": read_json(output_dir / "normalize_manifest.json", default={}).get("event_count"),
+            "profile_root": read_json(
+                output_dir / "normalize_manifest.json", default={}
+            ).get("profile_root"),
+            "rank_count": read_json(
+                output_dir / "normalize_manifest.json", default={}
+            ).get("rank_count"),
+            "event_count": read_json(
+                output_dir / "normalize_manifest.json", default={}
+            ).get("event_count"),
             "finding_count": len(findings),
-            "finding_types": dict(Counter(str(item.get("finding_type") or "unknown") for item in findings)),
+            "finding_types": dict(
+                Counter(str(item.get("finding_type") or "unknown") for item in findings)
+            ),
         }
     ]
     raw_kernel_index = csv_rows(output_dir / "raw_kernel_index.csv")
@@ -873,9 +950,8 @@ def validate_evidence_chain(output_dir: Path) -> dict[str, Any]:
         claim_id = finding.get("claim_id") or finding.get("finding_id") or "?"
         confidence = str(finding.get("confidence") or "").lower()
         limitations = finding.get("limitations")
-        has_limitation = (
-            (isinstance(limitations, str) and limitations.strip())
-            or (isinstance(limitations, (list, tuple)) and any(limitations))
+        has_limitation = (isinstance(limitations, str) and limitations.strip()) or (
+            isinstance(limitations, (list, tuple)) and any(limitations)
         )
         if confidence == "info" or has_limitation:
             continue
@@ -883,24 +959,28 @@ def validate_evidence_chain(output_dir: Path) -> dict[str, Any]:
         ev_ids = finding.get("evidence_ids") or []
         al_ids = finding.get("alignment_ids") or []
         if not ev_ids and not al_ids:
-            hard_errors.append({
-                "claim_id": claim_id,
-                "issue": "missing_evidence_and_alignment",
-                "summary": finding.get("summary"),
-                "confidence": confidence,
-            })
+            hard_errors.append(
+                {
+                    "claim_id": claim_id,
+                    "issue": "missing_evidence_and_alignment",
+                    "summary": finding.get("summary"),
+                    "confidence": confidence,
+                }
+            )
             continue
 
         unknown_evidence = [e for e in ev_ids if e not in evidence_ids]
         unknown_alignment = [a for a in al_ids if a not in alignment_ids]
         if unknown_evidence or unknown_alignment:
-            (hard_errors if not has_limitation else soft_warnings).append({
-                "claim_id": claim_id,
-                "issue": "evidence_id_not_found",
-                "unknown_evidence_ids": unknown_evidence,
-                "unknown_alignment_ids": unknown_alignment,
-                "confidence": confidence,
-            })
+            (hard_errors if not has_limitation else soft_warnings).append(
+                {
+                    "claim_id": claim_id,
+                    "issue": "evidence_id_not_found",
+                    "unknown_evidence_ids": unknown_evidence,
+                    "unknown_alignment_ids": unknown_alignment,
+                    "confidence": confidence,
+                }
+            )
 
     return {
         "findings_checked": checked,
@@ -919,7 +999,13 @@ def render_report(
 ) -> dict[str, Any]:
     report_dir = output_dir / "report"
     report_dir.mkdir(parents=True, exist_ok=True)
-    report_id = stable_id("report", output_dir, read_json(output_dir / "normalize_manifest.json", default={}).get("profile_root"))
+    report_id = stable_id(
+        "report",
+        output_dir,
+        read_json(output_dir / "normalize_manifest.json", default={}).get(
+            "profile_root"
+        ),
+    )
 
     chain = validate_evidence_chain(output_dir)
     if chain["hard_errors"]:
@@ -967,6 +1053,7 @@ def render_report(
                 from .html_report import build_html_report
             except ImportError:  # pragma: no cover
                 import sys as _sys
+
                 _sys.path.insert(0, str(Path(__file__).resolve().parent))
                 from html_report import build_html_report  # type: ignore[no-redef]
             build_html_report(output_dir, html_path)
@@ -1037,11 +1124,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         skip_html=bool(args.skip_html),
         report_mode=args.report_mode,
     )
-    emit_stage_json({
-        "stage": "report",
-        "output_dir": manifest["output_dir"],
-        "html_status": manifest.get("html_status"),
-    })
+    emit_stage_json(
+        {
+            "stage": "report",
+            "output_dir": manifest["output_dir"],
+            "html_status": manifest.get("html_status"),
+        }
+    )
     return 0
 
 

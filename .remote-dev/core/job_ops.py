@@ -72,7 +72,11 @@ def start_remote_job(
             summary=f"Remote background task blocked because job_id already exists: {job_id}.",
             started_at=started,
             duration_ms=_duration_ms(start),
-            refs={"job_record": str(found_record[0]) if found_record else str(local_record)},
+            refs={
+                "job_record": str(found_record[0])
+                if found_record
+                else str(local_record)
+            },
             extra={"job_id": job_id},
         )
         return {"text": result["summary"] + "\n", "result": result}
@@ -96,7 +100,11 @@ def start_remote_job(
         ]
     )
     validation = run_script(endpoint, validation_script, timeout_ms=20000)
-    if validation.timed_out or validation.returncode in {70, 71, 72} or validation.returncode != 0:
+    if (
+        validation.timed_out
+        or validation.returncode in {70, 71, 72}
+        or validation.returncode != 0
+    ):
         if validation.timed_out:
             outcome = "timeout"
             status = "timeout"
@@ -131,17 +139,26 @@ def start_remote_job(
         return {"text": summary + "\n", "result": result}
     remote_dir = remote_job_dir(endpoint, job_id)
     timeout_prefix = f"timeout {int(timeout_ms / 1000)} " if timeout_ms else ""
-    env_lines = [f"export {require_env_name(key)}={shlex.quote(str(value))}" for key, value in sorted(env.items())]
-    runtime_lines = [
-        "if [ -f /etc/profile.d/vaws-ascend-env.sh ]; then set +u; . /etc/profile.d/vaws-ascend-env.sh; set -u; fi"
-    ] if runtime_enabled else []
-    status_running = shlex.quote('{"status":"running","job_id":"' + job_id + '","started_at":"' + started + '"}')
+    env_lines = [
+        f"export {require_env_name(key)}={shlex.quote(str(value))}"
+        for key, value in sorted(env.items())
+    ]
+    runtime_lines = (
+        [
+            "if [ -f /etc/profile.d/vaws-ascend-env.sh ]; then set +u; . /etc/profile.d/vaws-ascend-env.sh; set -u; fi"
+        ]
+        if runtime_enabled
+        else []
+    )
+    status_running = shlex.quote(
+        '{"status":"running","job_id":"' + job_id + '","started_at":"' + started + '"}'
+    )
     runner = "\n".join(
         [
             "#!/usr/bin/env bash",
             "set +e",
             f"JOB_DIR={shlex.quote(remote_dir)}",
-            "python3 - <<'REMOTE_DEV_VALIDATE' > \"$JOB_DIR/stdout.log\" 2> \"$JOB_DIR/stderr.log\"",
+            'python3 - <<\'REMOTE_DEV_VALIDATE\' > "$JOB_DIR/stdout.log" 2> "$JOB_DIR/stderr.log"',
             "import pathlib, sys",
             f"root = pathlib.Path({endpoint.root!r}).resolve()",
             f"cwd = pathlib.Path({cwd!r})",
@@ -157,24 +174,24 @@ def start_remote_job(
             "    raise SystemExit(72)",
             "REMOTE_DEV_VALIDATE",
             "rc=$?",
-            "if [ \"$rc\" -eq 0 ]; then",
+            'if [ "$rc" -eq 0 ]; then',
             *["  " + line for line in runtime_lines],
             f"  cd {shlex.quote(cwd)} || rc=70",
             "fi",
-            "if [ \"$rc\" -eq 0 ]; then",
+            'if [ "$rc" -eq 0 ]; then',
             *["  " + line for line in env_lines],
             f"  printf '%s\\n' {status_running} > \"$JOB_DIR/status.json\"",
-            f"  {timeout_prefix}bash -c {shlex.quote(command)} > \"$JOB_DIR/stdout.log\" 2> \"$JOB_DIR/stderr.log\"",
+            f'  {timeout_prefix}bash -c {shlex.quote(command)} > "$JOB_DIR/stdout.log" 2> "$JOB_DIR/stderr.log"',
             "  rc=$?",
             "fi",
             "finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "status=failed",
-            "[ \"$rc\" -eq 0 ] && status=succeeded",
-            "[ \"$rc\" -eq 70 ] && status=cwd_not_found",
-            "[ \"$rc\" -eq 71 ] && status=cwd_outside_root",
-            "[ \"$rc\" -eq 72 ] && status=cwd_not_directory",
-            "if [ \"$rc\" -eq 124 ] || [ \"$rc\" -eq 137 ]; then status=timeout; fi",
-            f"printf '{{\"status\":\"%s\",\"job_id\":\"{job_id}\",\"exit_code\":%s,\"finished_at\":\"%s\"}}\\n' \"$status\" \"$rc\" \"$finished\" > \"$JOB_DIR/status.json\"",
+            '[ "$rc" -eq 0 ] && status=succeeded',
+            '[ "$rc" -eq 70 ] && status=cwd_not_found',
+            '[ "$rc" -eq 71 ] && status=cwd_outside_root',
+            '[ "$rc" -eq 72 ] && status=cwd_not_directory',
+            'if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then status=timeout; fi',
+            f'printf \'{{"status":"%s","job_id":"{job_id}","exit_code":%s,"finished_at":"%s"}}\\n\' "$status" "$rc" "$finished" > "$JOB_DIR/status.json"',
         ]
     )
     script = "\n".join(
@@ -187,7 +204,7 @@ def start_remote_job(
             f"chmod +x {shlex.quote(str(PurePosixPath(remote_dir) / 'run.sh'))}",
             f"nohup bash {shlex.quote(str(PurePosixPath(remote_dir) / 'run.sh'))} >/dev/null 2>&1 </dev/null &",
             "pid=$!",
-            f"echo \"$pid\" > {shlex.quote(str(PurePosixPath(remote_dir) / 'pid'))}",
+            f'echo "$pid" > {shlex.quote(str(PurePosixPath(remote_dir) / "pid"))}',
             "printf '%s\\n' \"$pid\"",
         ]
     )
@@ -205,7 +222,9 @@ def start_remote_job(
             extra={"error": completed.stderr[-4000:]},
         )
         return {"text": "Remote background task failed to start.\n", "result": result}
-    pid = completed.stdout.strip().splitlines()[-1] if completed.stdout.strip() else None
+    pid = (
+        completed.stdout.strip().splitlines()[-1] if completed.stdout.strip() else None
+    )
     record = {
         "schema_version": "remote-dev.job.v1",
         "job_id": job_id,
@@ -262,7 +281,9 @@ def endpoint_from_job_record(record: dict[str, Any]) -> Endpoint:
     return _endpoint_from_record(record)
 
 
-def _load_record(endpoint: Endpoint | None, job_id: str) -> tuple[Endpoint, dict[str, Any]]:
+def _load_record(
+    endpoint: Endpoint | None, job_id: str
+) -> tuple[Endpoint, dict[str, Any]]:
     job_id = require_job_id(job_id)
     if endpoint is not None:
         path = job_record_path(endpoint, job_id)
@@ -289,8 +310,8 @@ def remote_job_status(endpoint: Endpoint | None, *, job_id: str) -> dict[str, An
             "set +e",
             f"status_path={shlex.quote(str(remote_dir / 'status.json'))}",
             f"pid_path={shlex.quote(str(remote_dir / 'pid'))}",
-            "if [ -f \"$status_path\" ]; then cat \"$status_path\"; else printf '%s\\n' '{\"status\":\"unknown\"}'; fi",
-            "if [ -f \"$pid_path\" ]; then pid=$(cat \"$pid_path\"); if kill -0 \"$pid\" 2>/dev/null; then echo '__PID_ALIVE__=1'; else echo '__PID_ALIVE__=0'; fi; fi",
+            'if [ -f "$status_path" ]; then cat "$status_path"; else printf \'%s\\n\' \'{"status":"unknown"}\'; fi',
+            'if [ -f "$pid_path" ]; then pid=$(cat "$pid_path"); if kill -0 "$pid" 2>/dev/null; then echo \'__PID_ALIVE__=1\'; else echo \'__PID_ALIVE__=0\'; fi; fi',
         ]
     )
     completed = run_script(endpoint, script, timeout_ms=20000)
@@ -326,7 +347,9 @@ def remote_job_status(endpoint: Endpoint | None, *, job_id: str) -> dict[str, An
     return {"text": f"Remote job {job_id}: {status}\n", "result": result}
 
 
-def remote_job_tail(endpoint: Endpoint | None, *, job_id: str, lines: int = 80, stream: str = "both") -> dict[str, Any]:
+def remote_job_tail(
+    endpoint: Endpoint | None, *, job_id: str, lines: int = 80, stream: str = "both"
+) -> dict[str, Any]:
     endpoint, record = _load_record(endpoint, job_id)
     started = utc_now_iso()
     start = time.monotonic()
@@ -339,9 +362,13 @@ def remote_job_tail(endpoint: Endpoint | None, *, job_id: str, lines: int = 80, 
         lines = 1
     commands: list[str] = []
     if stream in {"stdout", "both"}:
-        commands.append(f"echo __STDOUT__; tail -n {int(lines)} {shlex.quote(str(remote_dir / 'stdout.log'))} 2>/dev/null | head -c {MAX_TEXT_CHARS} || true")
+        commands.append(
+            f"echo __STDOUT__; tail -n {int(lines)} {shlex.quote(str(remote_dir / 'stdout.log'))} 2>/dev/null | head -c {MAX_TEXT_CHARS} || true"
+        )
     if stream in {"stderr", "both"}:
-        commands.append(f"echo __STDERR__; tail -n {int(lines)} {shlex.quote(str(remote_dir / 'stderr.log'))} 2>/dev/null | head -c {MAX_TEXT_CHARS} || true")
+        commands.append(
+            f"echo __STDERR__; tail -n {int(lines)} {shlex.quote(str(remote_dir / 'stderr.log'))} 2>/dev/null | head -c {MAX_TEXT_CHARS} || true"
+        )
     completed = run_script(endpoint, "\n".join(commands), timeout_ms=20000)
     text = compact_text(completed.stdout)
     result = make_result(
@@ -359,7 +386,9 @@ def remote_job_tail(endpoint: Endpoint | None, *, job_id: str, lines: int = 80, 
     return {"text": text, "result": result}
 
 
-def remote_job_stop(endpoint: Endpoint | None, *, job_id: str, force: bool = False) -> dict[str, Any]:
+def remote_job_stop(
+    endpoint: Endpoint | None, *, job_id: str, force: bool = False
+) -> dict[str, Any]:
     endpoint, record = _load_record(endpoint, job_id)
     started = utc_now_iso()
     start = time.monotonic()
@@ -369,14 +398,14 @@ def remote_job_stop(endpoint: Endpoint | None, *, job_id: str, force: bool = Fal
         [
             "set +e",
             f"pid_path={shlex.quote(str(remote_dir / 'pid'))}",
-            "if [ ! -f \"$pid_path\" ]; then echo missing; exit 3; fi",
-            "pid=$(cat \"$pid_path\")",
-            f"kill {sig} \"$pid\" 2>/dev/null || true",
+            'if [ ! -f "$pid_path" ]; then echo missing; exit 3; fi',
+            'pid=$(cat "$pid_path")',
+            f'kill {sig} "$pid" 2>/dev/null || true',
             "sleep 1",
             "alive=0",
-            "kill -0 \"$pid\" 2>/dev/null && alive=1",
-            f"if [ \"$alive\" -eq 0 ]; then printf '{{\"status\":\"cancelled\",\"job_id\":\"{job_id}\",\"exit_code\":null,\"finished_at\":\"%s\"}}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > {shlex.quote(str(remote_dir / 'status.json'))}; fi",
-            "echo \"$alive\"",
+            'kill -0 "$pid" 2>/dev/null && alive=1',
+            f'if [ "$alive" -eq 0 ]; then printf \'{{"status":"cancelled","job_id":"{job_id}","exit_code":null,"finished_at":"%s"}}\\n\' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > {shlex.quote(str(remote_dir / "status.json"))}; fi',
+            'echo "$alive"',
         ]
     )
     completed = run_script(endpoint, script, timeout_ms=20000)
@@ -385,7 +414,9 @@ def remote_job_stop(endpoint: Endpoint | None, *, job_id: str, force: bool = Fal
     result = make_result(
         tool="remote.job_stop",
         target=endpoint.to_result_target(),
-        outcome="failed" if alive or completed.returncode not in {0, None} else "cancelled",
+        outcome="failed"
+        if alive or completed.returncode not in {0, None}
+        else "cancelled",
         status=status,
         summary=f"Remote job {job_id} {status}.",
         started_at=started,

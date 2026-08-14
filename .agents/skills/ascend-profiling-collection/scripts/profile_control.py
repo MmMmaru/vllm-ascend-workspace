@@ -141,26 +141,30 @@ def main(argv: list[str] | None = None) -> int:
             state_repo_root=target.state_repo_root,
         )
         if state is None:
-            print_json({
-                "status": "not_found",
-                "machine": alias,
-                "session_id": target.session_id,
-                "action": args.action,
-                "message": (
-                    f"no serving state recorded for {alias}; start the service "
-                    "via vllm-ascend-serving first"
-                ),
-            })
+            print_json(
+                {
+                    "status": "not_found",
+                    "machine": alias,
+                    "session_id": target.session_id,
+                    "action": args.action,
+                    "message": (
+                        f"no serving state recorded for {alias}; start the service "
+                        "via vllm-ascend-serving first"
+                    ),
+                }
+            )
             return 2
         port = state.get("port")
         if not port:
-            print_json({
-                "status": "not_found",
-                "machine": alias,
-                "session_id": target.session_id,
-                "action": args.action,
-                "message": "serving state has no port; service may have failed to launch",
-            })
+            print_json(
+                {
+                    "status": "not_found",
+                    "machine": alias,
+                    "session_id": target.session_id,
+                    "action": args.action,
+                    "message": "serving state has no port; service may have failed to launch",
+                }
+            )
             return 2
 
         emit_progress(
@@ -171,26 +175,30 @@ def main(argv: list[str] | None = None) -> int:
         result = post_remote_action(ep, int(port), args.action, args.timeout)
 
         ok = bool(result.get("ok"))
-        print_json({
-            "status": "ok" if ok else "failed",
-            "machine": alias,
-            "session_id": target.session_id,
-            "action": args.action,
-            "port": port,
-            "http_status": result.get("status"),
-            "body": result.get("body"),
-            "error": result.get("error"),
-        })
+        print_json(
+            {
+                "status": "ok" if ok else "failed",
+                "machine": alias,
+                "session_id": target.session_id,
+                "action": args.action,
+                "port": port,
+                "http_status": result.get("status"),
+                "body": result.get("body"),
+                "error": result.get("error"),
+            }
+        )
         return 0 if ok else 1
 
     except Exception as exc:
-        print_json({
-            "status": "failed",
-            "machine": getattr(args, "machine", None),
-            "session_id": getattr(args, "session_id", None),
-            "action": getattr(args, "action", None),
-            "error": str(exc),
-        })
+        print_json(
+            {
+                "status": "failed",
+                "machine": getattr(args, "machine", None),
+                "session_id": getattr(args, "session_id", None),
+                "action": getattr(args, "action", None),
+                "error": str(exc),
+            }
+        )
         return 2
 
 

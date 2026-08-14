@@ -66,7 +66,7 @@ def positive_int(value: str) -> int:
 
 
 def bytes_to_gib(value: int) -> str:
-    return f"{value / (1024 ** 3):.2f} GiB"
+    return f"{value / (1024**3):.2f} GiB"
 
 
 def request_json(url: str, *, retries: int = 5, timeout: int = 60) -> dict[str, Any]:
@@ -213,9 +213,7 @@ def launch_worker(
     verify_only: bool,
 ) -> int:
     spec.local_dir.mkdir(parents=True, exist_ok=True)
-    launch_log = (spec.local_dir / "download.launch.log").open(
-        "ab", buffering=0
-    )
+    launch_log = (spec.local_dir / "download.launch.log").open("ab", buffering=0)
     cmd = [
         sys.executable,
         str(Path(__file__).resolve()),

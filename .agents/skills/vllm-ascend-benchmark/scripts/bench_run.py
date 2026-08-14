@@ -70,19 +70,42 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dp", "--data-parallel-size", type=int, default=None)
     p.add_argument("--devices", help="explicit ASCEND_RT_VISIBLE_DEVICES CSV")
     p.add_argument("--port", type=int, default=None)
-    p.add_argument("--extra-env", action="append", default=None,
-                   help="KEY=VALUE env vars for the service (repeatable)")
-    p.add_argument("--refer-nightly", default=None,
-                   help="nightly YAML name as configuration reference")
+    p.add_argument(
+        "--extra-env",
+        action="append",
+        default=None,
+        help="KEY=VALUE env vars for the service (repeatable)",
+    )
+    p.add_argument(
+        "--refer-nightly",
+        default=None,
+        help="nightly YAML name as configuration reference",
+    )
     p.add_argument("--skip-parity", action="store_true")
-    p.add_argument("--runs", type=int, default=1,
-                   help="number of benchmark iterations against the same warm service (default: 1)")
-    p.add_argument("--warmup-runs", type=int, default=0,
-                   help="number of initial runs to discard from aggregated statistics (default: 0)")
+    p.add_argument(
+        "--health-timeout",
+        type=int,
+        default=None,
+        help="service readiness timeout in seconds, forwarded to serve_start.py",
+    )
+    p.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="number of benchmark iterations against the same warm service (default: 1)",
+    )
+    p.add_argument(
+        "--warmup-runs",
+        type=int,
+        default=0,
+        help="number of initial runs to discard from aggregated statistics (default: 0)",
+    )
     return p
 
 
-def _split_sections(argv: list[str]) -> tuple[list[str], list[str] | None, list[str] | None]:
+def _split_sections(
+    argv: list[str],
+) -> tuple[list[str], list[str] | None, list[str] | None]:
     """Split argv into (main_args, serve_args, bench_args).
 
     Recognizes --serve-args and --bench-args as section delimiters in any order.
@@ -135,7 +158,7 @@ def _aggregate_metrics(
         mean = sum(vals) / len(vals)
         if len(vals) > 1:
             variance = sum((v - mean) ** 2 for v in vals) / (len(vals) - 1)
-            stddev = variance ** 0.5
+            stddev = variance**0.5
         else:
             stddev = 0.0
         agg[key] = {"mean": round(mean, 4), "stddev": round(stddev, 4), "values": vals}
@@ -152,8 +175,16 @@ def main(argv: list[str] | None = None) -> int:
     total_runs: int = max(1, args.runs)
     warmup_runs: int = max(0, min(args.warmup_runs, total_runs - 1))
 
-    serve_args = manual_serve_args if manual_serve_args is not None else getattr(args, "serve_args", None)
-    bench_args = manual_bench_args if manual_bench_args is not None else getattr(args, "bench_args", None)
+    serve_args = (
+        manual_serve_args
+        if manual_serve_args is not None
+        else getattr(args, "serve_args", None)
+    )
+    bench_args = (
+        manual_bench_args
+        if manual_bench_args is not None
+        else getattr(args, "bench_args", None)
+    )
 
     try:
         config = assemble_config(
@@ -170,6 +201,7 @@ def main(argv: list[str] | None = None) -> int:
             extra_env=args.extra_env,
             refer_nightly=args.refer_nightly,
             skip_parity=args.skip_parity,
+            health_timeout=args.health_timeout,
         )
 
         emit_progress("start", "launching vllm service")
@@ -177,13 +209,15 @@ def main(argv: list[str] | None = None) -> int:
 
         if start_result.get("status") != "ready":
             cleanup_result = call_serve_stop(config, force=True)
-            print_json({
-                "status": "failed",
-                "phase": "serve_start",
-                "error": start_result.get("error", "service did not become ready"),
-                "serve_result": start_result,
-                "cleanup_result": cleanup_result,
-            })
+            print_json(
+                {
+                    "status": "failed",
+                    "phase": "serve_start",
+                    "error": start_result.get("error", "service did not become ready"),
+                    "serve_result": start_result,
+                    "cleanup_result": cleanup_result,
+                }
+            )
             return 1
 
         base_url = start_result["base_url"]
@@ -204,22 +238,28 @@ def main(argv: list[str] | None = None) -> int:
             emit_progress("bench", f"{run_label}{tag}: running vllm bench serve")
             try:
                 raw_result = run_bench_on_remote(
-                    config, base_url, served_model, container_ip, container_port,
+                    config,
+                    base_url,
+                    served_model,
+                    container_ip,
+                    container_port,
                 )
             except Exception as e:
                 emit_progress("bench", f"{run_label}: benchmark failed: {e}")
                 call_serve_stop(config, force=True)
-                print_json({
-                    "status": "failed",
-                    "phase": "bench_run",
-                    "run": i + 1,
-                    "error": str(e),
-                    "completed_runs": [
-                        {"run": j + 1, "warmup": j < warmup_runs, "metrics": m}
-                        for j, m in enumerate(all_metrics)
-                    ],
-                    "config": config.summary_dict(),
-                })
+                print_json(
+                    {
+                        "status": "failed",
+                        "phase": "bench_run",
+                        "run": i + 1,
+                        "error": str(e),
+                        "completed_runs": [
+                            {"run": j + 1, "warmup": j < warmup_runs, "metrics": m}
+                            for j, m in enumerate(all_metrics)
+                        ],
+                        "config": config.summary_dict(),
+                    }
+                )
                 return 1
 
             metrics = extract_metrics(raw_result)
@@ -238,7 +278,10 @@ def main(argv: list[str] | None = None) -> int:
                 cleanup_warning = f"service may still be running: {stop_result}"
 
         if total_runs == 1:
-            emit_progress("done", f"benchmark complete, throughput={all_metrics[0].get('output_throughput', 'N/A')}")
+            emit_progress(
+                "done",
+                f"benchmark complete, throughput={all_metrics[0].get('output_throughput', 'N/A')}",
+            )
             result_json: dict[str, Any] = {
                 "status": "ok",
                 "machine": args.machine,
@@ -287,12 +330,14 @@ def main(argv: list[str] | None = None) -> int:
                 call_serve_stop(config, force=True)
         except Exception:
             pass
-        print_json({
-            "status": "failed",
-            "phase": "unexpected",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-        })
+        print_json(
+            {
+                "status": "failed",
+                "phase": "unexpected",
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+            }
+        )
         return 2
 
 

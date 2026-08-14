@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from typing import Any
 
 RAW_REMOTE_RE = re.compile(r"(^|\s)(ssh|scp|sftp|rsync)\b")
-PASSWORD_RE = re.compile(r"(?i)(sshpass|expect\b|--password(?:=|\s+)\S+|password=\S+|token=\S+|api[_-]?key=\S+)")
+PASSWORD_RE = re.compile(
+    r"(?i)(sshpass|expect\b|--password(?:=|\s+)\S+|password=\S+|token=\S+|api[_-]?key=\S+)"
+)
 REMOTE_PATH_FIELDS = ("file_path", "path", "cwd", "remote_path")
 REMOTE_TOOL_PATH_FIELDS = {
     "remote.read": ("file_path",),
@@ -57,7 +59,9 @@ def extract_command(payload: dict[str, Any]) -> str:
     for key in ("command", "cmd"):
         if isinstance(payload.get(key), str):
             return payload[key]
-    tool_input = payload.get("tool_input") or payload.get("input") or payload.get("arguments")
+    tool_input = (
+        payload.get("tool_input") or payload.get("input") or payload.get("arguments")
+    )
     if isinstance(tool_input, dict):
         for key in ("command", "cmd"):
             if isinstance(tool_input.get(key), str):
@@ -68,7 +72,9 @@ def extract_command(payload: dict[str, Any]) -> str:
 
 
 def extract_tool_name(payload: dict[str, Any]) -> str:
-    raw = str(payload.get("tool_name") or payload.get("tool") or payload.get("name") or "")
+    raw = str(
+        payload.get("tool_name") or payload.get("tool") or payload.get("name") or ""
+    )
     if raw:
         return raw
     tool_call = payload.get("tool_call")
@@ -128,7 +134,9 @@ def is_under_root(root: str, path: str) -> bool:
     return path == root_norm or path.startswith(root_norm.rstrip("/") + "/")
 
 
-def inspect_remote_tool_call(tool_name: str, tool_input: dict[str, Any]) -> GuardDecision:
+def inspect_remote_tool_call(
+    tool_name: str, tool_input: dict[str, Any]
+) -> GuardDecision:
     canonical = canonical_remote_tool_name(tool_name)
     if not canonical:
         return GuardDecision("allow")
@@ -160,7 +168,10 @@ def inspect_payload(payload: dict[str, Any]) -> GuardDecision:
 
 def codex_response(decision: GuardDecision) -> dict[str, Any]:
     if decision.blocked:
-        return {"decision": "deny", "reason": decision.reason or "blocked by remote-dev guard"}
+        return {
+            "decision": "deny",
+            "reason": decision.reason or "blocked by remote-dev guard",
+        }
     if decision.additional_context:
         return {"decision": "allow", "additionalContext": decision.additional_context}
     return {"decision": "allow"}

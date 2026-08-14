@@ -60,20 +60,26 @@ def normalize_bootstrap_method(value: str | None) -> str | None:
     normalized = BOOTSTRAP_METHOD_ALIASES.get(value)
     if normalized is None:
         choices = ", ".join(sorted(BOOTSTRAP_METHOD_ALIASES))
-        raise InventoryError(f"unsupported bootstrap_method {value!r}; expected one of: {choices}")
+        raise InventoryError(
+            f"unsupported bootstrap_method {value!r}; expected one of: {choices}"
+        )
     return normalized
 
 
-def resolve_bootstrap_method(value: str | None, existing_record: dict[str, Any] | None = None) -> str:
+def resolve_bootstrap_method(
+    value: str | None, existing_record: dict[str, Any] | None = None
+) -> str:
     if value in {None, "", "auto"}:
-        existing = normalize_bootstrap_method(existing_record.get("bootstrap_method")) if existing_record else None
+        existing = (
+            normalize_bootstrap_method(existing_record.get("bootstrap_method"))
+            if existing_record
+            else None
+        )
         return existing or DEFAULT_BOOTSTRAP_METHOD
     normalized = normalize_bootstrap_method(value)
     if normalized is None:
         raise InventoryError("bootstrap method could not be resolved")
     return normalized
-
-
 
 
 def normalize_machine_type(value: str | None) -> str | None:
@@ -92,6 +98,7 @@ def normalize_soc_token(value: str | None) -> str | None:
         return None
     normalized = value.strip().lower()
     return normalized or None
+
 
 def _empty_inventory() -> dict[str, Any]:
     return {"schema_version": SCHEMA_VERSION, "machines": []}
@@ -120,9 +127,11 @@ def load_inventory(path: Path) -> dict[str, Any]:
 
 def _atomic_write_json(path: Path, data: Any) -> None:
     ensure_state_dir(path.parent)
-    handle, temp_name = tempfile.mkstemp(prefix=f'.{path.name}.', suffix='.tmp', dir=str(path.parent))
+    handle, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
     try:
-        with os.fdopen(handle, 'w', encoding='utf-8') as fh:
+        with os.fdopen(handle, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
             fh.flush()
             os.fsync(fh.fileno())
@@ -150,11 +159,13 @@ def inventory_lock(
     while True:
         try:
             fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-            os.write(fd, f'{os.getpid()}\n'.encode('utf-8'))
+            os.write(fd, f"{os.getpid()}\n".encode("utf-8"))
             break
         except FileExistsError:
             if time.monotonic() >= deadline:
-                raise InventoryError(f'timed out waiting for inventory lock {lock_path}')
+                raise InventoryError(
+                    f"timed out waiting for inventory lock {lock_path}"
+                )
             time.sleep(poll_seconds)
     try:
         yield lock_path
@@ -175,7 +186,9 @@ def _validate_record(record: Any, where: str = "record") -> None:
     namespace = record.get("namespace")
     if namespace is not None:
         if not isinstance(namespace, str) or not namespace.strip():
-            raise InventoryError(f"{where}.namespace must be a non-empty string when present")
+            raise InventoryError(
+                f"{where}.namespace must be a non-empty string when present"
+            )
         record["namespace"] = validate_machine_username(namespace)
 
     host = record.get("host")
@@ -198,7 +211,9 @@ def _validate_record(record: Any, where: str = "record") -> None:
     if host_soc is not None:
         normalized_soc = normalize_soc_token(host_soc)
         if normalized_soc is None:
-            raise InventoryError(f"{where}.host.soc must be a non-empty string when present")
+            raise InventoryError(
+                f"{where}.host.soc must be a non-empty string when present"
+            )
         host["soc"] = normalized_soc
 
     container = record.get("container")
@@ -323,13 +338,19 @@ def cmd_put(args: argparse.Namespace) -> int:
 
         alias_record = alias_matches[0] if alias_matches else None
         ip_record = ip_matches[0] if ip_matches else None
-        if alias_record is not None and ip_record is not None and alias_record is not ip_record:
+        if (
+            alias_record is not None
+            and ip_record is not None
+            and alias_record is not ip_record
+        ):
             raise InventoryError(
                 "alias and host IP match different existing records; resolve the conflict manually"
             )
 
         target = alias_record or ip_record
-        namespace = validate_machine_username(args.namespace) if args.namespace else None
+        namespace = (
+            validate_machine_username(args.namespace) if args.namespace else None
+        )
         host_machine_type = (
             normalize_machine_type(args.host_machine_type)
             if args.host_machine_type is not None
@@ -365,7 +386,9 @@ def cmd_put(args: argparse.Namespace) -> int:
                 "image": args.image,
                 "workdir": args.workdir,
             },
-            "bootstrap_method": resolve_bootstrap_method(args.bootstrap_method, existing_record=target),
+            "bootstrap_method": resolve_bootstrap_method(
+                args.bootstrap_method, existing_record=target
+            ),
             "managed_by_skill": True,
             "created_by_skill": args.created_by_skill,
             "last_verified_at": args.last_verified_at,
@@ -419,7 +442,9 @@ def cmd_remove(args: argparse.Namespace) -> int:
                 f"multiple machines matched {args.identifier!r}; use a unique alias or host IP"
             )
         target = matches[0]
-        inventory["machines"] = [record for record in inventory["machines"] if record is not target]
+        inventory["machines"] = [
+            record for record in inventory["machines"] if record is not target
+        ]
         save_inventory(requested_path, inventory)
     payload = {
         "result": "removed",
@@ -447,13 +472,17 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(
         dest="command",
         required=True,
-        parser_class=lambda *args, **kwargs: argparse.ArgumentParser(*args, allow_abbrev=False, **kwargs),
+        parser_class=lambda *args, **kwargs: argparse.ArgumentParser(
+            *args, allow_abbrev=False, **kwargs
+        ),
     )
 
     summary = subparsers.add_parser("summary", help="print a concise inventory summary")
     summary.set_defaults(func=cmd_summary)
 
-    get_cmd = subparsers.add_parser("get", help="print one machine record by alias or host IP")
+    get_cmd = subparsers.add_parser(
+        "get", help="print one machine record by alias or host IP"
+    )
     get_cmd.add_argument("identifier", help="machine alias or host IP")
     get_cmd.set_defaults(func=cmd_get)
 
@@ -467,11 +496,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="stable workspace machine username used for collision-safe naming",
     )
     put_cmd.add_argument("--host-ip", "--host", dest="host_ip", required=True)
-    put_cmd.add_argument("--host-port", "--host-ssh-port", dest="host_port", type=int, default=22)
+    put_cmd.add_argument(
+        "--host-port", "--host-ssh-port", dest="host_port", type=int, default=22
+    )
     put_cmd.add_argument("--host-user", "--user", dest="host_user", default="root")
-    put_cmd.add_argument("--host-machine-type", "--machine-type", dest="host_machine_type", help="host machine type metadata, for example A2, A3, A5, or 310P")
-    put_cmd.add_argument("--host-soc", "--soc", dest="host_soc", help="host SoC token metadata, for example ascend910b1")
-    put_cmd.add_argument("--container-name", "--name", dest="container_name", required=True)
+    put_cmd.add_argument(
+        "--host-machine-type",
+        "--machine-type",
+        dest="host_machine_type",
+        help="host machine type metadata, for example A2, A3, A5, or 310P",
+    )
+    put_cmd.add_argument(
+        "--host-soc",
+        "--soc",
+        dest="host_soc",
+        help="host SoC token metadata, for example ascend910b1",
+    )
+    put_cmd.add_argument(
+        "--container-name", "--name", dest="container_name", required=True
+    )
     put_cmd.add_argument(
         "--container-ssh-port",
         "--container-port",
@@ -509,7 +552,9 @@ def build_parser() -> argparse.ArgumentParser:
     put_cmd.add_argument("--last-verified-at")
     put_cmd.set_defaults(func=cmd_put)
 
-    upsert_cmd = subparsers.add_parser("upsert", help="alias of put; insert or update one machine record")
+    upsert_cmd = subparsers.add_parser(
+        "upsert", help="alias of put; insert or update one machine record"
+    )
     upsert_cmd.add_argument("--alias", required=True)
     upsert_cmd.add_argument(
         "--namespace",
@@ -519,11 +564,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="stable workspace machine username used for collision-safe naming",
     )
     upsert_cmd.add_argument("--host-ip", "--host", dest="host_ip", required=True)
-    upsert_cmd.add_argument("--host-port", "--host-ssh-port", dest="host_port", type=int, default=22)
+    upsert_cmd.add_argument(
+        "--host-port", "--host-ssh-port", dest="host_port", type=int, default=22
+    )
     upsert_cmd.add_argument("--host-user", "--user", dest="host_user", default="root")
-    upsert_cmd.add_argument("--host-machine-type", "--machine-type", dest="host_machine_type", help="host machine type metadata, for example A2, A3, A5, or 310P")
-    upsert_cmd.add_argument("--host-soc", "--soc", dest="host_soc", help="host SoC token metadata, for example ascend910b1")
-    upsert_cmd.add_argument("--container-name", "--name", dest="container_name", required=True)
+    upsert_cmd.add_argument(
+        "--host-machine-type",
+        "--machine-type",
+        dest="host_machine_type",
+        help="host machine type metadata, for example A2, A3, A5, or 310P",
+    )
+    upsert_cmd.add_argument(
+        "--host-soc",
+        "--soc",
+        dest="host_soc",
+        help="host SoC token metadata, for example ascend910b1",
+    )
+    upsert_cmd.add_argument(
+        "--container-name", "--name", dest="container_name", required=True
+    )
     upsert_cmd.add_argument(
         "--container-ssh-port",
         "--container-port",
@@ -561,7 +620,9 @@ def build_parser() -> argparse.ArgumentParser:
     upsert_cmd.add_argument("--last-verified-at")
     upsert_cmd.set_defaults(func=cmd_put)
 
-    remove = subparsers.add_parser("remove", help="remove one machine record by alias or host IP")
+    remove = subparsers.add_parser(
+        "remove", help="remove one machine record by alias or host IP"
+    )
     remove.add_argument("identifier", help="machine alias or host IP")
     remove.set_defaults(func=cmd_remove)
 

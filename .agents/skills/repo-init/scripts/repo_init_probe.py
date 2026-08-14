@@ -174,7 +174,10 @@ def branch_info(cwd: pathlib.Path) -> Dict[str, Any]:
     )
     ahead = behind = None
     if rc3 == 0:
-        rc4, counts, _ = run(["git", "rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cwd=cwd)
+        rc4, counts, _ = run(
+            ["git", "rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+            cwd=cwd,
+        )
         if rc4 == 0 and counts:
             left, right = counts.split()
             ahead, behind = int(left), int(right)
@@ -208,7 +211,9 @@ def remotes(cwd: pathlib.Path) -> Dict[str, Dict[str, Any]]:
     data: Dict[str, Dict[str, Any]] = {}
     for name in names:
         fetch_rc, fetch_url, _ = run(["git", "remote", "get-url", name], cwd=cwd)
-        push_rc, push_url, _ = run(["git", "remote", "get-url", "--push", name], cwd=cwd)
+        push_rc, push_url, _ = run(
+            ["git", "remote", "get-url", "--push", name], cwd=cwd
+        )
         fetch_value = fetch_url if fetch_rc == 0 else None
         push_value = push_url if push_rc == 0 else None
         data[name] = {
@@ -256,7 +261,10 @@ def inspect_repo(
 
     rc_top, top, top_err = run(["git", "rev-parse", "--show-toplevel"], cwd=repo_path)
     if rc_top != 0 or pathlib.Path(top).resolve() != repo_path:
-        result["error"] = top_err or "path is inside a parent repository but is not an initialized submodule"
+        result["error"] = (
+            top_err
+            or "path is inside a parent repository but is not an initialized submodule"
+        )
         return result
 
     result["initialized"] = True
@@ -294,7 +302,9 @@ def gh_login() -> Dict[str, Any]:
     if rc2 == 0 and login:
         status["user_login"] = login
 
-    rc3, protocol, _ = run(["gh", "config", "get", "git_protocol", "--host", "github.com"])
+    rc3, protocol, _ = run(
+        ["gh", "config", "get", "git_protocol", "--host", "github.com"]
+    )
     if rc3 == 0 and protocol:
         status["git_protocol"] = protocol
 
@@ -388,7 +398,9 @@ def gh_install_plan(platform_info: Dict[str, Any]) -> Dict[str, Any]:
         }
         fallback = {
             "label": "user-space installer",
-            "commands": ["powershell -ExecutionPolicy Bypass -File .agents/skills/repo-init/scripts/install-gh-user.ps1"],
+            "commands": [
+                "powershell -ExecutionPolicy Bypass -File .agents/skills/repo-init/scripts/install-gh-user.ps1"
+            ],
             "requires_privilege": False,
         }
     else:
@@ -400,13 +412,17 @@ def gh_install_plan(platform_info: Dict[str, Any]) -> Dict[str, Any]:
         if kind == "windows":
             fallback = {
                 "label": "user-space installer",
-                "commands": ["powershell -ExecutionPolicy Bypass -File .agents/skills/repo-init/scripts/install-gh-user.ps1"],
+                "commands": [
+                    "powershell -ExecutionPolicy Bypass -File .agents/skills/repo-init/scripts/install-gh-user.ps1"
+                ],
                 "requires_privilege": False,
             }
         else:
             fallback = {
                 "label": "user-space installer",
-                "commands": ["python3 .agents/skills/repo-init/scripts/install_gh_user.py"],
+                "commands": [
+                    "python3 .agents/skills/repo-init/scripts/install_gh_user.py"
+                ],
                 "requires_privilege": False,
             }
 
@@ -503,7 +519,11 @@ def compact_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     profile = payload.get("workspace_profile") or {}
     compact_submodules = compact_submodule_summary(payload.get("submodules") or [])
     repo_root_value = payload.get("repo_root")
-    repo_root = pathlib.Path(repo_root_value) if isinstance(repo_root_value, str) and repo_root_value else None
+    repo_root = (
+        pathlib.Path(repo_root_value)
+        if isinstance(repo_root_value, str) and repo_root_value
+        else None
+    )
     machine_username_question = fixed_machine_username_question(repo_root)
     detected_git_username = detect_git_username_candidate(repo_root)
     compact: Dict[str, Any] = {
@@ -528,8 +548,12 @@ def compact_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             "git_protocol": gh.get("git_protocol"),
         },
         "gh_install_plan": {
-            "preferred": payload.get("gh_install_plan", {}).get("preferred", {}).get("label"),
-            "fallback": payload.get("gh_install_plan", {}).get("fallback", {}).get("label"),
+            "preferred": payload.get("gh_install_plan", {})
+            .get("preferred", {})
+            .get("label"),
+            "fallback": payload.get("gh_install_plan", {})
+            .get("fallback", {})
+            .get("label"),
         },
         "submodules": compact_submodules,
         "repos": {

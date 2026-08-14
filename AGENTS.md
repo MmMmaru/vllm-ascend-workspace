@@ -5,14 +5,17 @@
 @.agents/AGENTS.md
 @Contributing.md
 @CONTEXT.md
-全量读取docs/instructions获取配置流程、当前设置。
 
-在commit前运行pre-commit
+在commit前运行pre-commit只需要运行ruff和markdownlint就可以
 在commit的时候需要sing off
 [`vllm/vllm/config/parallel.py`](../vllm/vllm/config/parallel.py#L126) 使用这种格式描述代码。
 测试中的模型路径使用环境变量读取，保证本地和上游都有模型用：
 os.environ.get("SP_TEST_MODEL", "Qwen/Qwen3-30B-A3B")
-上传代码时首先查看环境，尽量不要用仓库自带install编译。
+上传代码仅使用纯代码上传，不要用仓库自带install编译。
+编译请严格按照docs/instructions的步骤。
+
+## 已知问题
+使用remote code parity容易卡住且传输不稳定
 
 ## 开发环境
 目前在远程开发

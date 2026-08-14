@@ -98,7 +98,11 @@ def category_family(category: str) -> str:
 
 
 def primary_attention_category(event: NormalizedEvent) -> str | None:
-    matches = [category for category in event.op_categories if category.startswith("attention.") and ".metadata" not in category]
+    matches = [
+        category
+        for category in event.op_categories
+        if category.startswith("attention.") and ".metadata" not in category
+    ]
     return sorted(matches)[0] if matches else None
 
 
@@ -120,11 +124,15 @@ ATTENTION_COMPANION_ONLY_CATEGORIES = {
 
 
 def is_attention_companion_only(category: str) -> bool:
-    return category in ATTENTION_COMPANION_ONLY_CATEGORIES or category.startswith("attention.rope")
+    return category in ATTENTION_COMPANION_ONLY_CATEGORIES or category.startswith(
+        "attention.rope"
+    )
 
 
 def primary_moe_category(event: NormalizedEvent) -> str | None:
-    matches = [category for category in event.op_categories if category.startswith("moe.")]
+    matches = [
+        category for category in event.op_categories if category.startswith("moe.")
+    ]
     return sorted(matches)[0] if matches else None
 
 
@@ -152,7 +160,12 @@ def anchor_signature(event: NormalizedEvent) -> str:
     return f"{kind}:{normalized_name_key(event.name_raw)}"
 
 
-def event_slice(events: Sequence[NormalizedEvent], row_numbers: Sequence[int], row_start: int, row_end: int) -> list[NormalizedEvent]:
+def event_slice(
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+    row_start: int,
+    row_end: int,
+) -> list[NormalizedEvent]:
     if row_end < row_start:
         return []
     left = bisect.bisect_left(row_numbers, row_start)
@@ -171,7 +184,9 @@ def rows_between(rows: Sequence[int], left_row: int, right_row: int) -> tuple[in
     return tuple(rows[left:right])
 
 
-def latest_row_at_or_before(rows: Sequence[int], row: int, lower_bound: int) -> int | None:
+def latest_row_at_or_before(
+    rows: Sequence[int], row: int, lower_bound: int
+) -> int | None:
     pos = bisect.bisect_right(rows, row) - 1
     if pos >= 0 and rows[pos] >= lower_bound:
         return int(rows[pos])
@@ -180,7 +195,17 @@ def latest_row_at_or_before(rows: Sequence[int], row: int, lower_bound: int) -> 
 
 def structural_event(event: NormalizedEvent) -> bool:
     roles = set(event.op_roles)
-    return bool(roles & {"attention", "attention_aux", "moe", "block_head", "normalization", "compute"})
+    return bool(
+        roles
+        & {
+            "attention",
+            "attention_aux",
+            "moe",
+            "block_head",
+            "normalization",
+            "compute",
+        }
+    )
 
 
 def event_identity_key(event: NormalizedEvent) -> tuple[Any, ...]:
@@ -220,7 +245,9 @@ def dedup_adjacent_event_rows(
     return tuple(rows)
 
 
-def dedup_adjacent_events(events: Sequence[NormalizedEvent]) -> tuple[NormalizedEvent, ...]:
+def dedup_adjacent_events(
+    events: Sequence[NormalizedEvent],
+) -> tuple[NormalizedEvent, ...]:
     deduped: list[NormalizedEvent] = []
     previous_key: tuple[Any, ...] | None = None
     for event in events:
@@ -232,7 +259,9 @@ def dedup_adjacent_events(events: Sequence[NormalizedEvent]) -> tuple[Normalized
     return tuple(deduped)
 
 
-def layer_anchor_events(events: Sequence[NormalizedEvent]) -> tuple[NormalizedEvent, ...]:
+def layer_anchor_events(
+    events: Sequence[NormalizedEvent],
+) -> tuple[NormalizedEvent, ...]:
     """Pick one deterministic layer-anchor family for this rank.
 
     Attention is the best layer-frequency signal when present, but some MLA
@@ -249,12 +278,15 @@ def layer_anchor_events(events: Sequence[NormalizedEvent]) -> tuple[NormalizedEv
         tuple(
             event
             for event in events
-            if event_role(event, "attention") and primary_attention_category(event) is not None
+            if event_role(event, "attention")
+            and primary_attention_category(event) is not None
         )
     )
     if attention_events:
         for category in MLA_LAYER_START_CATEGORIES:
-            anchors = tuple(event for event in attention_events if category in event.op_categories)
+            anchors = tuple(
+                event for event in attention_events if category in event.op_categories
+            )
             if anchors:
                 return anchors
         anchors = tuple(
@@ -268,12 +300,16 @@ def layer_anchor_events(events: Sequence[NormalizedEvent]) -> tuple[NormalizedEv
 
     role_order = (
         lambda event: event_role(event, "moe"),
-        lambda event: "compute.matmul" in event.op_categories and event_role(event, "compute"),
+        lambda event: (
+            "compute.matmul" in event.op_categories and event_role(event, "compute")
+        ),
         lambda event: event_role(event, "block_head"),
         lambda event: event_role(event, "normalization"),
     )
     for predicate in role_order:
-        anchors = dedup_adjacent_events(tuple(event for event in events if predicate(event)))
+        anchors = dedup_adjacent_events(
+            tuple(event for event in events if predicate(event))
+        )
         if anchors:
             return anchors
     return ()
@@ -327,7 +363,9 @@ class LayerFrame:
         return tuple(layer_role_key(layer.signature) for layer in self.layers)
 
 
-def frame_tags(*frames: LayerFrame, extra: Sequence[str] = (), drop: Sequence[str] = ()) -> tuple[str, ...]:
+def frame_tags(
+    *frames: LayerFrame, extra: Sequence[str] = (), drop: Sequence[str] = ()
+) -> tuple[str, ...]:
     """Return stable structured tags for control flow.
 
     ``reason`` is human-readable provenance.  Any logic that needs to know how
@@ -379,22 +417,44 @@ class StepPlan:
         return tuple(layer_role_key(layer.signature) for layer in self.main_layers)
 
 
-def layer_structure_signature(events: Sequence[NormalizedEvent], anchors: Sequence[NormalizedEvent]) -> str:
-    categories = Counter(category_family(category) for event in events for category in event.op_categories)
+def layer_structure_signature(
+    events: Sequence[NormalizedEvent], anchors: Sequence[NormalizedEvent]
+) -> str:
+    categories = Counter(
+        category_family(category)
+        for event in events
+        for category in event.op_categories
+    )
     roles = Counter(role for event in events for role in event.op_roles)
     anchor_terms = tuple(anchor_signature(anchor) for anchor in anchors)
     terms: list[str] = []
     if anchor_terms:
         terms.append("anchors:" + "+".join(anchor_terms))
-    attention_terms = sorted(category for category in categories if category.startswith("attention.") and ".metadata" not in category)
+    attention_terms = sorted(
+        category
+        for category in categories
+        if category.startswith("attention.") and ".metadata" not in category
+    )
     if attention_terms:
-        terms.append("attention:" + "+".join(f"{item}x{categories[item]}" for item in attention_terms))
-    aux_terms = sorted(category for category in categories if category.startswith("attention.csa."))
+        terms.append(
+            "attention:"
+            + "+".join(f"{item}x{categories[item]}" for item in attention_terms)
+        )
+    aux_terms = sorted(
+        category for category in categories if category.startswith("attention.csa.")
+    )
     if aux_terms:
-        terms.append("attention_aux:" + "+".join(f"{item}x{categories[item]}" for item in aux_terms))
-    moe_terms = sorted(category for category in categories if category.startswith("moe."))
+        terms.append(
+            "attention_aux:"
+            + "+".join(f"{item}x{categories[item]}" for item in aux_terms)
+        )
+    moe_terms = sorted(
+        category for category in categories if category.startswith("moe.")
+    )
     if moe_terms:
-        terms.append("moe:" + "+".join(f"{item}x{categories[item]}" for item in moe_terms))
+        terms.append(
+            "moe:" + "+".join(f"{item}x{categories[item]}" for item in moe_terms)
+        )
     elif roles.get("compute"):
         terms.append("ffn_or_dense_compute")
     if categories.get("block_head"):
@@ -409,7 +469,11 @@ def layer_structure_signature(events: Sequence[NormalizedEvent], anchors: Sequen
 
 
 def layer_regime_key(signature: str) -> str:
-    terms = [term for term in signature.split("|") if term not in {"selection", "communication"}]
+    terms = [
+        term
+        for term in signature.split("|")
+        if term not in {"selection", "communication"}
+    ]
     key = "|".join(terms) if terms else signature
     key = re.sub(r"block_head(?:x\d+)?", "block_head", key)
     return key
@@ -420,7 +484,9 @@ def layer_role_key(signature: str) -> str:
     terms = [
         term
         for term in signature.split("|")
-        if term and not term.startswith("anchors:") and term not in {"selection", "communication"}
+        if term
+        and not term.startswith("anchors:")
+        and term not in {"selection", "communication"}
     ]
     key = "|".join(terms) if terms else signature
     key = key.replace("|selection", "")
@@ -428,7 +494,9 @@ def layer_role_key(signature: str) -> str:
     return key
 
 
-def group_layer_anchors(anchors: Sequence[NormalizedEvent], boundary_rows: Sequence[int]) -> list[tuple[NormalizedEvent, ...]]:
+def group_layer_anchors(
+    anchors: Sequence[NormalizedEvent], boundary_rows: Sequence[int]
+) -> list[tuple[NormalizedEvent, ...]]:
     """Group same-layer anchors without using timing gaps.
 
     Multiple attention-like kernels can belong to one layer only when no
@@ -456,14 +524,24 @@ def group_layer_anchors(anchors: Sequence[NormalizedEvent], boundary_rows: Seque
     return groups
 
 
-def build_layers(events: Sequence[NormalizedEvent], row_numbers: Sequence[int], boundary_rows: Sequence[int], anchor_boundary_rows: Sequence[int], selection_rows: Sequence[int]) -> list[LayerObservation]:
+def build_layers(
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+    boundary_rows: Sequence[int],
+    anchor_boundary_rows: Sequence[int],
+    selection_rows: Sequence[int],
+) -> list[LayerObservation]:
     anchors = layer_anchor_events(events)
     if not anchors:
         return []
     anchor_groups = group_layer_anchors(anchors, anchor_boundary_rows)
     starts: list[int] = []
     for index, group in enumerate(anchor_groups):
-        lower_bound = events[0].row_idx if index == 0 else anchor_groups[index - 1][-1].row_idx + 1
+        lower_bound = (
+            events[0].row_idx
+            if index == 0
+            else anchor_groups[index - 1][-1].row_idx + 1
+        )
         selection_pos = bisect.bisect_left(selection_rows, group[0].row_idx)
         if selection_pos > 0 and selection_rows[selection_pos - 1] >= lower_bound:
             lower_bound = selection_rows[selection_pos - 1] + 1
@@ -473,7 +551,9 @@ def build_layers(events: Sequence[NormalizedEvent], row_numbers: Sequence[int], 
     layers: list[LayerObservation] = []
     for index, group in enumerate(anchor_groups):
         row_start = starts[index]
-        row_end = starts[index + 1] - 1 if index + 1 < len(starts) else events[-1].row_idx
+        row_end = (
+            starts[index + 1] - 1 if index + 1 < len(starts) else events[-1].row_idx
+        )
         layer_events = event_slice(events, row_numbers, row_start, row_end)
         signature = layer_structure_signature(layer_events, group)
         layers.append(
@@ -486,7 +566,9 @@ def build_layers(events: Sequence[NormalizedEvent], row_numbers: Sequence[int], 
                 regime_key=layer_regime_key(signature),
             )
         )
-    return split_coarse_layers_by_moe(layers, events, row_numbers, boundary_rows, selection_rows)
+    return split_coarse_layers_by_moe(
+        layers, events, row_numbers, boundary_rows, selection_rows
+    )
 
 
 def split_coarse_layers_by_moe(
@@ -508,7 +590,15 @@ def split_coarse_layers_by_moe(
     refined: list[LayerObservation] = []
     for layer in layers:
         layer_events = event_slice(events, row_numbers, layer.row_start, layer.row_end)
-        raw_moe_anchors = list(dedup_adjacent_events(tuple(event for event in layer_events if event_role(event, "moe") and primary_moe_category(event))))
+        raw_moe_anchors = list(
+            dedup_adjacent_events(
+                tuple(
+                    event
+                    for event in layer_events
+                    if event_role(event, "moe") and primary_moe_category(event)
+                )
+            )
+        )
         if len(raw_moe_anchors) <= 1:
             refined.append(layer)
             continue
@@ -539,11 +629,15 @@ def split_coarse_layers_by_moe(
             selection_pos = bisect.bisect_left(selection_rows, group[0].row_idx)
             if selection_pos > 0 and selection_rows[selection_pos - 1] >= lower_bound:
                 lower_bound = selection_rows[selection_pos - 1] + 1
-            start = latest_row_at_or_before(boundary_rows, group[0].row_idx, lower_bound)
+            start = latest_row_at_or_before(
+                boundary_rows, group[0].row_idx, lower_bound
+            )
             starts.append(start if start is not None else group[0].row_idx)
         for index, group in enumerate(moe_groups):
             row_start = starts[index]
-            row_end = starts[index + 1] - 1 if index + 1 < len(starts) else layer.row_end
+            row_end = (
+                starts[index + 1] - 1 if index + 1 < len(starts) else layer.row_end
+            )
             sub_events = event_slice(events, row_numbers, row_start, row_end)
             signature = layer_structure_signature(sub_events, group)
             refined.append(
@@ -569,22 +663,36 @@ def split_coarse_layers_by_moe(
     ]
 
 
-def frame_selection_after(frame_layers: Sequence[LayerObservation], next_layer: LayerObservation | None, selection_rows: Sequence[int]) -> tuple[int, ...]:
+def frame_selection_after(
+    frame_layers: Sequence[LayerObservation],
+    next_layer: LayerObservation | None,
+    selection_rows: Sequence[int],
+) -> tuple[int, ...]:
     if not frame_layers:
         return ()
     left = frame_layers[-1].anchors[-1].row_idx
-    right = next_layer.anchors[0].row_idx if next_layer is not None else frame_layers[-1].row_end + 1
+    right = (
+        next_layer.anchors[0].row_idx
+        if next_layer is not None
+        else frame_layers[-1].row_end + 1
+    )
     return rows_between(selection_rows, left, right)
 
 
-def frames_from_selection(layers: Sequence[LayerObservation], selection_rows: Sequence[int]) -> list[LayerFrame]:
+def frames_from_selection(
+    layers: Sequence[LayerObservation], selection_rows: Sequence[int]
+) -> list[LayerFrame]:
     if not layers:
         return []
     frames: list[LayerFrame] = []
     start = 0
     selection_before: tuple[int, ...] = ()
     for index in range(len(layers) - 1):
-        between = rows_between(selection_rows, layers[index].anchors[-1].row_idx, layers[index + 1].anchors[0].row_idx)
+        between = rows_between(
+            selection_rows,
+            layers[index].anchors[-1].row_idx,
+            layers[index + 1].anchors[0].row_idx,
+        )
         if not between:
             continue
         frames.append(
@@ -619,11 +727,17 @@ def sequence_is_exactly_structured(sequence: Sequence[str]) -> bool:
 
 
 def layer_core_set(layers: Sequence[LayerObservation]) -> set[str]:
-    return {core_role_key(layer.signature) for layer in layers if core_role_key(layer.signature)}
+    return {
+        core_role_key(layer.signature)
+        for layer in layers
+        if core_role_key(layer.signature)
+    }
 
 
 def layers_have_csa(layers: Sequence[LayerObservation]) -> bool:
-    return any("attention:attention.csa" in core_role_key(layer.signature) for layer in layers)
+    return any(
+        "attention:attention.csa" in core_role_key(layer.signature) for layer in layers
+    )
 
 
 def layers_have_moe(layers: Sequence[LayerObservation]) -> bool:
@@ -631,7 +745,9 @@ def layers_have_moe(layers: Sequence[LayerObservation]) -> bool:
 
 
 def layers_have_dense_compute(layers: Sequence[LayerObservation]) -> bool:
-    return any("ffn_or_dense_compute" in core_role_key(layer.signature) for layer in layers)
+    return any(
+        "ffn_or_dense_compute" in core_role_key(layer.signature) for layer in layers
+    )
 
 
 def layers_have_primary_attention(layers: Sequence[LayerObservation]) -> bool:
@@ -645,7 +761,9 @@ def regime_cut_is_dense_prefix_moe_suffix(frame: LayerFrame, cut: int) -> bool:
         return False
     if len(left) * 4 > len(right):
         return False
-    if not layers_have_primary_attention(left) or not layers_have_primary_attention(right):
+    if not layers_have_primary_attention(left) or not layers_have_primary_attention(
+        right
+    ):
         return False
     if not layers_have_dense_compute(left):
         return False
@@ -676,10 +794,16 @@ def regime_cut_is_prefix_variant(frame: LayerFrame, cut: int) -> bool:
         return True
     if not left_core or not right_core:
         return False
-    same_core_family = bool(left_core & right_core) or left_core.issubset(right_core) or right_core.issubset(left_core)
+    same_core_family = (
+        bool(left_core & right_core)
+        or left_core.issubset(right_core)
+        or right_core.issubset(left_core)
+    )
     if not same_core_family:
         return False
-    return (layers_have_csa(left) and layers_have_csa(right)) or (layers_have_moe(left) and layers_have_moe(right))
+    return (layers_have_csa(left) and layers_have_csa(right)) or (
+        layers_have_moe(left) and layers_have_moe(right)
+    )
 
 
 def split_frame_by_regime(frame: LayerFrame) -> list[LayerFrame]:
@@ -739,7 +863,9 @@ def repeated_prefix_end(sequence: Sequence[str], start: int) -> int:
         unit = tuple(sequence[start : start + width])
         end = start + width
         repeat_count = 1
-        while end + width <= len(sequence) and tuple(sequence[end : end + width]) == unit:
+        while (
+            end + width <= len(sequence) and tuple(sequence[end : end + width]) == unit
+        ):
             end += width
             repeat_count += 1
         if repeat_count <= 1:
@@ -769,7 +895,8 @@ def split_frame_by_repeated_body_runs(frame: LayerFrame) -> list[LayerFrame]:
         return [frame]
     run_sequences = [sequence[start:end] for start, end in offsets]
     repeated_run = any(
-        left_index != right_index and run_sequences[left_index] == run_sequences[right_index]
+        left_index != right_index
+        and run_sequences[left_index] == run_sequences[right_index]
         for left_index in range(len(run_sequences))
         for right_index in range(left_index + 1, len(run_sequences))
     )
@@ -783,25 +910,46 @@ def split_frame_by_repeated_body_runs(frame: LayerFrame) -> list[LayerFrame]:
                 layers=tuple(frame.layers[start:end]),
                 reason=f"{frame.reason}+repeated_body_run_split",
                 selection_before=frame.selection_before if offset == 0 else (),
-                selection_after=frame.selection_after if offset == len(offsets) - 1 else (),
+                selection_after=frame.selection_after
+                if offset == len(offsets) - 1
+                else (),
                 tags=frame.tags,
             )
         )
     return pieces
 
 
-def frame_unit_has_multiple_moe(unit: Sequence[LayerObservation], events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> bool:
+def frame_unit_has_multiple_moe(
+    unit: Sequence[LayerObservation],
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+) -> bool:
     unit_events = event_slice(events, row_numbers, unit[0].row_start, unit[-1].row_end)
-    moe_anchor_count = sum(1 for event in unit_events if event_role(event, "moe") and primary_moe_category(event))
+    moe_anchor_count = sum(
+        1
+        for event in unit_events
+        if event_role(event, "moe") and primary_moe_category(event)
+    )
     return moe_anchor_count > 1
 
 
-def frame_unit_has_moe(unit: Sequence[LayerObservation], events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> bool:
+def frame_unit_has_moe(
+    unit: Sequence[LayerObservation],
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+) -> bool:
     unit_events = event_slice(events, row_numbers, unit[0].row_start, unit[-1].row_end)
-    return any(event_role(event, "moe") and primary_moe_category(event) for event in unit_events)
+    return any(
+        event_role(event, "moe") and primary_moe_category(event)
+        for event in unit_events
+    )
 
 
-def frame_unit_moe_gating_count(unit: Sequence[LayerObservation], events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> int:
+def frame_unit_moe_gating_count(
+    unit: Sequence[LayerObservation],
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+) -> int:
     unit_events = event_slice(events, row_numbers, unit[0].row_start, unit[-1].row_end)
     return sum(1 for event in unit_events if "moe.gating" in event.op_categories)
 
@@ -833,7 +981,10 @@ def layer_has_primary_attention(layer: LayerObservation) -> bool:
     # Anchors can be MoE/phase markers after local merges; the layer signature
     # is the stable structural observation for deciding whether the layer body
     # contains a primary attention block.
-    return any(term.startswith("attention:") for term in core_role_key(layer.signature).split("|"))
+    return any(
+        term.startswith("attention:")
+        for term in core_role_key(layer.signature).split("|")
+    )
 
 
 def frame_has_primary_attention(frame: LayerFrame) -> bool:
@@ -864,7 +1015,9 @@ def merge_moe_phase_groups(
             if not layer_has_moe_dispatch(current, events, row_numbers):
                 return frame
             cursor += 1
-        if cursor == index + 1 and not layer_has_moe_dispatch(first, events, row_numbers):
+        if cursor == index + 1 and not layer_has_moe_dispatch(
+            first, events, row_numbers
+        ):
             return frame
         if cursor > index + 1:
             changed = True
@@ -955,7 +1108,15 @@ def merge_adjacent_moe_gating_dispatch_pairs(
 
 
 def layer_primary_attention_categories(layer: LayerObservation) -> tuple[str, ...]:
-    return tuple(sorted({category for anchor in layer.anchors if (category := primary_attention_category(anchor))}))
+    return tuple(
+        sorted(
+            {
+                category
+                for anchor in layer.anchors
+                if (category := primary_attention_category(anchor))
+            }
+        )
+    )
 
 
 def merge_adjacent_attention_pair_single_moe(
@@ -1003,7 +1164,9 @@ def merge_adjacent_attention_pair_single_moe(
     )
 
 
-def merge_exact_attention_subunits(frame: LayerFrame, events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> LayerFrame:
+def merge_exact_attention_subunits(
+    frame: LayerFrame, events: Sequence[NormalizedEvent], row_numbers: Sequence[int]
+) -> LayerFrame:
     """Merge exact attention subunits that compose one transformer layer.
 
     DeepSeek-style MLA can expose two attention anchors for one logical layer.
@@ -1013,17 +1176,25 @@ def merge_exact_attention_subunits(frame: LayerFrame, events: Sequence[Normalize
     therefore remain unmerged.
     """
 
-    sequence = tuple("+".join(anchor_signature(anchor) for anchor in layer.anchors) for layer in frame.layers)
+    sequence = tuple(
+        "+".join(anchor_signature(anchor) for anchor in layer.anchors)
+        for layer in frame.layers
+    )
     period = minimal_exact_period(sequence)
     if not period or len(period) <= 1 or len(period) >= len(sequence):
         return frame
     width = len(period)
-    windows = [frame.layers[index : index + width] for index in range(0, len(frame.layers), width)]
+    windows = [
+        frame.layers[index : index + width]
+        for index in range(0, len(frame.layers), width)
+    ]
     if any(len(window) != width for window in windows):
         return frame
     if not any(frame_unit_has_moe(window, events, row_numbers) for window in windows):
         return frame
-    if any(frame_unit_has_multiple_moe(window, events, row_numbers) for window in windows):
+    if any(
+        frame_unit_has_multiple_moe(window, events, row_numbers) for window in windows
+    ):
         return frame
 
     merged_layers: list[LayerObservation] = []
@@ -1054,16 +1225,24 @@ def merge_exact_attention_subunits(frame: LayerFrame, events: Sequence[Normalize
     )
 
 
-def merge_exact_moe_subunits(frame: LayerFrame, events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> LayerFrame:
+def merge_exact_moe_subunits(
+    frame: LayerFrame, events: Sequence[NormalizedEvent], row_numbers: Sequence[int]
+) -> LayerFrame:
     sequence = frame.role_sequence
     period = minimal_exact_period(sequence)
     if not period or len(period) <= 1 or len(period) >= len(sequence):
         return frame
     width = len(period)
-    windows = [frame.layers[index : index + width] for index in range(0, len(frame.layers), width)]
+    windows = [
+        frame.layers[index : index + width]
+        for index in range(0, len(frame.layers), width)
+    ]
     if any(len(window) != width for window in windows):
         return frame
-    if any(frame_unit_moe_gating_count(window, events, row_numbers) != 1 for window in windows):
+    if any(
+        frame_unit_moe_gating_count(window, events, row_numbers) != 1
+        for window in windows
+    ):
         return frame
 
     merged_layers: list[LayerObservation] = []
@@ -1094,7 +1273,9 @@ def merge_exact_moe_subunits(frame: LayerFrame, events: Sequence[NormalizedEvent
     )
 
 
-def frame_has_moe(frame: LayerFrame, events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> bool:
+def frame_has_moe(
+    frame: LayerFrame, events: Sequence[NormalizedEvent], row_numbers: Sequence[int]
+) -> bool:
     frame_events = event_slice(events, row_numbers, frame.row_start, frame.row_end)
     return any(event_role(event, "moe") for event in frame_events)
 
@@ -1120,7 +1301,9 @@ def split_role_count(item: str) -> tuple[str, str]:
     return item, ""
 
 
-def dense_prefix_matches_moe_suffix_attention(left: LayerFrame, right: LayerFrame) -> bool:
+def dense_prefix_matches_moe_suffix_attention(
+    left: LayerFrame, right: LayerFrame
+) -> bool:
     left_attention: set[str] = set()
     for layer in left.layers:
         left_attention.update(attention_terms(layer.signature))
@@ -1143,7 +1326,9 @@ def frame_core_roles(frame: LayerFrame) -> set[str]:
 
 
 def layer_merge_key(signature: str) -> str:
-    anchor_terms = tuple(term for term in signature.split("|") if term.startswith("anchors:"))
+    anchor_terms = tuple(
+        term for term in signature.split("|") if term.startswith("anchors:")
+    )
     core = core_role_key(signature)
     return "|".join((*anchor_terms, core))
 
@@ -1180,7 +1365,9 @@ def merge_adjacent_same_core_frames(frames: Sequence[LayerFrame]) -> list[LayerF
     return merged
 
 
-def split_attention_prefix_moe_suffix(frame: LayerFrame, events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> list[LayerFrame]:
+def split_attention_prefix_moe_suffix(
+    frame: LayerFrame, events: Sequence[NormalizedEvent], row_numbers: Sequence[int]
+) -> list[LayerFrame]:
     """Split transitions between attention body and no-attention MoE tail."""
 
     if len(frame.layers) <= 1:
@@ -1197,14 +1384,20 @@ def split_attention_prefix_moe_suffix(frame: LayerFrame, events: Sequence[Normal
             continue
         previous = frame.layers[index - 1]
         current = frame.layers[index]
-        previous_has_moe = frame_has_moe(LayerFrame((previous,), reason=frame.reason), events, row_numbers)
-        current_has_moe = frame_has_moe(LayerFrame((current,), reason=frame.reason), events, row_numbers)
+        previous_has_moe = frame_has_moe(
+            LayerFrame((previous,), reason=frame.reason), events, row_numbers
+        )
+        current_has_moe = frame_has_moe(
+            LayerFrame((current,), reason=frame.reason), events, row_numbers
+        )
         if not (previous_has_moe or current_has_moe):
             continue
         pieces.append(
             LayerFrame(
                 layers=tuple(frame.layers[start:index]),
-                reason=frame.reason if current_has_attention else f"{frame.reason}+no_attention_moe_suffix",
+                reason=frame.reason
+                if current_has_attention
+                else f"{frame.reason}+no_attention_moe_suffix",
                 selection_before=frame.selection_before if not pieces else (),
                 selection_after=(),
                 tags=frame.tags,
@@ -1217,7 +1410,9 @@ def split_attention_prefix_moe_suffix(frame: LayerFrame, events: Sequence[Normal
     pieces.append(
         LayerFrame(
             layers=tuple(frame.layers[start:]),
-            reason=frame.reason if current_has_attention else f"{frame.reason}+no_attention_moe_suffix",
+            reason=frame.reason
+            if current_has_attention
+            else f"{frame.reason}+no_attention_moe_suffix",
             selection_before=(),
             selection_after=frame.selection_after,
             tags=frame.tags,
@@ -1226,7 +1421,11 @@ def split_attention_prefix_moe_suffix(frame: LayerFrame, events: Sequence[Normal
     return pieces
 
 
-def merge_dense_prefix_with_moe_suffix(frames: Sequence[LayerFrame], events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> list[LayerFrame]:
+def merge_dense_prefix_with_moe_suffix(
+    frames: Sequence[LayerFrame],
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+) -> list[LayerFrame]:
     merged: list[LayerFrame] = []
     index = 0
     while index < len(frames):
@@ -1269,11 +1468,17 @@ def supported_exact_templates_from_sequences(
     return tuple(sequence for sequence, count in counts.items() if count >= min_count)
 
 
-def supported_exact_templates(frames: Sequence[LayerFrame]) -> tuple[tuple[str, ...], ...]:
-    return supported_exact_templates_from_sequences(tuple(frame.sequence for frame in frames))
+def supported_exact_templates(
+    frames: Sequence[LayerFrame],
+) -> tuple[tuple[str, ...], ...]:
+    return supported_exact_templates_from_sequences(
+        tuple(frame.sequence for frame in frames)
+    )
 
 
-def boundary_template_seed_frames(frames: Sequence[LayerFrame]) -> tuple[LayerFrame, ...]:
+def boundary_template_seed_frames(
+    frames: Sequence[LayerFrame],
+) -> tuple[LayerFrame, ...]:
     return tuple(
         frame
         for frame in frames
@@ -1284,10 +1489,20 @@ def boundary_template_seed_frames(frames: Sequence[LayerFrame]) -> tuple[LayerFr
     )
 
 
-def exact_cover_sequence(sequence: Sequence[str], templates: Sequence[tuple[str, ...]]) -> list[tuple[int, int]] | None:
+def exact_cover_sequence(
+    sequence: Sequence[str], templates: Sequence[tuple[str, ...]]
+) -> list[tuple[int, int]] | None:
     if len(sequence) <= 1:
         return None
-    ordered = sorted({tuple(template) for template in templates if 0 < len(template) < len(sequence)}, key=len, reverse=True)
+    ordered = sorted(
+        {
+            tuple(template)
+            for template in templates
+            if 0 < len(template) < len(sequence)
+        },
+        key=len,
+        reverse=True,
+    )
     if not ordered:
         return None
     values = tuple(sequence)
@@ -1317,10 +1532,20 @@ def exact_cover_sequence(sequence: Sequence[str], templates: Sequence[tuple[str,
     return path
 
 
-def exact_prefix_cover_sequence(sequence: Sequence[str], templates: Sequence[tuple[str, ...]]) -> list[tuple[int, int]] | None:
+def exact_prefix_cover_sequence(
+    sequence: Sequence[str], templates: Sequence[tuple[str, ...]]
+) -> list[tuple[int, int]] | None:
     if len(sequence) <= 1:
         return None
-    ordered = sorted({tuple(template) for template in templates if 0 < len(template) < len(sequence)}, key=len, reverse=True)
+    ordered = sorted(
+        {
+            tuple(template)
+            for template in templates
+            if 0 < len(template) < len(sequence)
+        },
+        key=len,
+        reverse=True,
+    )
     if not ordered:
         return None
     values = tuple(sequence)
@@ -1345,7 +1570,9 @@ def exact_prefix_cover_sequence(sequence: Sequence[str], templates: Sequence[tup
     return path
 
 
-def exact_suffix_cover_sequence(sequence: Sequence[str], templates: Sequence[tuple[str, ...]]) -> tuple[int, list[tuple[int, int]]] | None:
+def exact_suffix_cover_sequence(
+    sequence: Sequence[str], templates: Sequence[tuple[str, ...]]
+) -> tuple[int, list[tuple[int, int]]] | None:
     if len(sequence) <= 1:
         return None
     for residual_end in range(1, len(sequence)):
@@ -1360,13 +1587,28 @@ def exact_suffix_cover_sequence(sequence: Sequence[str], templates: Sequence[tup
 
 def split_frames_by_exact_templates(frames: Sequence[LayerFrame]) -> list[LayerFrame]:
     templates = supported_exact_templates(frames)
-    core_templates = supported_exact_templates_from_sequences(tuple(frame_core_sequence(frame) for frame in frames))
-    boundary_templates = supported_exact_templates_from_sequences(
-        tuple(frame_boundary_sequence(frame) for frame in boundary_template_seed_frames(frames))
+    core_templates = supported_exact_templates_from_sequences(
+        tuple(frame_core_sequence(frame) for frame in frames)
     )
-    all_templates = supported_exact_templates_from_sequences(tuple(frame.sequence for frame in frames), min_count=1)
-    all_core_templates = supported_exact_templates_from_sequences(tuple(frame_core_sequence(frame) for frame in frames), min_count=1)
-    if not templates and not core_templates and not boundary_templates and not all_templates and not all_core_templates:
+    boundary_templates = supported_exact_templates_from_sequences(
+        tuple(
+            frame_boundary_sequence(frame)
+            for frame in boundary_template_seed_frames(frames)
+        )
+    )
+    all_templates = supported_exact_templates_from_sequences(
+        tuple(frame.sequence for frame in frames), min_count=1
+    )
+    all_core_templates = supported_exact_templates_from_sequences(
+        tuple(frame_core_sequence(frame) for frame in frames), min_count=1
+    )
+    if (
+        not templates
+        and not core_templates
+        and not boundary_templates
+        and not all_templates
+        and not all_core_templates
+    ):
         return list(frames)
     split: list[LayerFrame] = []
     for frame in frames:
@@ -1382,16 +1624,22 @@ def split_frames_by_exact_templates(frames: Sequence[LayerFrame]) -> list[LayerF
             cover = exact_cover_sequence(frame_core_sequence(frame), all_core_templates)
         residual_start: int | None = None
         if cover is None:
-            cover = exact_prefix_cover_sequence(frame_core_sequence(frame), core_templates)
+            cover = exact_prefix_cover_sequence(
+                frame_core_sequence(frame), core_templates
+            )
             if cover is not None:
                 residual_start = cover[-1][1]
         if cover is None:
-            cover = exact_prefix_cover_sequence(frame_boundary_sequence(frame), boundary_templates)
+            cover = exact_prefix_cover_sequence(
+                frame_boundary_sequence(frame), boundary_templates
+            )
             if cover is not None:
                 residual_start = cover[-1][1]
         residual_end: int | None = None
         if cover is None:
-            suffix_cover = exact_suffix_cover_sequence(frame_boundary_sequence(frame), boundary_templates)
+            suffix_cover = exact_suffix_cover_sequence(
+                frame_boundary_sequence(frame), boundary_templates
+            )
             if suffix_cover is not None:
                 residual_end, cover = suffix_cover
         if cover is None:
@@ -1416,12 +1664,19 @@ def split_frames_by_exact_templates(frames: Sequence[LayerFrame]) -> list[LayerF
                 LayerFrame(
                     layers=tuple(frame.layers[start:end]),
                     reason=f"{frame.reason}+exact_template_cover",
-                    selection_before=frame.selection_before if offset == 0 and residual_end is None else (),
-                    selection_after=frame.selection_after if offset == len(cover) - 1 and residual_start is None else (),
+                    selection_before=frame.selection_before
+                    if offset == 0 and residual_end is None
+                    else (),
+                    selection_after=frame.selection_after
+                    if offset == len(cover) - 1 and residual_start is None
+                    else (),
                     tags=frame_tags(
                         frame,
                         extra=("exact_template_cover",),
-                        drop=("exact_template_prefix_residual", "exact_template_suffix_residual"),
+                        drop=(
+                            "exact_template_prefix_residual",
+                            "exact_template_suffix_residual",
+                        ),
                     ),
                 )
             )
@@ -1442,7 +1697,9 @@ def split_frames_by_exact_templates(frames: Sequence[LayerFrame]) -> list[LayerF
     return split
 
 
-def split_no_attention_frames_by_observed_main_lengths(frames: Sequence[LayerFrame]) -> list[LayerFrame]:
+def split_no_attention_frames_by_observed_main_lengths(
+    frames: Sequence[LayerFrame],
+) -> list[LayerFrame]:
     attention_templates = [
         frame
         for frame in frames
@@ -1464,14 +1721,23 @@ def split_no_attention_frames_by_observed_main_lengths(frames: Sequence[LayerFra
         for length in lengths:
             if length >= len(frame.layers) or len(frame.layers) % length != 0:
                 continue
-            chunk = LayerFrame(tuple(frame.layers[:length]), reason=frame.reason, tags=frame.tags)
+            chunk = LayerFrame(
+                tuple(frame.layers[:length]), reason=frame.reason, tags=frame.tags
+            )
             chunk_components = frame_coarse_core_components(chunk)
-            template_components = frame_coarse_core_components(template_by_length[length])
-            if all(template_components[key] >= value for key, value in chunk_components.items()):
+            template_components = frame_coarse_core_components(
+                template_by_length[length]
+            )
+            if all(
+                template_components[key] >= value
+                for key, value in chunk_components.items()
+            ):
                 chosen = length
                 break
         if chosen is None:
-            prefix_split = split_no_attention_prefix_by_observed_main_length(frame, template_by_length, lengths)
+            prefix_split = split_no_attention_prefix_by_observed_main_length(
+                frame, template_by_length, lengths
+            )
             if prefix_split is not None:
                 split.extend(prefix_split)
             else:
@@ -1484,7 +1750,9 @@ def split_no_attention_frames_by_observed_main_lengths(frames: Sequence[LayerFra
                     layers=tuple(frame.layers[start:end]),
                     reason=f"{frame.reason}+no_attention_composite_split_by_observed_main_length",
                     selection_before=frame.selection_before if offset == 0 else (),
-                    selection_after=frame.selection_after if end == len(frame.layers) else (),
+                    selection_after=frame.selection_after
+                    if end == len(frame.layers)
+                    else (),
                     tags=frame.tags,
                 )
             )
@@ -1504,16 +1772,27 @@ def split_no_attention_prefix_by_observed_main_length(
         chunks: list[LayerFrame] = []
         start = 0
         while start + length <= len(frame.layers):
-            chunk = LayerFrame(tuple(frame.layers[start : start + length]), reason=frame.reason, tags=frame.tags)
+            chunk = LayerFrame(
+                tuple(frame.layers[start : start + length]),
+                reason=frame.reason,
+                tags=frame.tags,
+            )
             chunk_components = frame_coarse_core_components(chunk)
-            template_components = frame_coarse_core_components(template_by_length[length])
-            if not all(template_components[key] >= value for key, value in chunk_components.items()):
+            template_components = frame_coarse_core_components(
+                template_by_length[length]
+            )
+            if not all(
+                template_components[key] >= value
+                for key, value in chunk_components.items()
+            ):
                 break
             chunks.append(chunk)
             start += length
         if not chunks or start >= len(frame.layers):
             continue
-        suffix = LayerFrame(tuple(frame.layers[start:]), reason=frame.reason, tags=frame.tags)
+        suffix = LayerFrame(
+            tuple(frame.layers[start:]), reason=frame.reason, tags=frame.tags
+        )
         if not strict_core_component_substructure(suffix, chunks[-1]):
             continue
         pieces: list[LayerFrame] = []
@@ -1540,21 +1819,35 @@ def split_no_attention_prefix_by_observed_main_length(
     return None
 
 
-def split_composite_frames(frames: Sequence[LayerFrame], events: Sequence[NormalizedEvent], row_numbers: Sequence[int]) -> list[LayerFrame]:
+def split_composite_frames(
+    frames: Sequence[LayerFrame],
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+) -> list[LayerFrame]:
     current: list[LayerFrame] = []
     for frame in frames:
         merged = merge_exact_attention_subunits(frame, events, row_numbers)
         for split in split_frame_by_regime(merged):
-            attention_merged = merge_adjacent_attention_pair_single_moe(split, events, row_numbers)
+            attention_merged = merge_adjacent_attention_pair_single_moe(
+                split, events, row_numbers
+            )
             moe_merged = merge_exact_moe_subunits(attention_merged, events, row_numbers)
             current.append(merge_moe_phase_groups(moe_merged, events, row_numbers))
     current = [piece for frame in current for piece in split_frame_by_regime(frame)]
-    current = [piece for frame in current for piece in split_attention_prefix_moe_suffix(frame, events, row_numbers)]
+    current = [
+        piece
+        for frame in current
+        for piece in split_attention_prefix_moe_suffix(frame, events, row_numbers)
+    ]
     current = merge_adjacent_same_core_frames(current)
     current = merge_dense_prefix_with_moe_suffix(current, events, row_numbers)
     while True:
         refined = [piece for frame in current for piece in split_frame_by_regime(frame)]
-        refined = [piece for frame in refined for piece in split_frame_by_repeated_body_runs(frame)]
+        refined = [
+            piece
+            for frame in refined
+            for piece in split_frame_by_repeated_body_runs(frame)
+        ]
         refined = split_frames_by_exact_templates(refined)
         refined = split_no_attention_frames_by_observed_main_lengths(refined)
         if [(item.row_start, item.row_end, item.sequence) for item in refined] == [
@@ -1575,7 +1868,9 @@ def strict_substructure(candidate: Sequence[str], reference: Sequence[str]) -> b
     reference_counter = sequence_counter(reference)
     if candidate_counter == reference_counter:
         return False
-    return all(reference_counter[key] >= value for key, value in candidate_counter.items())
+    return all(
+        reference_counter[key] >= value for key, value in candidate_counter.items()
+    )
 
 
 @functools.lru_cache(maxsize=None)
@@ -1593,7 +1888,11 @@ def core_role_key(signature: str) -> str:
             kept_values: list[str] = []
             for item in values.split("+"):
                 category, count = split_role_count(item)
-                if category in {"attention.csa.metadata", "attention.csa.indexer", "attention.csa.compressor"}:
+                if category in {
+                    "attention.csa.metadata",
+                    "attention.csa.indexer",
+                    "attention.csa.compressor",
+                }:
                     continue
                 if category:
                     kept_values.append(f"{category}x{count}" if count else category)
@@ -1624,13 +1923,25 @@ def layer_boundary_key(signature: str) -> str:
         kept: list[str] = []
         for term in attention_terms:
             role, _, values = term.partition(":")
-            categories = sorted({split_role_count(item)[0] for item in values.split("+") if split_role_count(item)[0]})
+            categories = sorted(
+                {
+                    split_role_count(item)[0]
+                    for item in values.split("+")
+                    if split_role_count(item)[0]
+                }
+            )
             kept.append(f"{role}:{'+'.join(categories)}")
         for term in terms:
             if not term.startswith("attention_aux:"):
                 continue
             role, _, values = term.partition(":")
-            categories = sorted({split_role_count(item)[0] for item in values.split("+") if split_role_count(item)[0]})
+            categories = sorted(
+                {
+                    split_role_count(item)[0]
+                    for item in values.split("+")
+                    if split_role_count(item)[0]
+                }
+            )
             kept.append(f"{role}:{'+'.join(categories)}")
         return "|".join(sorted(kept))
     return core_role_key(signature)
@@ -1643,7 +1954,11 @@ def frame_boundary_sequence(frame: LayerFrame) -> tuple[str, ...]:
 def frame_attention_stream_sequence(frame: LayerFrame) -> tuple[str, ...]:
     streams: list[str] = []
     for layer in frame.layers:
-        attention_streams = tuple(anchor.stream_id for anchor in layer.anchors if primary_attention_category(anchor) is not None)
+        attention_streams = tuple(
+            anchor.stream_id
+            for anchor in layer.anchors
+            if primary_attention_category(anchor) is not None
+        )
         streams.append(attention_streams[0] if attention_streams else "")
     return tuple(streams)
 
@@ -1689,7 +2004,9 @@ def piecewise_template_slice_cover(
     streams = tuple(stream_sequence)
     if len(values) <= 1 or len(values) != len(streams):
         return None
-    for template in sorted({tuple(item) for item in templates if len(item) > 1}, key=len, reverse=True):
+    for template in sorted(
+        {tuple(item) for item in templates if len(item) > 1}, key=len, reverse=True
+    ):
         index = 0
         cover: list[tuple[int, int, int]] = []
         while index < len(values):
@@ -1702,11 +2019,27 @@ def piecewise_template_slice_cover(
         if index != len(values):
             continue
         template_offsets = {template_start for _start, _end, template_start in cover}
-        stream_changes = sum(1 for left, right in zip(streams[:-1], streams[1:]) if left and right and left != right)
-        has_interleaved_slice = any(template_start > 0 for _start, _end, template_start in cover)
-        if len(cover) > 1 and len(template_offsets) > 1 and stream_changes > 0 and has_interleaved_slice:
+        stream_changes = sum(
+            1
+            for left, right in zip(streams[:-1], streams[1:])
+            if left and right and left != right
+        )
+        has_interleaved_slice = any(
+            template_start > 0 for _start, _end, template_start in cover
+        )
+        if (
+            len(cover) > 1
+            and len(template_offsets) > 1
+            and stream_changes > 0
+            and has_interleaved_slice
+        ):
             return cover
-        if len(cover) == 1 and has_interleaved_slice and stream_changes > 0 and len(values) < len(template):
+        if (
+            len(cover) == 1
+            and has_interleaved_slice
+            and stream_changes > 0
+            and len(values) < len(template)
+        ):
             return cover
     return None
 
@@ -1751,7 +2084,9 @@ def _coarse_core_components_items(signature: str) -> tuple[tuple[str, int], ...]
         if not values:
             components[role] = components.get(role, 0) + 1
             continue
-        components[role] = components.get(role, 0) + sum(1 for item in values.split("+") if item)
+        components[role] = components.get(role, 0) + sum(
+            1 for item in values.split("+") if item
+        )
     return tuple(components.items())
 
 
@@ -1767,7 +2102,9 @@ def frame_coarse_core_components(frame: LayerFrame) -> Counter[str]:
     return total
 
 
-def strict_core_component_substructure(candidate: LayerFrame, reference: LayerFrame) -> bool:
+def strict_core_component_substructure(
+    candidate: LayerFrame, reference: LayerFrame
+) -> bool:
     # Speculative/dummy tails can use different kernel implementations for the
     # same high-level block role.  For attachment, require exact role support
     # rather than exact kernel-category support.
@@ -1775,7 +2112,9 @@ def strict_core_component_substructure(candidate: LayerFrame, reference: LayerFr
     reference_counter = frame_coarse_core_components(reference)
     if not candidate_counter or candidate_counter == reference_counter:
         return False
-    return all(reference_counter[key] >= value for key, value in candidate_counter.items())
+    return all(
+        reference_counter[key] >= value for key, value in candidate_counter.items()
+    )
 
 
 def strict_boundary_substructure(candidate: LayerFrame, reference: LayerFrame) -> bool:
@@ -1783,7 +2122,9 @@ def strict_boundary_substructure(candidate: LayerFrame, reference: LayerFrame) -
     reference_counter = Counter(frame_boundary_sequence(reference))
     if not candidate_counter or candidate_counter == reference_counter:
         return False
-    return all(reference_counter[key] >= value for key, value in candidate_counter.items())
+    return all(
+        reference_counter[key] >= value for key, value in candidate_counter.items()
+    )
 
 
 def compose_step_plans(frames: Sequence[LayerFrame]) -> list[StepPlan]:
@@ -1829,11 +2170,15 @@ def plan_has_external_selection(plan: StepPlan) -> bool:
     return any(frame.selection_before or frame.selection_after for frame in plan.frames)
 
 
-def recurring_boundary_templates_from_plans(plans: Sequence[StepPlan]) -> tuple[tuple[str, ...], ...]:
+def recurring_boundary_templates_from_plans(
+    plans: Sequence[StepPlan],
+) -> tuple[tuple[str, ...], ...]:
     counts = Counter(
         plan_boundary_sequence(plan)
         for plan in plans
-        if plan.complete and len(plan.main_layers) > 1 and not plan_has_external_selection(plan)
+        if plan.complete
+        and len(plan.main_layers) > 1
+        and not plan_has_external_selection(plan)
     )
     return tuple(sequence for sequence, count in counts.items() if count >= 2)
 
@@ -1847,7 +2192,9 @@ def merge_adjacent_template_fragment_plans(plans: Sequence[StepPlan]) -> list[St
     template, and no visible selection boundary may sit between fragments.
     """
 
-    templates = sorted(recurring_boundary_templates_from_plans(plans), key=len, reverse=True)
+    templates = sorted(
+        recurring_boundary_templates_from_plans(plans), key=len, reverse=True
+    )
     if not templates:
         return list(plans)
     merged: list[StepPlan] = []
@@ -1873,7 +2220,11 @@ def merge_adjacent_template_fragment_plans(plans: Sequence[StepPlan]) -> list[St
                 sequence.extend(plan_boundary_sequence(candidate))
                 frames.extend(candidate.frames)
                 cursor += 1
-            if len(sequence) == len(template) and tuple(sequence) == template and cursor > index + 1:
+            if (
+                len(sequence) == len(template)
+                and tuple(sequence) == template
+                and cursor > index + 1
+            ):
                 matched_end = cursor
                 matched_template = template
                 break
@@ -1900,18 +2251,26 @@ def merge_adjacent_template_fragment_plans(plans: Sequence[StepPlan]) -> list[St
 
 
 def plan_is_template_prefix_residual(plan: StepPlan) -> bool:
-    return bool(plan.frames) and all(frame_has_tag(frame, "exact_template_prefix_residual") for frame in plan.frames)
+    return bool(plan.frames) and all(
+        frame_has_tag(frame, "exact_template_prefix_residual") for frame in plan.frames
+    )
 
 
 def plan_is_template_suffix_residual(plan: StepPlan) -> bool:
-    return bool(plan.frames) and all(frame_has_tag(frame, "exact_template_suffix_residual") for frame in plan.frames)
+    return bool(plan.frames) and all(
+        frame_has_tag(frame, "exact_template_suffix_residual") for frame in plan.frames
+    )
 
 
 def plan_is_template_residual(plan: StepPlan) -> bool:
-    return plan_is_template_prefix_residual(plan) or plan_is_template_suffix_residual(plan)
+    return plan_is_template_prefix_residual(plan) or plan_is_template_suffix_residual(
+        plan
+    )
 
 
-def plan_piecewise_template_cover(plan: StepPlan, templates: Sequence[tuple[str, ...]]) -> list[tuple[int, int, int]] | None:
+def plan_piecewise_template_cover(
+    plan: StepPlan, templates: Sequence[tuple[str, ...]]
+) -> list[tuple[int, int, int]] | None:
     if not plan_is_template_residual(plan):
         return None
     frame = LayerFrame(plan.main_layers, reason=plan.reason)
@@ -2012,7 +2371,10 @@ def classify_residual_plans(plans: Sequence[StepPlan]) -> list[StepPlan]:
                     main_frame_count=plan.main_frame_count,
                     reason=(
                         f"{plan.reason}+piecewise_interleaved_template_slices:"
-                        + ",".join(f"{start}-{end}@{template_start}" for start, end, template_start in piecewise_cover)
+                        + ",".join(
+                            f"{start}-{end}@{template_start}"
+                            for start, end, template_start in piecewise_cover
+                        )
                     ),
                     segment_type="piecewise_interleaved_window",
                     complete=False,
@@ -2048,7 +2410,9 @@ def classify_residual_plans(plans: Sequence[StepPlan]) -> list[StepPlan]:
             )
             is_known_fragment = (
                 template_layer_term_sets
-                and _layers_subset_of_template_layers(plan.main_layers, template_layer_term_sets)
+                and _layers_subset_of_template_layers(
+                    plan.main_layers, template_layer_term_sets
+                )
             ) or residual_core_sequence_counts.get(residual_core_sequence, 0) >= 2
             if is_known_fragment:
                 segment_type = "partial_body_window"
@@ -2079,11 +2443,24 @@ def classify_edge_no_attention_plans(plans: Sequence[StepPlan]) -> list[StepPlan
     pass boundary.
     """
 
-    first_attention = next((index for index, plan in enumerate(plans) if plan.complete and plan_has_primary_attention(plan)), None)
+    first_attention = next(
+        (
+            index
+            for index, plan in enumerate(plans)
+            if plan.complete and plan_has_primary_attention(plan)
+        ),
+        None,
+    )
     if first_attention is None:
         return list(plans)
-    last_attention = len(plans) - 1 - next(
-        index for index, plan in enumerate(reversed(plans)) if plan.complete and plan_has_primary_attention(plan)
+    last_attention = (
+        len(plans)
+        - 1
+        - next(
+            index
+            for index, plan in enumerate(reversed(plans))
+            if plan.complete and plan_has_primary_attention(plan)
+        )
     )
     classified: list[StepPlan] = []
     for index, plan in enumerate(plans):
@@ -2117,7 +2494,9 @@ def classify_edge_no_attention_plans(plans: Sequence[StepPlan]) -> list[StepPlan
 
 
 def complete_attention_plan(plan: StepPlan) -> bool:
-    return plan.complete and plan_has_primary_attention(plan) and len(plan.main_layers) > 1
+    return (
+        plan.complete and plan_has_primary_attention(plan) and len(plan.main_layers) > 1
+    )
 
 
 def surrounded_by_complete_attention(plans: Sequence[StepPlan], index: int) -> bool:
@@ -2141,7 +2520,9 @@ def classify_interior_substructure_plans(plans: Sequence[StepPlan]) -> list[Step
     reference_frames = [
         LayerFrame(plan.main_layers, reason=plan.reason)
         for plan in plans
-        if plan.complete and plan_has_primary_attention(plan) and len(plan.main_layers) > 1
+        if plan.complete
+        and plan_has_primary_attention(plan)
+        and len(plan.main_layers) > 1
     ]
     if not reference_frames:
         return list(plans)
@@ -2151,8 +2532,12 @@ def classify_interior_substructure_plans(plans: Sequence[StepPlan]) -> list[Step
     # and core component counter for every reference frame on every candidate,
     # which is the dominant cost on long single-rank profiles (dsv3-class
     # 90k+ event traces with thousands of plans).
-    reference_core_counters: list[Counter[str]] = [frame_coarse_core_components(ref) for ref in reference_frames]
-    reference_boundary_counters: list[Counter[str]] = [Counter(frame_boundary_sequence(ref)) for ref in reference_frames]
+    reference_core_counters: list[Counter[str]] = [
+        frame_coarse_core_components(ref) for ref in reference_frames
+    ]
+    reference_boundary_counters: list[Counter[str]] = [
+        Counter(frame_boundary_sequence(ref)) for ref in reference_frames
+    ]
     reference_lengths: list[int] = [len(ref.layers) for ref in reference_frames]
     # Workload signature for each reference: does it contain any attention
     # term?  Used to suppress cross-workload demotion (a reference body
@@ -2184,7 +2569,9 @@ def classify_interior_substructure_plans(plans: Sequence[StepPlan]) -> list[Step
             if reference_has_attention_flags[index] and not candidate_has_attention:
                 continue
             if candidate_core is None:
-                candidate_core = frame_coarse_core_components(LayerFrame(plan.main_layers, reason=plan.reason))
+                candidate_core = frame_coarse_core_components(
+                    LayerFrame(plan.main_layers, reason=plan.reason)
+                )
             ref_core = reference_core_counters[index]
             if (
                 candidate_core
@@ -2193,12 +2580,19 @@ def classify_interior_substructure_plans(plans: Sequence[StepPlan]) -> list[Step
             ):
                 return True
             if candidate_boundary is None:
-                candidate_boundary = Counter(frame_boundary_sequence(LayerFrame(plan.main_layers, reason=plan.reason)))
+                candidate_boundary = Counter(
+                    frame_boundary_sequence(
+                        LayerFrame(plan.main_layers, reason=plan.reason)
+                    )
+                )
             ref_boundary = reference_boundary_counters[index]
             if (
                 candidate_boundary
                 and candidate_boundary != ref_boundary
-                and all(ref_boundary[key] >= value for key, value in candidate_boundary.items())
+                and all(
+                    ref_boundary[key] >= value
+                    for key, value in candidate_boundary.items()
+                )
             ):
                 return True
         return False
@@ -2223,7 +2617,11 @@ def classify_interior_substructure_plans(plans: Sequence[StepPlan]) -> list[Step
         # check uniformly so a singleton reference body cannot drag
         # unrelated short bodies into its scope.
         if is_substructure and surrounded_by_complete_attention(plans, index):
-            segment_type = "partial_body_window" if plan_has_primary_attention(plan) else "runner_window"
+            segment_type = (
+                "partial_body_window"
+                if plan_has_primary_attention(plan)
+                else "runner_window"
+            )
             classified.append(
                 StepPlan(
                     frames=plan.frames,
@@ -2244,11 +2642,18 @@ def classify_interior_substructure_plans(plans: Sequence[StepPlan]) -> list[Step
             and is_substructure_of_reference(plan)
             and (
                 (index > 0 and classified[index - 1].segment_type in explained_types)
-                or (index + 1 < len(classified) and classified[index + 1].segment_type in explained_types)
+                or (
+                    index + 1 < len(classified)
+                    and classified[index + 1].segment_type in explained_types
+                )
             )
         ):
-            has_attention_before = any(complete_attention_plan(item) for item in classified[:index])
-            has_attention_after = any(complete_attention_plan(item) for item in classified[index + 1 :])
+            has_attention_before = any(
+                complete_attention_plan(item) for item in classified[:index]
+            )
+            has_attention_after = any(
+                complete_attention_plan(item) for item in classified[index + 1 :]
+            )
             if not has_attention_before or not has_attention_after:
                 segment_type = "head" if not has_attention_before else "tail"
             else:
@@ -2269,7 +2674,10 @@ def classify_interior_substructure_plans(plans: Sequence[StepPlan]) -> list[Step
             and not plan_has_primary_attention(plan)
             and (
                 (index > 0 and classified[index - 1].segment_type in explained_types)
-                or (index + 1 < len(classified) and classified[index + 1].segment_type in explained_types)
+                or (
+                    index + 1 < len(classified)
+                    and classified[index + 1].segment_type in explained_types
+                )
             )
         ):
             repaired.append(
@@ -2308,9 +2716,15 @@ def classify_interior_substructure_plans(plans: Sequence[StepPlan]) -> list[Step
             not plan.complete
             and plan.segment_type not in sandwich_explained
             and _is_explained(repaired[index - 1] if index > 0 else None)
-            and _is_explained(repaired[index + 1] if index + 1 < len(repaired) else None)
+            and _is_explained(
+                repaired[index + 1] if index + 1 < len(repaired) else None
+            )
         ):
-            segment_type = "partial_body_window" if plan_has_primary_attention(plan) else "runner_window"
+            segment_type = (
+                "partial_body_window"
+                if plan_has_primary_attention(plan)
+                else "runner_window"
+            )
             finalized.append(
                 StepPlan(
                     frames=plan.frames,
@@ -2346,7 +2760,11 @@ def merge_explained_windows_to_templates(plans: Sequence[StepPlan]) -> list[Step
     )
     if not templates:
         return list(plans)
-    mergeable_types = {"partial_body_window", "piecewise_interleaved_window", "unclassified_island"}
+    mergeable_types = {
+        "partial_body_window",
+        "piecewise_interleaved_window",
+        "unclassified_island",
+    }
     merged: list[StepPlan] = []
     index = 0
     while index < len(plans):
@@ -2366,7 +2784,11 @@ def merge_explained_windows_to_templates(plans: Sequence[StepPlan]) -> list[Step
                     break
                 sequence.extend(plan_boundary_sequence(candidate))
                 cursor += 1
-            if len(sequence) == len(template) and tuple(sequence) == template and cursor > index + 1:
+            if (
+                len(sequence) == len(template)
+                and tuple(sequence) == template
+                and cursor > index + 1
+            ):
                 matched_end = cursor
                 matched_template = template
                 break
@@ -2403,7 +2825,9 @@ def singleton_tail_role(plan: StepPlan) -> str | None:
     return next(iter(roles)) if len(roles) == 1 else None
 
 
-def split_frame_suffix(frame: LayerFrame, suffix_len: int, *, reason: str) -> tuple[LayerFrame, LayerFrame]:
+def split_frame_suffix(
+    frame: LayerFrame, suffix_len: int, *, reason: str
+) -> tuple[LayerFrame, LayerFrame]:
     prefix = tuple(frame.layers[:-suffix_len])
     suffix = tuple(frame.layers[-suffix_len:])
     return (
@@ -2428,7 +2852,9 @@ def layer_has_selection(layer: LayerObservation) -> bool:
     return "selection" in layer.signature.split("|")
 
 
-def rebalance_homogeneous_missing_spec_boundary(plans: Sequence[StepPlan]) -> list[StepPlan]:
+def rebalance_homogeneous_missing_spec_boundary(
+    plans: Sequence[StepPlan],
+) -> list[StepPlan]:
     """Recover a missing main-to-spec boundary from exact peer evidence.
 
     Graph/dummy paths can hide the first speculative boundary, producing
@@ -2443,7 +2869,9 @@ def rebalance_homogeneous_missing_spec_boundary(plans: Sequence[StepPlan]) -> li
         spec_count = plan_speculative_layer_count(plan)
         if spec_count <= 0 or singleton_tail_role(plan) is None:
             continue
-        observed_spec_by_total.setdefault(len(plan.all_layers), Counter())[spec_count] += 1
+        observed_spec_by_total.setdefault(len(plan.all_layers), Counter())[
+            spec_count
+        ] += 1
 
     if not observed_spec_by_total:
         return list(plans)
@@ -2454,7 +2882,11 @@ def rebalance_homogeneous_missing_spec_boundary(plans: Sequence[StepPlan]) -> li
         tail_role = singleton_tail_role(plan)
         first_frame = plan.frames[0] if plan.frames else None
         total = len(plan.all_layers)
-        candidates = sorted(count for count in observed_spec_by_total.get(total, Counter()) if count > spec_count)
+        candidates = sorted(
+            count
+            for count in observed_spec_by_total.get(total, Counter())
+            if count > spec_count
+        )
         if (
             not candidates
             and spec_count > 0
@@ -2480,7 +2912,10 @@ def rebalance_homogeneous_missing_spec_boundary(plans: Sequence[StepPlan]) -> li
         if move_count <= 0 or move_count >= len(first_frame.layers):
             adjusted.append(plan)
             continue
-        suffix_roles = tuple(layer_role_key(layer.signature) for layer in first_frame.layers[-move_count:])
+        suffix_roles = tuple(
+            layer_role_key(layer.signature)
+            for layer in first_frame.layers[-move_count:]
+        )
         if any(role != tail_role for role in suffix_roles):
             adjusted.append(plan)
             continue
@@ -2518,7 +2953,9 @@ def step_family_for_events(events: Sequence[NormalizedEvent]) -> str:
 
 def step_structure_signature(plan: StepPlan) -> str:
     main_sequence = tuple(layer.regime_key for layer in plan.main_layers)
-    spec_sequence = tuple(layer.regime_key for frame in plan.frames[1:] for layer in frame.layers)
+    spec_sequence = tuple(
+        layer.regime_key for frame in plan.frames[1:] for layer in frame.layers
+    )
     main_period = minimal_exact_period(main_sequence)
     spec_period = minimal_exact_period(spec_sequence)
     parts = [f"main_len={len(main_sequence)}", "main_period=" + "||".join(main_period)]
@@ -2528,19 +2965,33 @@ def step_structure_signature(plan: StepPlan) -> str:
     return " ; ".join(parts)
 
 
-def validate_exact_cover(rank_id: str, events: Sequence[NormalizedEvent], row_numbers: Sequence[int], plans: Sequence[StepPlan]) -> list[dict[str, Any]]:
+def validate_exact_cover(
+    rank_id: str,
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+    plans: Sequence[StepPlan],
+) -> list[dict[str, Any]]:
     if not plans:
         return []
     hard_errors: list[dict[str, Any]] = []
     first_step_start = plans[0].frames[0].row_start
     last_step_end = plans[-1].frames[-1].row_end
-    covered_intervals = sorted((layer.row_start, layer.row_end) for plan in plans for layer in plan.all_layers)
+    covered_intervals = sorted(
+        (layer.row_start, layer.row_end) for plan in plans for layer in plan.all_layers
+    )
     interval_index = 0
     uncovered_structural: list[NormalizedEvent] = []
     for event in events:
-        if event.row_idx < first_step_start or event.row_idx > last_step_end or not structural_event(event):
+        if (
+            event.row_idx < first_step_start
+            or event.row_idx > last_step_end
+            or not structural_event(event)
+        ):
             continue
-        while interval_index < len(covered_intervals) and covered_intervals[interval_index][1] < event.row_idx:
+        while (
+            interval_index < len(covered_intervals)
+            and covered_intervals[interval_index][1] < event.row_idx
+        ):
             interval_index += 1
         if interval_index >= len(covered_intervals):
             uncovered_structural.append(event)
@@ -2548,10 +2999,7 @@ def validate_exact_cover(rank_id: str, events: Sequence[NormalizedEvent], row_nu
         interval_start, interval_end = covered_intervals[interval_index]
         if not (interval_start <= event.row_idx <= interval_end):
             uncovered_structural.append(event)
-    structural_middle = [
-        event
-        for event in uncovered_structural
-    ]
+    structural_middle = [event for event in uncovered_structural]
     if structural_middle:
         hard_errors.append(
             {
@@ -2589,7 +3037,11 @@ def validate_exact_cover(rank_id: str, events: Sequence[NormalizedEvent], row_nu
     for index, plan in enumerate(plans):
         if plan.complete or plan.segment_type in {"head", "tail"}:
             continue
-        if plan.segment_type in {"piecewise_interleaved_window", "runner_window", "partial_body_window"}:
+        if plan.segment_type in {
+            "piecewise_interleaved_window",
+            "runner_window",
+            "partial_body_window",
+        }:
             continue
         hard_errors.append(
             {
@@ -2598,8 +3050,18 @@ def validate_exact_cover(rank_id: str, events: Sequence[NormalizedEvent], row_nu
                 "row_start": plan.frames[0].row_start,
                 "row_end": plan.frames[-1].row_end,
                 "observed_layers": len(plan.main_layers),
-                "previous_rows": [plans[index - 1].frames[0].row_start, plans[index - 1].frames[-1].row_end] if index > 0 else None,
-                "next_rows": [plans[index + 1].frames[0].row_start, plans[index + 1].frames[-1].row_end] if index + 1 < len(plans) else None,
+                "previous_rows": [
+                    plans[index - 1].frames[0].row_start,
+                    plans[index - 1].frames[-1].row_end,
+                ]
+                if index > 0
+                else None,
+                "next_rows": [
+                    plans[index + 1].frames[0].row_start,
+                    plans[index + 1].frames[-1].row_end,
+                ]
+                if index + 1 < len(plans)
+                else None,
                 "summary": "A template residual appears between complete bodies. This must be explained before the profile is trusted.",
             }
         )
@@ -2611,10 +3073,16 @@ def sequence_occurrence_count(sequence: Sequence[str], template: Sequence[str]) 
     if not sequence or not template or len(template) > len(sequence):
         return 0
     template_tuple = tuple(template)
-    return sum(1 for index in range(0, len(sequence) - len(template) + 1) if tuple(sequence[index : index + len(template)]) == template_tuple)
+    return sum(
+        1
+        for index in range(0, len(sequence) - len(template) + 1)
+        if tuple(sequence[index : index + len(template)]) == template_tuple
+    )
 
 
-def validate_unresolved_composite_bodies(rank_id: str, plans: Sequence[StepPlan]) -> list[dict[str, Any]]:
+def validate_unresolved_composite_bodies(
+    rank_id: str, plans: Sequence[StepPlan]
+) -> list[dict[str, Any]]:
     sequence_counts = Counter(
         tuple(core_role_key(layer.signature) for layer in plan.main_layers)
         for plan in plans
@@ -2626,7 +3094,9 @@ def validate_unresolved_composite_bodies(rank_id: str, plans: Sequence[StepPlan]
         if len(plan.main_layers) > 1
     )
     templates = {sequence for sequence, count in sequence_counts.items() if count >= 2}
-    boundary_templates = {sequence for sequence, count in boundary_sequence_counts.items() if count >= 2}
+    boundary_templates = {
+        sequence for sequence, count in boundary_sequence_counts.items() if count >= 2
+    }
     errors: list[dict[str, Any]] = []
     for plan in plans:
         sequence = tuple(core_role_key(layer.signature) for layer in plan.main_layers)
@@ -2643,10 +3113,14 @@ def validate_unresolved_composite_bodies(rank_id: str, plans: Sequence[StepPlan]
         # recurrence alone before running the embedded-template check.
         if sequence_counts.get(sequence, 0) >= 2:
             continue
-        boundary_sequence = tuple(layer_boundary_key(layer.signature) for layer in plan.main_layers)
+        boundary_sequence = tuple(
+            layer_boundary_key(layer.signature) for layer in plan.main_layers
+        )
         if boundary_sequence_counts.get(boundary_sequence, 0) >= 2:
             continue
-        smaller_templates = tuple(template for template in templates if 0 < len(template) < len(sequence))
+        smaller_templates = tuple(
+            template for template in templates if 0 < len(template) < len(sequence)
+        )
         if not smaller_templates:
             continue
         occurrences = {
@@ -2658,8 +3132,15 @@ def validate_unresolved_composite_bodies(rank_id: str, plans: Sequence[StepPlan]
             continue
         if exact_cover_sequence(sequence, smaller_templates) is not None:
             continue
-        smaller_boundary_templates = tuple(template for template in boundary_templates if 0 < len(template) < len(boundary_sequence))
-        if exact_cover_sequence(boundary_sequence, smaller_boundary_templates) is not None:
+        smaller_boundary_templates = tuple(
+            template
+            for template in boundary_templates
+            if 0 < len(template) < len(boundary_sequence)
+        )
+        if (
+            exact_cover_sequence(boundary_sequence, smaller_boundary_templates)
+            is not None
+        ):
             continue
         errors.append(
             {
@@ -2679,7 +3160,9 @@ def validate_unresolved_composite_bodies(rank_id: str, plans: Sequence[StepPlan]
     return errors
 
 
-def validate_embedded_short_steps(rank_id: str, plans: Sequence[StepPlan]) -> list[dict[str, Any]]:
+def validate_embedded_short_steps(
+    rank_id: str, plans: Sequence[StepPlan]
+) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
     for index in range(1, len(plans) - 1):
         previous = plans[index - 1]
@@ -2705,8 +3188,14 @@ def validate_embedded_short_steps(rank_id: str, plans: Sequence[StepPlan]) -> li
                 "row_end": current.frames[-1].row_end,
                 "current_layers": current_count,
                 "peer_layers": previous_count,
-                "previous_rows": [previous.frames[0].row_start, previous.frames[-1].row_end],
-                "next_rows": [next_plan.frames[0].row_start, next_plan.frames[-1].row_end],
+                "previous_rows": [
+                    previous.frames[0].row_start,
+                    previous.frames[-1].row_end,
+                ],
+                "next_rows": [
+                    next_plan.frames[0].row_start,
+                    next_plan.frames[-1].row_end,
+                ],
                 "summary": (
                     "A structurally shorter body is embedded between two equal peer steps. "
                     "Kernel details alone cannot prove a complete step here."
@@ -2740,21 +3229,35 @@ def add_evidence(
     )
 
 
-def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> tuple[list[StepSegment], list[LayerSegment], list[StructureObservation], list[EvidenceRef], list[dict[str, Any]]]:
+def build_segments_for_rank(
+    rank_id: str, events: Sequence[NormalizedEvent]
+) -> tuple[
+    list[StepSegment],
+    list[LayerSegment],
+    list[StructureObservation],
+    list[EvidenceRef],
+    list[dict[str, Any]],
+]:
     if not events:
         return [], [], [], [], []
     events = sorted(events, key=lambda event: event.row_idx)
     row_numbers = tuple(event.row_idx for event in events)
     boundary_rows = dedup_adjacent_event_rows(
         events,
-        lambda event: event_role(event, "block_head") or event_role(event, "normalization"),
+        lambda event: (
+            event_role(event, "block_head") or event_role(event, "normalization")
+        ),
     )
     anchor_boundary_rows = dedup_adjacent_event_rows(
         events,
         lambda event: event_role(event, "block_head"),
     )
-    selection_rows = dedup_adjacent_event_rows(events, lambda event: event_role(event, "selection"))
-    layers_observed = build_layers(events, row_numbers, boundary_rows, anchor_boundary_rows, selection_rows)
+    selection_rows = dedup_adjacent_event_rows(
+        events, lambda event: event_role(event, "selection")
+    )
+    layers_observed = build_layers(
+        events, row_numbers, boundary_rows, anchor_boundary_rows, selection_rows
+    )
     evidence: list[EvidenceRef] = []
     segments: list[StepSegment] = []
     layer_segments: list[LayerSegment] = []
@@ -2762,7 +3265,13 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
     hard_errors: list[dict[str, Any]] = []
 
     if not layers_observed:
-        segment_id = stable_id("seg", rank_id, "no_structural_layers", events[0].row_idx, events[-1].row_idx)
+        segment_id = stable_id(
+            "seg",
+            rank_id,
+            "no_structural_layers",
+            events[0].row_idx,
+            events[-1].row_idx,
+        )
         evidence_id = stable_id("evd", segment_id, "no_structural_layers")
         add_evidence(
             evidence,
@@ -2788,11 +3297,15 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
         )
         return segments, layer_segments, observations, evidence, hard_errors
 
-    frames = split_composite_frames(frames_from_selection(layers_observed, selection_rows), events, row_numbers)
+    frames = split_composite_frames(
+        frames_from_selection(layers_observed, selection_rows), events, row_numbers
+    )
     plans = merge_explained_windows_to_templates(
         classify_interior_substructure_plans(
             classify_edge_no_attention_plans(
-                classify_residual_plans(merge_adjacent_template_fragment_plans(compose_step_plans(frames)))
+                classify_residual_plans(
+                    merge_adjacent_template_fragment_plans(compose_step_plans(frames))
+                )
             )
         )
     )
@@ -2800,9 +3313,13 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
 
     first_step_start = plans[0].frames[0].row_start if plans else events[0].row_idx
     if first_step_start > events[0].row_idx:
-        head_events = event_slice(events, row_numbers, events[0].row_idx, first_step_start - 1)
+        head_events = event_slice(
+            events, row_numbers, events[0].row_idx, first_step_start - 1
+        )
         if head_events:
-            head_id = stable_id("seg", rank_id, "head", events[0].row_idx, first_step_start - 1)
+            head_id = stable_id(
+                "seg", rank_id, "head", events[0].row_idx, first_step_start - 1
+            )
             evidence_id = stable_id("evd", head_id, "head")
             add_evidence(
                 evidence,
@@ -2839,12 +3356,16 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
             step_end = events[-1].row_idx
         step_events = event_slice(events, row_numbers, step_start, step_end)
         if not plan.complete:
-            segment_id = stable_id("seg", rank_id, plan.segment_type, plan_index, step_start, step_end)
+            segment_id = stable_id(
+                "seg", rank_id, plan.segment_type, plan_index, step_start, step_end
+            )
             evidence_id = stable_id("evd", segment_id, "template_residual")
             add_evidence(
                 evidence,
                 evidence_id=evidence_id,
-                kind="edge_window" if plan.segment_type in {"head", "tail"} else "rank_window",
+                kind="edge_window"
+                if plan.segment_type in {"head", "tail"}
+                else "rank_window",
                 summary=(
                     "Template residual rows retained for review. They are not reported "
                     "as a complete structural step."
@@ -2866,8 +3387,14 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
                     complete=False,
                     row_start=step_start,
                     row_end=step_end,
-                    start_us=min((event.start_us for event in step_events), default=all_layers[0].anchors[0].start_us),
-                    end_us=max((event.end_us for event in step_events), default=all_layers[-1].anchors[-1].end_us),
+                    start_us=min(
+                        (event.start_us for event in step_events),
+                        default=all_layers[0].anchors[0].start_us,
+                    ),
+                    end_us=max(
+                        (event.end_us for event in step_events),
+                        default=all_layers[-1].anchors[-1].end_us,
+                    ),
                     evidence_ids=(evidence_id,),
                 )
             )
@@ -2876,7 +3403,15 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
         main_layer_count = len(main_layers)
         speculative_layer_count = len(all_layers) - len(main_layers)
         signature = step_structure_signature(plan)
-        cluster_id = stable_id("cluster", rank_id, family, main_layer_count, speculative_layer_count, signature, length=12)
+        cluster_id = stable_id(
+            "cluster",
+            rank_id,
+            family,
+            main_layer_count,
+            speculative_layer_count,
+            signature,
+            length=12,
+        )
         segment_id = stable_id("seg", rank_id, "step", plan_index, step_start, step_end)
         evidence_id = stable_id("evd", segment_id, "exact_step_cover")
         layer_ids: list[str] = []
@@ -2888,7 +3423,9 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
             else:
                 layer_end = step_end
             layer_events = event_slice(events, row_numbers, layer_start, layer_end)
-            layer_id = stable_id("layer", segment_id, layer_index, layer_start, layer_end)
+            layer_id = stable_id(
+                "layer", segment_id, layer_index, layer_start, layer_end
+            )
             layer_evidence_id = stable_id("evd", layer_id, "exact_layer_window")
             layer_ids.append(layer_id)
             role = "main" if layer_index < main_layer_count else "speculative"
@@ -2912,8 +3449,14 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
                     boundary_source="exact_structural_anchor",
                     row_start=layer_start,
                     row_end=layer_end,
-                    start_us=min((event.start_us for event in layer_events), default=layer.anchors[0].start_us),
-                    end_us=max((event.end_us for event in layer_events), default=layer.anchors[-1].end_us),
+                    start_us=min(
+                        (event.start_us for event in layer_events),
+                        default=layer.anchors[0].start_us,
+                    ),
+                    end_us=max(
+                        (event.end_us for event in layer_events),
+                        default=layer.anchors[-1].end_us,
+                    ),
                     structure_signature=layer.signature,
                     evidence_ids=(layer_evidence_id,),
                 )
@@ -2936,7 +3479,11 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
                 "frame_count": len(plan.frames),
                 "frame_reasons": [frame.reason for frame in plan.frames],
                 "frame_tags": [list(frame.tags) for frame in plan.frames],
-                "selection_rows": [row for frame in plan.frames for row in (*frame.selection_before, *frame.selection_after)],
+                "selection_rows": [
+                    row
+                    for frame in plan.frames
+                    for row in (*frame.selection_before, *frame.selection_after)
+                ],
             },
         )
         segments.append(
@@ -2947,8 +3494,14 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
                 complete=True,
                 row_start=step_start,
                 row_end=step_end,
-                start_us=min((event.start_us for event in step_events), default=all_layers[0].anchors[0].start_us),
-                end_us=max((event.end_us for event in step_events), default=all_layers[-1].anchors[-1].end_us),
+                start_us=min(
+                    (event.start_us for event in step_events),
+                    default=all_layers[0].anchors[0].start_us,
+                ),
+                end_us=max(
+                    (event.end_us for event in step_events),
+                    default=all_layers[-1].anchors[-1].end_us,
+                ),
                 cluster_id=cluster_id,
                 step_family=family,
                 main_layer_count=main_layer_count,
@@ -2970,8 +3523,20 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
                     segment_id=segment_id,
                     role=role,
                     role_family=role.split(".")[0],
-                    implementation_evidence=tuple(sorted({event.name_raw for event in step_events if role in event.op_roles})[:16]),
-                    event_ids=tuple(event.event_id for event in step_events if role in event.op_roles)[:64],
+                    implementation_evidence=tuple(
+                        sorted(
+                            {
+                                event.name_raw
+                                for event in step_events
+                                if role in event.op_roles
+                            }
+                        )[:16]
+                    ),
+                    event_ids=tuple(
+                        event.event_id
+                        for event in step_events
+                        if role in event.op_roles
+                    )[:64],
                     evidence_ids=(evidence_id,),
                     confidence="high" if count > 0 else "low",
                 )
@@ -2980,18 +3545,35 @@ def build_segments_for_rank(rank_id: str, events: Sequence[NormalizedEvent]) -> 
     return segments, layer_segments, observations, evidence, hard_errors
 
 
-def interior_unclassified_segments(segments: Sequence[StepSegment]) -> list[StepSegment]:
-    first_step = next((index for index, segment in enumerate(segments) if segment.segment_type == "step"), None)
+def interior_unclassified_segments(
+    segments: Sequence[StepSegment],
+) -> list[StepSegment]:
+    first_step = next(
+        (
+            index
+            for index, segment in enumerate(segments)
+            if segment.segment_type == "step"
+        ),
+        None,
+    )
     if first_step is None:
         return []
-    last_from_end = next((index for index, segment in enumerate(reversed(segments)) if segment.segment_type == "step"), None)
+    last_from_end = next(
+        (
+            index
+            for index, segment in enumerate(reversed(segments))
+            if segment.segment_type == "step"
+        ),
+        None,
+    )
     if last_from_end is None:
         return []
     last_step = len(segments) - 1 - last_from_end
     return [
         segment
         for index, segment in enumerate(segments)
-        if first_step < index < last_step and segment.segment_type == "unclassified_island"
+        if first_step < index < last_step
+        and segment.segment_type == "unclassified_island"
     ]
 
 
@@ -3006,7 +3588,9 @@ def segment_profile(output_dir: Path) -> dict[str, Any]:
     rank_summaries: list[dict[str, Any]] = []
     hard_errors: list[dict[str, Any]] = []
     for rank_id, rank_events in grouped.items():
-        segments, layers, observations, evidence, rank_errors = build_segments_for_rank(rank_id, rank_events)
+        segments, layers, observations, evidence, rank_errors = build_segments_for_rank(
+            rank_id, rank_events
+        )
         interior_islands = interior_unclassified_segments(segments)
         if interior_islands:
             rank_errors.append(
@@ -3035,21 +3619,23 @@ def segment_profile(output_dir: Path) -> dict[str, Any]:
                 "rank_id": rank_id,
                 "event_count": len(rank_events),
                 "segment_count": len(segments),
-                "step_count": sum(1 for segment in segments if segment.segment_type == "step"),
+                "step_count": sum(
+                    1 for segment in segments if segment.segment_type == "step"
+                ),
                 "interior_unclassified_count": len(interior_islands),
                 "layer_count_inventory": sorted(
                     {
                         segment.main_layer_count
                         for segment in segments
-                        if segment.segment_type == "step" and segment.main_layer_count is not None
+                        if segment.segment_type == "step"
+                        and segment.main_layer_count is not None
                     }
                 ),
                 "hard_error_count": len(rank_errors),
             }
         )
     interior_island_total = sum(
-        int(item.get("interior_unclassified_count") or 0)
-        for item in rank_summaries
+        int(item.get("interior_unclassified_count") or 0) for item in rank_summaries
     )
     manifest = {
         "schema_version": SCHEMA_VERSION,
@@ -3085,21 +3671,34 @@ def segment_profile(output_dir: Path) -> dict[str, Any]:
     )
     write_json(output_dir / "segment_manifest.json", manifest)
     if hard_errors:
-        summary = "; ".join(f"{item.get('rank_id')}:{item.get('error_type')}" for item in hard_errors[:8])
+        summary = "; ".join(
+            f"{item.get('rank_id')}:{item.get('error_type')}"
+            for item in hard_errors[:8]
+        )
         raise RuntimeError(f"segment exact-cover validation failed: {summary}")
     return manifest
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", required=True, help="analysis output directory containing normalized_event_index.jsonl/csv")
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="analysis output directory containing normalized_event_index.jsonl/csv",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     manifest = segment_profile(Path(args.output))
-    emit_stage_json({"stage": "segment", "segment_count": manifest["segment_count"], "layer_count": manifest["layer_count"]})
+    emit_stage_json(
+        {
+            "stage": "segment",
+            "segment_count": manifest["segment_count"],
+            "layer_count": manifest["layer_count"],
+        }
+    )
     return 0
 
 

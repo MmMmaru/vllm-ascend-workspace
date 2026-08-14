@@ -1,3 +1,20 @@
+### 08-13 17:10
+
+- 完成 model&setup 4（Kimi-K2.5 w4a8，DP2/TP8/EP）：17.110 仅 8 物理卡（512GB）放不下，改在 17.111（8 NPU × 2 chip = 16 逻辑卡，每逻辑卡 64GB）执行。对话正常（Paris / `12+30=42`，无乱码）；benchmark 50/50 成功，output 466.39 tok/s、TTFT mean 4155.66ms、TPOT mean 52.91ms，结果已回填 `benchmark-delete-flashcomm.md`，JSON 为 `.vaws-local/benchmark/80.5.17.111/runs/2026-08-13T09-07-05Z_80.5.17.111_31992_a0938071.json`。
+- 17.111 环境修复：容器加代理（`80.253.137.110:7897`，`no_proxy` 含本机 IP）和 ATB 库路径；parity 安装被 `triton-ascend==3.2.2` pin 阻断（源上最高 3.2.0，容器内 3.2.1），改为 parity materialize + 手工 editable 安装 + 从旧树复制 `vllm_ascend_C`/`libvllm_ascend_kernels.so`/`_cann_ops_custom` 到 `/vllm-workspace`；parity 快照无 git tag 导致 `vllm.__version__` 失真，服务需显式 `VLLM_VERSION=0.26.0`。
+- skill 修复：serving `select_devices` 支持 2 chip/物理卡的逻辑 id 校验（logical=physical*2+chip）；benchmark 新增 `--health-timeout` 透传、bench 客户端输出强制 UTF-8（修 Windows GBK reader 崩溃）并落盘 `.vaws-local/benchmark/<machine>/client_output_*.log`。
+- 排障记录：两轮 bench 50/50 全挂的根因是容器代理经 `trust_env=True` 泄漏进 `vllm bench serve` 客户端，请求被错误代理；已把本机 IP 加入 `no_proxy` 后恢复。
+
+### 08-13 10:38
+
+- 修正文档 `Qwen3-235B-A22B.md` 中被限流的 `docs.vllm.com.cn` 链接，统一改为可用的官方 vLLM CLI 参数页。
+- `ruff-check`、`ruff-format`、目标 Markdownlint 和 `git diff --check` 均通过。
+
+### 08-13 10:24
+
+- 修复 PR #13946 的 `dsa_v1.py` Ruff F841：删除 DSA v1 统一 forward 中已无调用方的五个临时变量；保留 `actual_tokens`。
+- 对齐 PR head 的 main 合并内容，并完成全仓 `ruff-check`、`ruff-format`、`markdownlint` 与 `git diff --check` 验证。
+
 ### 08-12 14:06
 
 - 扩展 `.agents/scripts/simple_code_sync.py`：源路径支持文件和目录，目录自动使用 `scp -r` 递归传输。

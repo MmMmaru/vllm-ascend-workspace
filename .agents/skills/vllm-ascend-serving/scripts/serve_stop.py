@@ -38,7 +38,9 @@ GRACE_PERIOD_SECONDS = 5
 
 
 def check_alive(ep, pid: int) -> bool:
-    r = ssh_exec(ep, f"kill -0 {pid} 2>/dev/null && echo alive || echo dead", check=False)
+    r = ssh_exec(
+        ep, f"kill -0 {pid} 2>/dev/null && echo alive || echo dead", check=False
+    )
     return r.stdout.strip() == "alive"
 
 
@@ -47,7 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--machine", help="machine alias or host IP")
     p.add_argument("--session-id", help="VAWS session id")
     p.add_argument("--session-file", help="explicit session.json path")
-    p.add_argument("--force", action="store_true", help="use SIGKILL if graceful stop fails")
+    p.add_argument(
+        "--force", action="store_true", help="use SIGKILL if graceful stop fails"
+    )
     return p
 
 
@@ -64,9 +68,14 @@ def main(argv: list[str] | None = None) -> int:
         alias = target.alias
         ep = target.endpoint
         if target.session_id:
-            emit_progress("lock", f"acquiring serving lock for session {target.session_id}")
+            emit_progress(
+                "lock", f"acquiring serving lock for session {target.session_id}"
+            )
             lock_stack.enter_context(
-                file_lock(session_lock_dir(target.state_repo_root) / f"{target.session_id}.serving.lock")
+                file_lock(
+                    session_lock_dir(target.state_repo_root)
+                    / f"{target.session_id}.serving.lock"
+                )
             )
 
         state = load_serving_state(
@@ -75,24 +84,28 @@ def main(argv: list[str] | None = None) -> int:
             state_repo_root=target.state_repo_root,
         )
         if state is None:
-            print_json({
-                "status": "not_found",
-                "machine": alias,
-                "mode": target.mode,
-                "session_id": target.session_id,
-                "message": "no serving state recorded for this machine",
-            })
+            print_json(
+                {
+                    "status": "not_found",
+                    "machine": alias,
+                    "mode": target.mode,
+                    "session_id": target.session_id,
+                    "message": "no serving state recorded for this machine",
+                }
+            )
             return 0
 
         pid = state.get("pid")
         if not pid:
-            print_json({
-                "status": "not_found",
-                "machine": alias,
-                "mode": target.mode,
-                "session_id": target.session_id,
-                "message": "serving state has no pid",
-            })
+            print_json(
+                {
+                    "status": "not_found",
+                    "machine": alias,
+                    "mode": target.mode,
+                    "session_id": target.session_id,
+                    "message": "serving state has no pid",
+                }
+            )
             return 0
 
         alive = check_alive(ep, pid)
@@ -113,14 +126,16 @@ def main(argv: list[str] | None = None) -> int:
                     session_id=target.session_id,
                     port=state.get("port"),
                 )
-            print_json({
-                "status": "stopped",
-                "machine": alias,
-                "mode": target.mode,
-                "session_id": target.session_id,
-                "pid": pid,
-                "message": "process was already stopped",
-            })
+            print_json(
+                {
+                    "status": "stopped",
+                    "machine": alias,
+                    "mode": target.mode,
+                    "session_id": target.session_id,
+                    "pid": pid,
+                    "message": "process was already stopped",
+                }
+            )
             return 0
 
         # SIGINT first (graceful)
@@ -139,14 +154,16 @@ def main(argv: list[str] | None = None) -> int:
                 ssh_exec(ep, f"kill -9 {pid} 2>/dev/null || true", check=False)
                 time.sleep(1)
             else:
-                print_json({
-                    "status": "failed",
-                    "machine": alias,
-                    "mode": target.mode,
-                    "session_id": target.session_id,
-                    "pid": pid,
-                    "error": f"process {pid} did not exit after SIGINT+SIGTERM; rerun with --force to SIGKILL",
-                })
+                print_json(
+                    {
+                        "status": "failed",
+                        "machine": alias,
+                        "mode": target.mode,
+                        "session_id": target.session_id,
+                        "pid": pid,
+                        "error": f"process {pid} did not exit after SIGINT+SIGTERM; rerun with --force to SIGKILL",
+                    }
+                )
                 return 1
 
         stopped = not check_alive(ep, pid)
@@ -181,12 +198,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if stopped else 1
 
     except Exception as exc:
-        print_json({
-            "status": "failed",
-            "error": str(exc),
-            "machine": getattr(args, "machine", None),
-            "session_id": getattr(args, "session_id", None),
-        })
+        print_json(
+            {
+                "status": "failed",
+                "error": str(exc),
+                "machine": getattr(args, "machine", None),
+                "session_id": getattr(args, "session_id", None),
+            }
+        )
         return 2
     finally:
         lock_stack.close()

@@ -68,7 +68,9 @@ OPERATOR_ALIGNMENT_LIMITATIONS = (
 )
 
 
-def overlap_us(left_start: float, left_end: float, right_start: float, right_end: float) -> float:
+def overlap_us(
+    left_start: float, left_end: float, right_start: float, right_end: float
+) -> float:
     return max(0.0, min(left_end, right_end) - max(left_start, right_start))
 
 
@@ -93,7 +95,9 @@ def alignment_row(alignment: CrossRankAlignment) -> dict[str, Any]:
     }
 
 
-def _step_confidence(members_count: int, wall_skew_us: float, layer_mismatch: bool) -> str:
+def _step_confidence(
+    members_count: int, wall_skew_us: float, layer_mismatch: bool
+) -> str:
     if layer_mismatch:
         return "low"
     if members_count >= 4 and wall_skew_us <= 5000.0:
@@ -103,7 +107,9 @@ def _step_confidence(members_count: int, wall_skew_us: float, layer_mismatch: bo
     return "low"
 
 
-def _operator_confidence(member_count: int, start_skew_us: float, duration_ratio: float) -> str:
+def _operator_confidence(
+    member_count: int, start_skew_us: float, duration_ratio: float
+) -> str:
     if duration_ratio >= 5.0 or start_skew_us >= 20000.0:
         return "low"
     if member_count >= 4 and duration_ratio <= 1.5 and start_skew_us <= 2000.0:
@@ -127,7 +133,11 @@ def event_alignment_key(event: NormalizedEvent) -> tuple[str, str, str]:
     else:
         role = "other"
     shape = event.shape_signature or "no_shape"
-    name_key = event.name_raw if role in {"communication.collective", "moe.dispatch_expert_compute"} else role
+    name_key = (
+        event.name_raw
+        if role in {"communication.collective", "moe.dispatch_expert_compute"}
+        else role
+    )
     return role, name_key, shape
 
 
@@ -140,10 +150,14 @@ def build_step_alignments(segments: Sequence[Any]) -> list[CrossRankAlignment]:
         for other in steps:
             if other.rank_id == step.rank_id:
                 continue
-            overlap = overlap_us(step.start_us, step.end_us, other.start_us, other.end_us)
+            overlap = overlap_us(
+                step.start_us, step.end_us, other.start_us, other.end_us
+            )
             if overlap <= 0:
                 continue
-            denom = max(1.0, min(step.end_us - step.start_us, other.end_us - other.start_us))
+            denom = max(
+                1.0, min(step.end_us - step.start_us, other.end_us - other.start_us)
+            )
             if overlap / denom >= STEP_TIME_OVERLAP_RATIO:
                 members.append(other)
         rank_ids = tuple(sorted({member.rank_id for member in members}))
@@ -161,7 +175,10 @@ def build_step_alignments(segments: Sequence[Any]) -> list[CrossRankAlignment]:
             3,
         )
         layer_mismatch = (
-            len(set((member.step_family, member.main_layer_count) for member in members)) > 1
+            len(
+                set((member.step_family, member.main_layer_count) for member in members)
+            )
+            > 1
         )
         alignments.append(
             CrossRankAlignment(
@@ -188,7 +205,11 @@ def build_step_alignments(segments: Sequence[Any]) -> list[CrossRankAlignment]:
     return alignments
 
 
-def build_operator_alignments(events: Sequence[NormalizedEvent], *, bucket_us: float = OPERATOR_ALIGNMENT_BUCKET_US) -> list[CrossRankAlignment]:
+def build_operator_alignments(
+    events: Sequence[NormalizedEvent],
+    *,
+    bucket_us: float = OPERATOR_ALIGNMENT_BUCKET_US,
+) -> list[CrossRankAlignment]:
     grouped: dict[tuple[str, str, str, int], list[NormalizedEvent]] = defaultdict(list)
     for event in events:
         role, name_key, shape = event_alignment_key(event)
@@ -211,7 +232,12 @@ def build_operator_alignments(events: Sequence[NormalizedEvent], *, bucket_us: f
                 alignment_id=stable_id("align", role, name_key, shape, bucket),
                 alignment_type="operator",
                 rank_ids=rank_ids,
-                event_ids=tuple(event.event_id for event in sorted(items, key=lambda item: (item.rank_id, item.start_us))),
+                event_ids=tuple(
+                    event.event_id
+                    for event in sorted(
+                        items, key=lambda item: (item.rank_id, item.start_us)
+                    )
+                ),
                 start_us=min(event.start_us for event in items),
                 end_us=max(event.end_us for event in items),
                 metrics={
@@ -235,7 +261,9 @@ def build_operator_alignments(events: Sequence[NormalizedEvent], *, bucket_us: f
                 },
             )
         )
-    alignments.sort(key=lambda item: (str(item.metrics.get("role")), float(item.start_us or 0.0)))
+    alignments.sort(
+        key=lambda item: (str(item.metrics.get("role")), float(item.start_us or 0.0))
+    )
     return alignments
 
 
@@ -247,7 +275,9 @@ def cross_rank_profile(output_dir: Path) -> dict[str, Any]:
     alignments = step_alignments + operator_alignments
     rows = [alignment_row(alignment) for alignment in alignments]
     write_csv(output_dir / "cross_rank_alignment.csv", rows)
-    write_json(output_dir / "cross_rank_alignment.json", {"cross_rank_alignments": alignments})
+    write_json(
+        output_dir / "cross_rank_alignment.json", {"cross_rank_alignments": alignments}
+    )
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "tool_version": TOOL_VERSION,

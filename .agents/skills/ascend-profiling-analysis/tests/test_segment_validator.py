@@ -72,7 +72,9 @@ def _step_plan(
     tags: tuple[str, ...] = (),
     row_base: int = 0,
 ) -> StepPlan:
-    layers = tuple(_layer(i, sig, row_base=row_base) for i, sig in enumerate(signatures))
+    layers = tuple(
+        _layer(i, sig, row_base=row_base) for i, sig in enumerate(signatures)
+    )
     frame = LayerFrame(layers=layers, reason="test", tags=tags)
     return StepPlan(
         frames=(frame,),
@@ -113,7 +115,9 @@ def _build_test_layers(events: list[NormalizedEvent]) -> list[LayerObservation]:
     row_numbers = tuple(event.row_idx for event in events)
     boundary_rows = segm.dedup_adjacent_event_rows(
         events,
-        lambda event: event_role(event, "block_head") or event_role(event, "normalization"),
+        lambda event: (
+            event_role(event, "block_head") or event_role(event, "normalization")
+        ),
     )
     anchor_boundary_rows = segm.dedup_adjacent_event_rows(
         events,
@@ -132,23 +136,55 @@ def test_mla_sparse_attention_subunits_stay_in_one_layer() -> None:
 
     events = [
         _event(0, "aclnnAddRmsNorm", categories=("block_head",), roles=("block_head",)),
-        _event(1, "MlaPrologV3", categories=("attention.mla", "attention.mla.preprocess"), roles=("attention",)),
-        _event(2, "KvQuantSparseFlashAttention", categories=("attention.flash_score",), roles=("attention",)),
+        _event(
+            1,
+            "MlaPrologV3",
+            categories=("attention.mla", "attention.mla.preprocess"),
+            roles=("attention",),
+        ),
+        _event(
+            2,
+            "KvQuantSparseFlashAttention",
+            categories=("attention.flash_score",),
+            roles=("attention",),
+        ),
         _event(
             3,
             "aclnnTransposeBatchMatMul",
-            categories=("attention.mla.v_up_proj", "attention.sparse_attn.v_up_proj", "compute.matmul"),
+            categories=(
+                "attention.mla.v_up_proj",
+                "attention.sparse_attn.v_up_proj",
+                "compute.matmul",
+            ),
             roles=("attention", "compute"),
         ),
-        _event(4, "MoeDistributeDispatchV3", categories=("moe.dispatch",), roles=("moe",)),
-        _event(5, "MoeDistributeCombineV3", categories=("moe.combine",), roles=("moe",)),
+        _event(
+            4, "MoeDistributeDispatchV3", categories=("moe.dispatch",), roles=("moe",)
+        ),
+        _event(
+            5, "MoeDistributeCombineV3", categories=("moe.combine",), roles=("moe",)
+        ),
         _event(6, "aclnnAddRmsNorm", categories=("block_head",), roles=("block_head",)),
-        _event(7, "MlaPrologV3", categories=("attention.mla", "attention.mla.preprocess"), roles=("attention",)),
-        _event(8, "KvQuantSparseFlashAttention", categories=("attention.flash_score",), roles=("attention",)),
+        _event(
+            7,
+            "MlaPrologV3",
+            categories=("attention.mla", "attention.mla.preprocess"),
+            roles=("attention",),
+        ),
+        _event(
+            8,
+            "KvQuantSparseFlashAttention",
+            categories=("attention.flash_score",),
+            roles=("attention",),
+        ),
         _event(
             9,
             "aclnnTransposeBatchMatMul",
-            categories=("attention.mla.v_up_proj", "attention.sparse_attn.v_up_proj", "compute.matmul"),
+            categories=(
+                "attention.mla.v_up_proj",
+                "attention.sparse_attn.v_up_proj",
+                "compute.matmul",
+            ),
             roles=("attention", "compute"),
         ),
     ]
@@ -174,10 +210,20 @@ def test_flash_attention_still_anchors_when_no_mla_marker() -> None:
 
     events = [
         _event(0, "aclnnAddRmsNorm", categories=("block_head",), roles=("block_head",)),
-        _event(1, "FusedInferAttentionScore", categories=("attention.flash_score",), roles=("attention",)),
+        _event(
+            1,
+            "FusedInferAttentionScore",
+            categories=("attention.flash_score",),
+            roles=("attention",),
+        ),
         _event(2, "aclnnMatmul", categories=("compute.matmul",), roles=("compute",)),
         _event(3, "aclnnAddRmsNorm", categories=("block_head",), roles=("block_head",)),
-        _event(4, "FusedInferAttentionScore", categories=("attention.flash_score",), roles=("attention",)),
+        _event(
+            4,
+            "FusedInferAttentionScore",
+            categories=("attention.flash_score",),
+            roles=("attention",),
+        ),
         _event(5, "aclnnMatmul", categories=("compute.matmul",), roles=("compute",)),
     ]
 
@@ -696,7 +742,9 @@ def test_classify_interior_substructure_plans_is_idempotent() -> None:
     ]
     first = classify_interior_substructure_plans(plans)
     second = classify_interior_substructure_plans(plans)
-    assert [plan.segment_type for plan in first] == [plan.segment_type for plan in second]
+    assert [plan.segment_type for plan in first] == [
+        plan.segment_type for plan in second
+    ]
     assert [plan.complete for plan in first] == [plan.complete for plan in second]
 
 
@@ -709,7 +757,9 @@ def _oversized_residual_plan(row_base: int, *, with_attention: bool) -> StepPlan
     """
 
     if with_attention:
-        signatures = _MLA_BODY_LAYER_SIGS + _MLA_BODY_LAYER_SIGS  # 6 layers, includes attention
+        signatures = (
+            _MLA_BODY_LAYER_SIGS + _MLA_BODY_LAYER_SIGS
+        )  # 6 layers, includes attention
     else:
         signatures = ("block_head|moe:moe.combinex1",) * 6
     return _step_plan(
@@ -817,8 +867,14 @@ def test_cached_helpers_are_consistent() -> None:
     assert a == b
     assert segm.core_role_key(signature) == segm.core_role_key(signature)
     assert segm.layer_boundary_key(signature) == segm.layer_boundary_key(signature)
-    assert segm.split_role_count("attention.mla.q_a_projx3") == ("attention.mla.q_a_proj", "3")
-    assert segm.split_role_count("attention.mla.q_a_proj") == ("attention.mla.q_a_proj", "")
+    assert segm.split_role_count("attention.mla.q_a_projx3") == (
+        "attention.mla.q_a_proj",
+        "3",
+    )
+    assert segm.split_role_count("attention.mla.q_a_proj") == (
+        "attention.mla.q_a_proj",
+        "",
+    )
 
     counter1 = segm.coarse_core_components(signature)
     counter2 = segm.coarse_core_components(signature)

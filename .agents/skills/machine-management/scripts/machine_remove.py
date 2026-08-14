@@ -28,7 +28,9 @@ from _workflow_common import (  # noqa: E402
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--machine", required=True, help="machine alias or host IP from inventory")
+    parser.add_argument(
+        "--machine", required=True, help="machine alias or host IP from inventory"
+    )
     return parser
 
 
@@ -48,19 +50,39 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
 
-        emit_progress(action="remove", phase="mesh", message="cleaning up peer mesh trust", machine=record["alias"])
+        emit_progress(
+            action="remove",
+            phase="mesh",
+            message="cleaning up peer mesh trust",
+            machine=record["alias"],
+        )
         peers = [peer for peer in list_records() if peer["alias"] != record["alias"]]
         mesh_cleanup = cleanup_mesh(record, peers=peers)
-        emit_progress(action="remove", phase="container", message="removing the managed container", machine=record["alias"])
+        emit_progress(
+            action="remove",
+            phase="container",
+            message="removing the managed container",
+            machine=record["alias"],
+        )
         removed_container = remove_container(record)
         if removed_container.get("status") == "blocked":
             print_json(removed_container)
             return 0
 
-        emit_progress(action="remove", phase="parity-cleanup", message="cleaning up remote-code-parity local state", machine=record["alias"])
+        emit_progress(
+            action="remove",
+            phase="parity-cleanup",
+            message="cleaning up remote-code-parity local state",
+            machine=record["alias"],
+        )
         parity_cleanup = cleanup_parity_state(record)
 
-        emit_progress(action="remove", phase="inventory", message="removing the machine from local inventory", machine=record["alias"])
+        emit_progress(
+            action="remove",
+            phase="inventory",
+            message="removing the machine from local inventory",
+            machine=record["alias"],
+        )
         inventory_payload, _ = remove_machine_record(record["alias"])
         print_json(
             status_payload(
@@ -77,10 +99,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     except WorkflowError as exc:
-        print_json({"success": False, "status": "blocked", "action": "failed", "error": str(exc)})
+        print_json(
+            {
+                "success": False,
+                "status": "blocked",
+                "action": "failed",
+                "error": str(exc),
+            }
+        )
         return 2
     except Exception as exc:  # noqa: BLE001
-        print_json({"success": False, "status": "blocked", "action": "failed", "error": str(exc)})
+        print_json(
+            {
+                "success": False,
+                "status": "blocked",
+                "action": "failed",
+                "error": str(exc),
+            }
+        )
         return 2
 
 

@@ -99,12 +99,19 @@ def anomaly_tags(metrics: Mapping[str, Any]) -> list[str]:
         return tags
     if float(metrics.get("underfeed_ratio") or 0.0) >= UNDERFEED_HEAVY_RATIO:
         tags.append("DEVICE_IDLE_GAP_HEAVY")
-    if float(metrics.get("largest_internal_bubble_ms") or 0.0) >= max(INTERNAL_BUBBLE_MIN_MS, wall * INTERNAL_BUBBLE_WALL_RATIO):
+    if float(metrics.get("largest_internal_bubble_ms") or 0.0) >= max(
+        INTERNAL_BUBBLE_MIN_MS, wall * INTERNAL_BUBBLE_WALL_RATIO
+    ):
         tags.append("INTERNAL_BUBBLE_HEAVY")
     return tags
 
 
-def event_slice(events: Sequence[NormalizedEvent], row_numbers: Sequence[int], row_start: int, row_end: int) -> list[NormalizedEvent]:
+def event_slice(
+    events: Sequence[NormalizedEvent],
+    row_numbers: Sequence[int],
+    row_start: int,
+    row_end: int,
+) -> list[NormalizedEvent]:
     if row_end < row_start:
         return []
     left = bisect.bisect_left(row_numbers, int(row_start))
@@ -112,8 +119,13 @@ def event_slice(events: Sequence[NormalizedEvent], row_numbers: Sequence[int], r
     return list(events[left:right])
 
 
-def row_indexes_by_rank(events_by_rank: Mapping[str, Sequence[NormalizedEvent]]) -> dict[str, list[int]]:
-    return {rank_id: [event.row_idx for event in events] for rank_id, events in events_by_rank.items()}
+def row_indexes_by_rank(
+    events_by_rank: Mapping[str, Sequence[NormalizedEvent]],
+) -> dict[str, list[int]]:
+    return {
+        rank_id: [event.row_idx for event in events]
+        for rank_id, events in events_by_rank.items()
+    }
 
 
 def _section_metrics(
@@ -205,7 +217,9 @@ def step_anatomy_rows(
         step_bubble = float(step.get("underfeed_ms") or 0.0)
         layers_for_step = layers_by_step.get(str(step.get("segment_id") or ""), [])
         if not layers_for_step:
-            head_metrics = _section_metrics(rank_events, rank_rows, step_row_start, step_row_end)
+            head_metrics = _section_metrics(
+                rank_events, rank_rows, step_row_start, step_row_end
+            )
             row = {
                 "segment_id": step.get("segment_id"),
                 "rank_id": rank_id,
@@ -257,12 +271,22 @@ def step_anatomy_rows(
         head_row_end = main_row_start - 1
         tail_row_start = main_row_end + 1
 
-        head_metrics = _section_metrics(rank_events, rank_rows, step_row_start, head_row_end)
-        main_metrics = _section_metrics(rank_events, rank_rows, main_row_start, main_row_end)
-        tail_metrics = _section_metrics(rank_events, rank_rows, tail_row_start, step_row_end)
+        head_metrics = _section_metrics(
+            rank_events, rank_rows, step_row_start, head_row_end
+        )
+        main_metrics = _section_metrics(
+            rank_events, rank_rows, main_row_start, main_row_end
+        )
+        tail_metrics = _section_metrics(
+            rank_events, rank_rows, tail_row_start, step_row_end
+        )
 
-        wall_total = head_metrics["wall_ms"] + main_metrics["wall_ms"] + tail_metrics["wall_ms"]
-        denominator = step_wall if step_wall > 0 else (wall_total if wall_total > 0 else 0.0)
+        wall_total = (
+            head_metrics["wall_ms"] + main_metrics["wall_ms"] + tail_metrics["wall_ms"]
+        )
+        denominator = (
+            step_wall if step_wall > 0 else (wall_total if wall_total > 0 else 0.0)
+        )
         head_ratio = (head_metrics["wall_ms"] / denominator) if denominator else 0.0
         main_ratio = (main_metrics["wall_ms"] / denominator) if denominator else 0.0
         tail_ratio = (tail_metrics["wall_ms"] / denominator) if denominator else 0.0
@@ -350,7 +374,9 @@ def attach_anatomy_to_step_rows(
             row[key] = anatomy.get(key)
 
 
-def rank_summary_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]], segments: Sequence[Any]) -> list[dict[str, Any]]:
+def rank_summary_rows(
+    events_by_rank: Mapping[str, Sequence[NormalizedEvent]], segments: Sequence[Any]
+) -> list[dict[str, Any]]:
     segments_by_rank: dict[str, list[Any]] = defaultdict(list)
     for segment in segments:
         segments_by_rank[segment.rank_id].append(segment)
@@ -362,13 +388,18 @@ def rank_summary_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]], s
             {
                 segment.main_layer_count
                 for segment in segments_by_rank.get(rank_id, [])
-                if segment.segment_type == "step" and segment.main_layer_count is not None
+                if segment.segment_type == "step"
+                and segment.main_layer_count is not None
             }
         )
         rows.append(
             {
                 "rank_id": rank_id,
-                "step_count": sum(1 for segment in segments_by_rank.get(rank_id, []) if segment.segment_type == "step"),
+                "step_count": sum(
+                    1
+                    for segment in segments_by_rank.get(rank_id, [])
+                    if segment.segment_type == "step"
+                ),
                 "segment_count": len(segments_by_rank.get(rank_id, [])),
                 "layer_count_inventory": layer_inventory,
                 "has_attention": bool(role_counts.get("attention")),
@@ -381,15 +412,24 @@ def rank_summary_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]], s
     return rows
 
 
-def step_summary_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]], segments: Sequence[Any]) -> list[dict[str, Any]]:
+def step_summary_rows(
+    events_by_rank: Mapping[str, Sequence[NormalizedEvent]], segments: Sequence[Any]
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     row_indexes = row_indexes_by_rank(events_by_rank)
     for segment in segments:
         rank_events = events_by_rank.get(segment.rank_id, [])
-        events = event_slice(rank_events, row_indexes.get(segment.rank_id, []), segment.row_start, segment.row_end)
+        events = event_slice(
+            rank_events,
+            row_indexes.get(segment.rank_id, []),
+            segment.row_start,
+            segment.row_end,
+        )
         metrics = metrics_for_events(events, top_gap_limit=5)
         role_counts = Counter(role for event in events for role in event.op_roles)
-        category_counts = Counter(category for event in events for category in event.op_categories)
+        category_counts = Counter(
+            category for event in events for category in event.op_categories
+        )
         rows.append(
             {
                 "segment_id": segment.segment_id,
@@ -413,18 +453,27 @@ def step_summary_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]], s
                 "anomaly_tags": anomaly_tags(metrics),
                 "top_bubbles": metrics.get("top_bubbles", []),
                 "evidence_ids": list(segment.evidence_ids),
-                **{key: value for key, value in metrics.items() if key != "top_bubbles"},
+                **{
+                    key: value for key, value in metrics.items() if key != "top_bubbles"
+                },
             }
         )
     return rows
 
 
-def layer_summary_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]], layers: Sequence[Any]) -> list[dict[str, Any]]:
+def layer_summary_rows(
+    events_by_rank: Mapping[str, Sequence[NormalizedEvent]], layers: Sequence[Any]
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     row_indexes = row_indexes_by_rank(events_by_rank)
     for layer in layers:
         rank_events = events_by_rank.get(layer.rank_id, [])
-        events = event_slice(rank_events, row_indexes.get(layer.rank_id, []), layer.row_start, layer.row_end)
+        events = event_slice(
+            rank_events,
+            row_indexes.get(layer.rank_id, []),
+            layer.row_start,
+            layer.row_end,
+        )
         metrics = metrics_for_events(events, top_gap_limit=0)
         role_counts = Counter(role for event in events for role in event.op_roles)
         rows.append(
@@ -449,17 +498,23 @@ def layer_summary_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]], 
     return rows
 
 
-def operator_summary_rows(events: Sequence[NormalizedEvent], max_sample_rows: int = 16) -> list[dict[str, Any]]:
+def operator_summary_rows(
+    events: Sequence[NormalizedEvent], max_sample_rows: int = 16
+) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str, str, str], list[NormalizedEvent]] = defaultdict(list)
     for event in events:
         role_key = ",".join(event.op_roles) or "unknown"
-        grouped[(event.rank_id, event.name_raw, event.task_type, role_key)].append(event)
+        grouped[(event.rank_id, event.name_raw, event.task_type, role_key)].append(
+            event
+        )
     rows: list[dict[str, Any]] = []
     for (rank_id, name, task, role_key), items in grouped.items():
         duration = sum(event.duration_us for event in items)
         wait = sum(event.wait_us for event in items)
         total = duration + wait
-        pipeline_aggregate = sum_pipeline_breakdown(event.pipeline_us for event in items)
+        pipeline_aggregate = sum_pipeline_breakdown(
+            event.pipeline_us for event in items
+        )
         op_type_counter = Counter(event.op_type for event in items if event.op_type)
         op_type = op_type_counter.most_common(1)[0][0] if op_type_counter else "unknown"
         is_aicpu = any(is_aicpu_event(event) for event in items)
@@ -476,7 +531,9 @@ def operator_summary_rows(events: Sequence[NormalizedEvent], max_sample_rows: in
             "name": name,
             "task_type": task,
             "roles": role_key,
-            "categories": sorted({category for event in items for category in event.op_categories}),
+            "categories": sorted(
+                {category for event in items for category in event.op_categories}
+            ),
             "call_count": len(items),
             "duration_sum_us": round(duration, 3),
             "wait_sum_us": round(wait, 3),
@@ -488,7 +545,12 @@ def operator_summary_rows(events: Sequence[NormalizedEvent], max_sample_rows: in
             "stream_count": len({event.stream_id for event in items}),
             "row_ranges": row_ranges(event.row_idx for event in items),
             "sample_rows": sorted(event.row_idx for event in items)[:max_sample_rows],
-            "sample_event_ids": [event.event_id for event in sorted(items, key=lambda item: item.row_idx)[:max_sample_rows]],
+            "sample_event_ids": [
+                event.event_id
+                for event in sorted(items, key=lambda item: item.row_idx)[
+                    :max_sample_rows
+                ]
+            ],
             "op_type": op_type,
             "bound_stage": bound["bound_stage"],
             "bound_family": bound["bound_family"],
@@ -498,7 +560,13 @@ def operator_summary_rows(events: Sequence[NormalizedEvent], max_sample_rows: in
         for key in PIPELINE_FIELDS:
             row[key] = pipeline_aggregate.get(key) if pipeline_aggregate else None
         rows.append(row)
-    rows.sort(key=lambda item: (item["rank_id"], -float(item["total_cost_sum_us"]), item["name"]))
+    rows.sort(
+        key=lambda item: (
+            item["rank_id"],
+            -float(item["total_cost_sum_us"]),
+            item["name"],
+        )
+    )
     return rows
 
 
@@ -550,7 +618,9 @@ def operator_class_summary_rows(
     even though the whole row is rank-merged.
     """
 
-    grouped: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
+    grouped: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = defaultdict(
+        list
+    )
     for row in operator_rows:
         key = (
             str(row.get("name") or ""),
@@ -585,7 +655,8 @@ def operator_class_summary_rows(
             pipeline_sum if any_pipeline else None,
             op_type=op_type or None,
             is_aicpu=op_type == "aicpu",
-            is_communication=op_type in {"communication", "mix_comm_aiv"} and not any_pipeline,
+            is_communication=op_type in {"communication", "mix_comm_aiv"}
+            and not any_pipeline,
         )
         rank_durations = sorted(durations)
         if rank_durations:
@@ -606,7 +677,9 @@ def operator_class_summary_rows(
             "duration_sum_us": round(duration_total, 3),
             "wait_sum_us": round(wait_total, 3),
             "total_cost_sum_us": round(total_cost, 3),
-            "duration_avg_us": round(duration_total / call_total, 6) if call_total else 0.0,
+            "duration_avg_us": round(duration_total / call_total, 6)
+            if call_total
+            else 0.0,
             "wait_avg_us": round(wait_total / call_total, 6) if call_total else 0.0,
             "wait_ratio": round(wait_total / total_cost, 6) if total_cost > 0 else 0.0,
             "rank_duration_min_us": round(min_dur, 3),
@@ -657,7 +730,9 @@ def hccl_op_summary_rows(
         call_total = sum(int(item.get("call_count") or 0) for item in members)
         if call_total <= 0:
             continue
-        duration_total = sum(float(item.get("duration_sum_us") or 0.0) for item in members)
+        duration_total = sum(
+            float(item.get("duration_sum_us") or 0.0) for item in members
+        )
         wait_total = sum(float(item.get("wait_sum_us") or 0.0) for item in members)
         # Use ``duration_avg_us`` from each per-name aggregate as the
         # per-call sample so the percentile reflects per-call behaviour
@@ -688,7 +763,9 @@ def hccl_op_summary_rows(
                 "duration_p50_us": round(duration_p50, 3),
                 "duration_p90_us": round(duration_p90, 3),
                 "duration_max_us": round(duration_max, 3),
-                "wait_ratio": round(wait_total / (duration_total + wait_total), 6) if (duration_total + wait_total) > 0 else 0.0,
+                "wait_ratio": round(wait_total / (duration_total + wait_total), 6)
+                if (duration_total + wait_total) > 0
+                else 0.0,
             }
         )
     rows.sort(
@@ -721,7 +798,9 @@ def hccl_class_summary_rows(
     rows: list[dict[str, Any]] = []
     for (kind, fused), members in grouped.items():
         call_total = sum(int(item.get("call_count") or 0) for item in members)
-        duration_total = sum(float(item.get("duration_sum_us") or 0.0) for item in members)
+        duration_total = sum(
+            float(item.get("duration_sum_us") or 0.0) for item in members
+        )
         wait_total = sum(float(item.get("wait_sum_us") or 0.0) for item in members)
         per_rank_avgs = [float(item.get("duration_avg_us") or 0.0) for item in members]
         per_rank_avgs.sort()
@@ -744,7 +823,9 @@ def hccl_class_summary_rows(
                 "call_count": call_total,
                 "duration_sum_us": round(duration_total, 3),
                 "wait_sum_us": round(wait_total, 3),
-                "duration_avg_us": round(duration_total / call_total, 6) if call_total else 0.0,
+                "duration_avg_us": round(duration_total / call_total, 6)
+                if call_total
+                else 0.0,
                 "rank_avg_min_us": round(avg_min, 3),
                 "rank_avg_max_us": round(avg_max, 3),
                 "rank_avg_mean_us": round(avg_mean, 6),
@@ -762,13 +843,19 @@ def hccl_class_summary_rows(
     return rows
 
 
-def wait_anchor_rows(operator_rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def wait_anchor_rows(
+    operator_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     by_rank: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for row in operator_rows:
         by_rank[str(row.get("rank_id"))].append(row)
     for rank_id, items in by_rank.items():
-        ranked = sorted(items, key=lambda item: float(item.get("total_cost_avg_us") or 0.0), reverse=True)
+        ranked = sorted(
+            items,
+            key=lambda item: float(item.get("total_cost_avg_us") or 0.0),
+            reverse=True,
+        )
         for rank, row in enumerate(ranked, 1):
             duration_avg = float(row.get("duration_avg_us") or 0.0)
             wait_ratio = float(row.get("wait_ratio") or 0.0)
@@ -793,7 +880,9 @@ def overlap_sum(targets: Sequence[Interval], masks: Sequence[Interval]) -> float
         while pos < len(ordered_masks) and ordered_masks[pos].end_us <= target.start_us:
             pos += 1
         probe = pos
-        while probe < len(ordered_masks) and ordered_masks[probe].start_us < target.end_us:
+        while (
+            probe < len(ordered_masks) and ordered_masks[probe].start_us < target.end_us
+        ):
             mask = ordered_masks[probe]
             left = max(target.start_us, mask.start_us)
             right = min(target.end_us, mask.end_us)
@@ -803,17 +892,25 @@ def overlap_sum(targets: Sequence[Interval], masks: Sequence[Interval]) -> float
     return total
 
 
-def aicpu_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]]) -> list[dict[str, Any]]:
+def aicpu_rows(
+    events_by_rank: Mapping[str, Sequence[NormalizedEvent]],
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for rank_id, events in events_by_rank.items():
-        ai_core = [Interval(event.start_us, event.end_us) for event in events if is_ai_core_like(event)]
+        ai_core = [
+            Interval(event.start_us, event.end_us)
+            for event in events
+            if is_ai_core_like(event)
+        ]
         grouped: dict[str, list[NormalizedEvent]] = defaultdict(list)
         for event in events:
             if is_aicpu_event(event):
                 grouped[event.name_raw].append(event)
         for name, items in grouped.items():
             duration = sum(event.duration_us for event in items)
-            overlapped = overlap_sum([Interval(event.start_us, event.end_us) for event in items], ai_core)
+            overlapped = overlap_sum(
+                [Interval(event.start_us, event.end_us) for event in items], ai_core
+            )
             ratio = overlapped / duration if duration > 0 else 0.0
             if ratio >= AICPU_MASKED_RATIO:
                 classification = "AICPU_MASKED_BUT_UNDESIRABLE"
@@ -834,17 +931,31 @@ def aicpu_rows(events_by_rank: Mapping[str, Sequence[NormalizedEvent]]) -> list[
                     "sample_event_ids": [event.event_id for event in items[:16]],
                 }
             )
-    rows.sort(key=lambda item: (item["rank_id"], -float(item["duration_sum_us"]), item["name"]))
+    rows.sort(
+        key=lambda item: (
+            item["rank_id"],
+            -float(item["duration_sum_us"]),
+            item["name"],
+        )
+    )
     return rows
 
 
-def bubble_evidence_rows(step_rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def bubble_evidence_rows(
+    step_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for step in step_rows:
         if step.get("segment_type") != "step":
             continue
         for bubble in step.get("top_bubbles") or []:
-            evidence_id = stable_id("evd", step.get("segment_id"), "bubble", bubble.get("bubble_index"), bubble.get("start_us"))
+            evidence_id = stable_id(
+                "evd",
+                step.get("segment_id"),
+                "bubble",
+                bubble.get("bubble_index"),
+                bubble.get("start_us"),
+            )
             rows.append(
                 {
                     "evidence_id": evidence_id,
@@ -876,7 +987,12 @@ def block_summary_rows(
     row_indexes = row_indexes_by_rank(events_by_rank)
     for block in blocks:
         rank_events = events_by_rank.get(block.rank_id, [])
-        events = event_slice(rank_events, row_indexes.get(block.rank_id, []), block.row_start, block.row_end)
+        events = event_slice(
+            rank_events,
+            row_indexes.get(block.rank_id, []),
+            block.row_start,
+            block.row_end,
+        )
         metrics = metrics_for_events(events, top_gap_limit=0)
         role_counts = Counter(role for event in events for role in event.op_roles)
         op_type_counts: Counter[str] = Counter()
@@ -892,7 +1008,9 @@ def block_summary_rows(
                 comm_duration_us += float(event.duration_us)
         pipeline_agg = sum_pipeline_breakdown(event.pipeline_us for event in events)
         if op_type_duration:
-            dominant_op_type = max(op_type_duration.items(), key=lambda item: item[1])[0]
+            dominant_op_type = max(op_type_duration.items(), key=lambda item: item[1])[
+                0
+            ]
         else:
             dominant_op_type = "unknown"
         # Block-level bound classification analyses the **AI-Core stage**
@@ -916,7 +1034,11 @@ def block_summary_rows(
                 is_aicpu=dominant_op_type == "aicpu",
                 is_communication=dominant_op_type == "communication",
             )
-        comm_share = round(comm_duration_us / block_duration_us, 6) if block_duration_us > 0 else 0.0
+        comm_share = (
+            round(comm_duration_us / block_duration_us, 6)
+            if block_duration_us > 0
+            else 0.0
+        )
         op_cost: dict[tuple[str, str], float] = defaultdict(float)
         op_calls: dict[tuple[str, str], int] = defaultdict(int)
         for event in events:
@@ -930,7 +1052,9 @@ def block_summary_rows(
                 "duration_sum_us": round(cost, 3),
                 "call_count": op_calls[(name, task)],
             }
-            for (name, task), cost in sorted(op_cost.items(), key=lambda item: item[1], reverse=True)[:5]
+            for (name, task), cost in sorted(
+                op_cost.items(), key=lambda item: item[1], reverse=True
+            )[:5]
         ]
         row = {
             "block_id": block.block_id,
@@ -947,7 +1071,9 @@ def block_summary_rows(
             "start_us": block.start_us,
             "end_us": block.end_us,
             "event_count": len(events),
-            "has_attention": bool(role_counts.get("attention") or role_counts.get("attention_aux")),
+            "has_attention": bool(
+                role_counts.get("attention") or role_counts.get("attention_aux")
+            ),
             "has_moe": bool(role_counts.get("moe")),
             "has_communication": bool(role_counts.get("communication")),
             "role_counts": dict(sorted(role_counts.items())),
@@ -974,7 +1100,11 @@ def _aggregate_top_ops(
 ) -> list[dict[str, Any]]:
     """Roll a name -> {duration, call_count} dict into a sorted top-N list."""
 
-    items = sorted(op_costs.items(), key=lambda item: item[1].get("duration_sum_us", 0.0), reverse=True)
+    items = sorted(
+        op_costs.items(),
+        key=lambda item: item[1].get("duration_sum_us", 0.0),
+        reverse=True,
+    )
     return [
         {
             "name": name,
@@ -1012,7 +1142,9 @@ def block_class_summary_rows(
         busy_values = [float(item.get("busy_union_ms") or 0.0) for item in members]
         bubble_values = [float(item.get("underfeed_ms") or 0.0) for item in members]
         comm_share_values = [float(item.get("comm_share") or 0.0) for item in members]
-        comm_duration_values = [float(item.get("comm_duration_us") or 0.0) for item in members]
+        comm_duration_values = [
+            float(item.get("comm_duration_us") or 0.0) for item in members
+        ]
         pipeline_sum: dict[str, float] = {key: 0.0 for key in PIPELINE_FIELDS}
         any_pipeline = False
         for item in members:
@@ -1022,24 +1154,38 @@ def block_class_summary_rows(
                     continue
                 pipeline_sum[key] += float(value)
                 any_pipeline = True
-        op_costs: dict[tuple[str, str], dict[str, float]] = defaultdict(lambda: {"duration_sum_us": 0.0, "call_count": 0})
+        op_costs: dict[tuple[str, str], dict[str, float]] = defaultdict(
+            lambda: {"duration_sum_us": 0.0, "call_count": 0}
+        )
         for item in members:
             for op in item.get("top_ops") or []:
                 key = (str(op.get("name") or ""), str(op.get("task_type") or ""))
-                op_costs[key]["duration_sum_us"] += float(op.get("duration_sum_us") or 0.0)
+                op_costs[key]["duration_sum_us"] += float(
+                    op.get("duration_sum_us") or 0.0
+                )
                 op_costs[key]["call_count"] += int(op.get("call_count") or 0)
         op_type_counts: Counter[str] = Counter()
         for item in members:
             for op_type, count in (item.get("op_type_counts") or {}).items():
                 op_type_counts[str(op_type)] += int(count)
-        bound_family_counts: Counter[str] = Counter(str(item.get("bound_family") or "unknown") for item in members)
-        sample_kind = members[0].get("block_kind") if members else class_meta.get("block_kind")
-        companion = bool(class_meta.get("companion_layer", any(item.get("companion_layer") for item in members)))
+        bound_family_counts: Counter[str] = Counter(
+            str(item.get("bound_family") or "unknown") for item in members
+        )
+        sample_kind = (
+            members[0].get("block_kind") if members else class_meta.get("block_kind")
+        )
+        companion = bool(
+            class_meta.get(
+                "companion_layer", any(item.get("companion_layer") for item in members)
+            )
+        )
         # Same compute-first lens as block_summary_rows: when any
         # member contributed pipeline signal, classify by the aggregate
         # pipeline (cube vs vector vs MTE) and let comm-side stats live
         # in the histogram.  Otherwise fall back to dominant op_type.
-        dominant_op_type = op_type_counts.most_common(1)[0][0] if op_type_counts else "unknown"
+        dominant_op_type = (
+            op_type_counts.most_common(1)[0][0] if op_type_counts else "unknown"
+        )
         if any_pipeline:
             bound = bound_class_from_pipeline(
                 pipeline_sum,
@@ -1083,7 +1229,12 @@ def block_class_summary_rows(
         for key in PIPELINE_FIELDS:
             row[key] = round(pipeline_sum[key], 6) if any_pipeline else None
         rows.append(row)
-    rows.sort(key=lambda item: (-int(item.get("member_count") or 0), str(item.get("block_kind") or "")))
+    rows.sort(
+        key=lambda item: (
+            -int(item.get("member_count") or 0),
+            str(item.get("block_kind") or ""),
+        )
+    )
     return rows
 
 
@@ -1122,14 +1273,18 @@ def layer_class_summary_rows(
         busy_values = [float(item.get("busy_union_ms") or 0.0) for item in members]
         bubble_values = [float(item.get("underfeed_ms") or 0.0) for item in members]
         block_kind_wall: dict[str, list[float]] = defaultdict(list)
-        op_costs: dict[tuple[str, str], dict[str, float]] = defaultdict(lambda: {"duration_sum_us": 0.0, "call_count": 0})
+        op_costs: dict[tuple[str, str], dict[str, float]] = defaultdict(
+            lambda: {"duration_sum_us": 0.0, "call_count": 0}
+        )
         for layer in members:
             for block in blocks_by_layer.get(str(layer.get("layer_id")), []):
                 kind = str(block.get("block_kind") or "other")
                 block_kind_wall[kind].append(float(block.get("wall_ms") or 0.0))
                 for op in block.get("top_ops") or []:
                     key = (str(op.get("name") or ""), str(op.get("task_type") or ""))
-                    op_costs[key]["duration_sum_us"] += float(op.get("duration_sum_us") or 0.0)
+                    op_costs[key]["duration_sum_us"] += float(
+                        op.get("duration_sum_us") or 0.0
+                    )
                     op_costs[key]["call_count"] += int(op.get("call_count") or 0)
         rank_count = len({str(item.get("rank_id")) for item in members})
         row = {
@@ -1147,12 +1302,20 @@ def layer_class_summary_rows(
             "wall_ms_p90": round(quantile(wall_values, 0.9), 6),
             "busy_ms_mean": round(statistics_mean(busy_values), 6),
             "bubble_ms_mean": round(statistics_mean(bubble_values), 6),
-            "block_kind_wall_ms_mean": {kind: round(statistics_mean(values), 6) for kind, values in block_kind_wall.items()},
+            "block_kind_wall_ms_mean": {
+                kind: round(statistics_mean(values), 6)
+                for kind, values in block_kind_wall.items()
+            },
             "block_kind_wall_ms_share_mean": _ratio_dict(block_kind_wall, wall_values),
             "top_ops": _aggregate_top_ops(op_costs, limit=10),
         }
         rows.append(row)
-    rows.sort(key=lambda item: (-int(item.get("member_count") or 0), str(item.get("layer_class_id") or "")))
+    rows.sort(
+        key=lambda item: (
+            -int(item.get("member_count") or 0),
+            str(item.get("layer_class_id") or ""),
+        )
+    )
     return rows
 
 
@@ -1176,7 +1339,9 @@ def step_class_summary_rows(
         for segment_id in info.get("members") or ():
             step_class_by_id[str(segment_id)] = class_id
 
-    anatomy_by_segment: dict[str, Mapping[str, Any]] = {str(item.get("segment_id")): item for item in anatomy_rows}
+    anatomy_by_segment: dict[str, Mapping[str, Any]] = {
+        str(item.get("segment_id")): item for item in anatomy_rows
+    }
     layers_by_segment: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for layer in layer_rows:
         layers_by_segment[str(layer.get("segment_id"))].append(layer)
@@ -1206,8 +1371,12 @@ def step_class_summary_rows(
         main_ratios: list[float] = []
         tail_ratios: list[float] = []
         bubble_ratios: list[float] = []
-        layer_class_costs: dict[str, dict[str, float]] = defaultdict(lambda: {"wall_ms_sum": 0.0, "member_count": 0})
-        op_costs: dict[tuple[str, str], dict[str, float]] = defaultdict(lambda: {"duration_sum_us": 0.0, "call_count": 0})
+        layer_class_costs: dict[str, dict[str, float]] = defaultdict(
+            lambda: {"wall_ms_sum": 0.0, "member_count": 0}
+        )
+        op_costs: dict[tuple[str, str], dict[str, float]] = defaultdict(
+            lambda: {"duration_sum_us": 0.0, "call_count": 0}
+        )
         for step in members:
             anatomy = anatomy_by_segment.get(str(step.get("segment_id")))
             if anatomy is not None:
@@ -1226,8 +1395,13 @@ def step_class_summary_rows(
                     bucket["member_count"] += 1
                 for block in blocks_by_layer.get(str(layer.get("layer_id")), []):
                     for op in block.get("top_ops") or []:
-                        key = (str(op.get("name") or ""), str(op.get("task_type") or ""))
-                        op_costs[key]["duration_sum_us"] += float(op.get("duration_sum_us") or 0.0)
+                        key = (
+                            str(op.get("name") or ""),
+                            str(op.get("task_type") or ""),
+                        )
+                        op_costs[key]["duration_sum_us"] += float(
+                            op.get("duration_sum_us") or 0.0
+                        )
                         op_costs[key]["call_count"] += int(op.get("call_count") or 0)
         top_layer_classes = sorted(
             layer_class_costs.items(),
@@ -1268,7 +1442,12 @@ def step_class_summary_rows(
             "top_ops": _aggregate_top_ops(op_costs, limit=10),
         }
         rows.append(row)
-    rows.sort(key=lambda item: (-int(item.get("member_count") or 0), str(item.get("step_class_id") or "")))
+    rows.sort(
+        key=lambda item: (
+            -int(item.get("member_count") or 0),
+            str(item.get("step_class_id") or ""),
+        )
+    )
     return rows
 
 
@@ -1291,7 +1470,11 @@ def _ratio_dict(
     return out
 
 
-def evidence_index_rows(step_rows: Sequence[Mapping[str, Any]], layer_rows: Sequence[Mapping[str, Any]], bubble_rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def evidence_index_rows(
+    step_rows: Sequence[Mapping[str, Any]],
+    layer_rows: Sequence[Mapping[str, Any]],
+    bubble_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for row in step_rows:
         for evidence_id in row.get("evidence_ids") or []:
@@ -1327,8 +1510,12 @@ def evidence_index_rows(step_rows: Sequence[Mapping[str, Any]], layer_rows: Sequ
                 "kind": "bubble_window",
                 "rank_id": row.get("rank_id"),
                 "segment_id": row.get("segment_id"),
-                "row_start": (row.get("before_event") or {}).get("row_idx") if isinstance(row.get("before_event"), dict) else None,
-                "row_end": (row.get("after_event") or {}).get("row_idx") if isinstance(row.get("after_event"), dict) else None,
+                "row_start": (row.get("before_event") or {}).get("row_idx")
+                if isinstance(row.get("before_event"), dict)
+                else None,
+                "row_end": (row.get("after_event") or {}).get("row_idx")
+                if isinstance(row.get("after_event"), dict)
+                else None,
                 "summary": f"Bubble {row.get('duration_ms')} ms in {row.get('segment_id')}",
             }
         )
@@ -1343,11 +1530,21 @@ def summarize_profile(output_dir: Path) -> dict[str, Any]:
     blocks = load_block_segments(output_dir / "block_segments.json")
     class_signatures = read_json(output_dir / "class_signatures.json", default={}) or {}
     step_class_by_id: Mapping[str, str] = class_signatures.get("step_class_by_id") or {}
-    layer_class_by_id: Mapping[str, str] = class_signatures.get("layer_class_by_id") or {}
-    block_class_by_id: Mapping[str, str] = class_signatures.get("block_class_by_id") or {}
-    step_classes_meta: Mapping[str, Mapping[str, Any]] = class_signatures.get("step_classes") or {}
-    layer_classes_meta: Mapping[str, Mapping[str, Any]] = class_signatures.get("layer_classes") or {}
-    block_classes_meta: Mapping[str, Mapping[str, Any]] = class_signatures.get("block_classes") or {}
+    layer_class_by_id: Mapping[str, str] = (
+        class_signatures.get("layer_class_by_id") or {}
+    )
+    block_class_by_id: Mapping[str, str] = (
+        class_signatures.get("block_class_by_id") or {}
+    )
+    step_classes_meta: Mapping[str, Mapping[str, Any]] = (
+        class_signatures.get("step_classes") or {}
+    )
+    layer_classes_meta: Mapping[str, Mapping[str, Any]] = (
+        class_signatures.get("layer_classes") or {}
+    )
+    block_classes_meta: Mapping[str, Mapping[str, Any]] = (
+        class_signatures.get("block_classes") or {}
+    )
 
     rank_rows = rank_summary_rows(events_by_rank, segments)
     step_rows = step_summary_rows(events_by_rank, segments)
@@ -1360,7 +1557,9 @@ def summarize_profile(output_dir: Path) -> dict[str, Any]:
     layer_companion_by_id: dict[str, bool] = {}
     layer_block_kinds_by_id: dict[str, list[str]] = defaultdict(list)
     for block in blocks:
-        layer_companion_by_id[block.layer_id] = layer_companion_by_id.get(block.layer_id, False) or block.companion_layer
+        layer_companion_by_id[block.layer_id] = (
+            layer_companion_by_id.get(block.layer_id, False) or block.companion_layer
+        )
         layer_block_kinds_by_id[block.layer_id].append(block.block_kind)
     for layer in layer_rows:
         layer_id = str(layer.get("layer_id"))
@@ -1369,9 +1568,16 @@ def summarize_profile(output_dir: Path) -> dict[str, Any]:
         layer["block_kinds"] = layer_block_kinds_by_id.get(layer_id, [])
     block_rows = block_summary_rows(events_by_rank, blocks, block_class_by_id)
     block_class_rows = block_class_summary_rows(block_rows, block_classes_meta)
-    layer_class_rows = layer_class_summary_rows(layer_rows, layer_classes_meta, block_rows)
+    layer_class_rows = layer_class_summary_rows(
+        layer_rows, layer_classes_meta, block_rows
+    )
     step_class_rows = step_class_summary_rows(
-        step_rows, anatomy_rows, step_classes_meta, layer_rows, block_rows, layer_class_by_id
+        step_rows,
+        anatomy_rows,
+        step_classes_meta,
+        layer_rows,
+        block_rows,
+        layer_class_by_id,
     )
     operator_rows = operator_summary_rows(events)
     operator_class_rows = operator_class_summary_rows(operator_rows)
@@ -1381,9 +1587,13 @@ def summarize_profile(output_dir: Path) -> dict[str, Any]:
     aicpu = aicpu_rows(events_by_rank)
     bubbles = bubble_evidence_rows(step_rows)
     evidence = evidence_index_rows(step_rows, layer_rows, bubbles)
-    pipeline_event_count = sum(1 for event in events if has_pipeline_signal(event.pipeline_us))
+    pipeline_event_count = sum(
+        1 for event in events if has_pipeline_signal(event.pipeline_us)
+    )
     pipeline_coverage = round(pipeline_event_count / len(events), 6) if events else 0.0
-    operator_pipeline_rows = sum(1 for row in operator_rows if row.get("pipeline_signal"))
+    operator_pipeline_rows = sum(
+        1 for row in operator_rows if row.get("pipeline_signal")
+    )
     raw_kernel_index = [
         {
             "event_id": event.event_id,

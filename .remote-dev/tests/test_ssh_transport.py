@@ -15,17 +15,23 @@ import core.ssh_transport as ssh_transport  # noqa: E402
 
 
 class SshTransportTests(unittest.TestCase):
-    def test_run_remote_python_quotes_multiline_code_as_one_remote_command(self) -> None:
+    def test_run_remote_python_quotes_multiline_code_as_one_remote_command(
+        self,
+    ) -> None:
         endpoint = Endpoint(host="1.2.3.4", port=46000)
         observed: dict[str, object] = {}
 
         def fake_run(args, **kwargs):
             observed["args"] = args
             observed["kwargs"] = kwargs
-            return subprocess.CompletedProcess(args=args, returncode=0, stdout='{"status":"ok"}', stderr="")
+            return subprocess.CompletedProcess(
+                args=args, returncode=0, stdout='{"status":"ok"}', stderr=""
+            )
 
         with mock.patch.object(ssh_transport.subprocess, "run", fake_run):
-            payload = ssh_transport.run_remote_python(endpoint, "import json\nprint(json.dumps({'status':'ok'}))", {})
+            payload = ssh_transport.run_remote_python(
+                endpoint, "import json\nprint(json.dumps({'status':'ok'}))", {}
+            )
 
         args = observed["args"]
         self.assertIsInstance(args, list)
@@ -40,7 +46,9 @@ class SshTransportTests(unittest.TestCase):
         def fake_run(args, **kwargs):
             observed["args"] = args
             observed["kwargs"] = kwargs
-            return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"", stderr=b"")
+            return subprocess.CompletedProcess(
+                args=args, returncode=0, stdout=b"", stderr=b""
+            )
 
         with mock.patch.object(ssh_transport.subprocess, "run", fake_run):
             ssh_transport.run_bytes(endpoint, "cat '/tmp/path with spaces'")

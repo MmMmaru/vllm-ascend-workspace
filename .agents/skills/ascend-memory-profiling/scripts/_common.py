@@ -58,10 +58,14 @@ class SshEndpoint:
 def _ssh_base_cmd(endpoint: SshEndpoint) -> list[str]:
     return [
         "ssh",
-        "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "LogLevel=ERROR",
-        "-p", str(endpoint.port),
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "LogLevel=ERROR",
+        "-p",
+        str(endpoint.port),
         endpoint.destination(),
     ]
 
@@ -74,7 +78,9 @@ def ssh_exec(
     timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     cmd = [*_ssh_base_cmd(endpoint), "bash", "-c", shlex.quote(script)]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=timeout)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, check=False, timeout=timeout
+    )
     if check and result.returncode != 0:
         raise RuntimeError(
             f"remote command failed (rc={result.returncode}):\n"
@@ -101,12 +107,18 @@ def ssh_bg_exec(
     script: str,
 ) -> subprocess.Popen:
     cmd = [*_ssh_base_cmd(endpoint), "bash", "-c", shlex.quote(script)]
-    return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
 
 
 def progress(msg: str, **extra: Any) -> None:
     payload = {"msg": msg, **extra}
-    print(f"{PROGRESS_SENTINEL}{json.dumps(payload, ensure_ascii=False)}", file=sys.stderr, flush=True)
+    print(
+        f"{PROGRESS_SENTINEL}{json.dumps(payload, ensure_ascii=False)}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def resolve_machine(identifier: str) -> dict[str, Any]:
@@ -116,7 +128,11 @@ def resolve_machine(identifier: str) -> dict[str, Any]:
     inv = inventory_store.load_inventory(read_path)
     for m in inv.get("machines", []):
         alias = m.get("alias", "")
-        host_ip = m.get("host", {}).get("ip", "") if isinstance(m.get("host"), dict) else m.get("host", "")
+        host_ip = (
+            m.get("host", {}).get("ip", "")
+            if isinstance(m.get("host"), dict)
+            else m.get("host", "")
+        )
         if alias == identifier or host_ip == identifier:
             return m
     raise ValueError(f"Machine '{identifier}' not found in inventory")
@@ -166,7 +182,9 @@ def resolve_execution_target(
             "state_repo_root": lookup.state_repo_root,
         }
     if not machine:
-        raise ValueError("--machine is required unless --session-id or --session-file is used")
+        raise ValueError(
+            "--machine is required unless --session-id or --session-file is used"
+        )
     record = resolve_machine(machine)
     return {
         "mode": "legacy",
@@ -217,7 +235,11 @@ def find_python(endpoint: SshEndpoint) -> str:
         "/usr/local/python3.10/bin/python3",
         "python3",
     ]:
-        r = ssh_exec(endpoint, f"{ENV_PREAMBLE} {candidate} -c 'import torch_npu' 2>/dev/null && echo OK", check=False)
+        r = ssh_exec(
+            endpoint,
+            f"{ENV_PREAMBLE} {candidate} -c 'import torch_npu' 2>/dev/null && echo OK",
+            check=False,
+        )
         if "OK" in r.stdout:
             return candidate
     raise RuntimeError("No Python with torch_npu found on remote machine")
@@ -257,6 +279,7 @@ def get_machine_alias(machine: dict[str, Any]) -> str:
 # msprof environment check
 # ---------------------------------------------------------------------------
 
+
 def check_msprof_available(ep: SshEndpoint) -> dict[str, Any]:
     """Verify that msprof is available on the remote machine.
 
@@ -293,18 +316,39 @@ MSPROF_WRAPPER_REMOTE_PATH = "/tmp/_vaws_msprof_wrap.sh"
 
 MSPROF_REPORTS_REMOTE_PATH = "/tmp/_vaws_msprof_reports.json"
 
-_MSPROF_REPORTS_CONFIG = json.dumps({
-    "json_process": {
-        "ascend": False, "acc_pmu": False, "cann": False, "ddr": False,
-        "stars_chip_trans": False, "hbm": True, "communication": False,
-        "hccs": False, "os_runtime_api": False, "network_usage": False,
-        "disk_usage": False, "memory_usage": False, "cpu_usage": False,
-        "msproftx": False, "npu_mem": True, "overlap_analyse": False,
-        "pcie": False, "sio": False, "stars_soc": False,
-        "step_trace": False, "freq": False, "llc": False,
-        "nic": False, "roce": False, "qos": False, "device_tx": False,
-    }
-}, indent=2)
+_MSPROF_REPORTS_CONFIG = json.dumps(
+    {
+        "json_process": {
+            "ascend": False,
+            "acc_pmu": False,
+            "cann": False,
+            "ddr": False,
+            "stars_chip_trans": False,
+            "hbm": True,
+            "communication": False,
+            "hccs": False,
+            "os_runtime_api": False,
+            "network_usage": False,
+            "disk_usage": False,
+            "memory_usage": False,
+            "cpu_usage": False,
+            "msproftx": False,
+            "npu_mem": True,
+            "overlap_analyse": False,
+            "pcie": False,
+            "sio": False,
+            "stars_soc": False,
+            "step_trace": False,
+            "freq": False,
+            "llc": False,
+            "nic": False,
+            "roce": False,
+            "qos": False,
+            "device_tx": False,
+        }
+    },
+    indent=2,
+)
 
 
 def _safe_tmp_token(value: str) -> str:
@@ -312,7 +356,9 @@ def _safe_tmp_token(value: str) -> str:
     return token.strip("._-") or "run"
 
 
-def upload_msprof_wrapper(ep: SshEndpoint, mem_freq: int = 1, token: str | None = None) -> str:
+def upload_msprof_wrapper(
+    ep: SshEndpoint, mem_freq: int = 1, token: str | None = None
+) -> str:
     """Generate and upload an msprof wrapper script to the remote machine.
 
     The wrapper receives two arguments from the serving skill's --wrap-script:
@@ -357,7 +403,11 @@ def run_msprof_export(
     of how many PROF directories exist.
     """
     progress("Running msprof export...")
-    r = ssh_exec(ep, f"find {shlex.quote(msprof_output_dir)} -maxdepth 1 -name 'PROF_*' -type d 2>/dev/null", check=False)
+    r = ssh_exec(
+        ep,
+        f"find {shlex.quote(msprof_output_dir)} -maxdepth 1 -name 'PROF_*' -type d 2>/dev/null",
+        check=False,
+    )
     prof_dirs = [d.strip() for d in r.stdout.strip().splitlines() if d.strip()]
     if not prof_dirs:
         progress("WARNING: No PROF directories found for msprof export")
@@ -366,7 +416,9 @@ def run_msprof_export(
     progress(f"Exporting {len(prof_dirs)} PROF directories (timeout={timeout}s)...")
     log_file = f"{msprof_output_dir}/_export.log"
     reports_arg = ""
-    r_chk = ssh_exec(ep, f"test -f {MSPROF_REPORTS_REMOTE_PATH} && echo YES || echo NO", check=False)
+    r_chk = ssh_exec(
+        ep, f"test -f {MSPROF_REPORTS_REMOTE_PATH} && echo YES || echo NO", check=False
+    )
     if "YES" in r_chk.stdout:
         reports_arg = f" --reports={MSPROF_REPORTS_REMOTE_PATH}"
     ssh_exec(
@@ -377,11 +429,17 @@ def run_msprof_export(
         timeout=30,
     )
     import time as _time
+
     deadline = _time.monotonic() + timeout
     poll_interval = 10
     while _time.monotonic() < deadline:
         _time.sleep(poll_interval)
-        r = ssh_exec(ep, "pgrep -f '[m]sprof.*--export' >/dev/null 2>&1 && echo RUNNING || echo DONE", check=False, timeout=15)
+        r = ssh_exec(
+            ep,
+            "pgrep -f '[m]sprof.*--export' >/dev/null 2>&1 && echo RUNNING || echo DONE",
+            check=False,
+            timeout=15,
+        )
         if "DONE" in r.stdout:
             break
         poll_interval = min(poll_interval * 1.5, 60)

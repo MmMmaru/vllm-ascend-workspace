@@ -41,9 +41,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--session-id", help="VAWS session id")
     parser.add_argument("--session-file", help="explicit session.json path")
     src = parser.add_mutually_exclusive_group(required=True)
-    src.add_argument("--manifest", help="path to ascend-profiling-collection manifest.json")
-    src.add_argument("--remote-profile-root", help="absolute remote path to profiling root")
-    parser.add_argument("--tag", default="", help="optional run tag (used in run dir name)")
+    src.add_argument(
+        "--manifest", help="path to ascend-profiling-collection manifest.json"
+    )
+    src.add_argument(
+        "--remote-profile-root", help="absolute remote path to profiling root"
+    )
+    parser.add_argument(
+        "--tag", default="", help="optional run tag (used in run dir name)"
+    )
     parser.add_argument(
         "--remote-work-dir",
         default=common.DEFAULT_REMOTE_WORK_DIR,
@@ -101,17 +107,41 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--from-stage",
-        choices=("normalize", "segment", "classify", "summarize", "cross_rank", "diagnostics", "report"),
+        choices=(
+            "normalize",
+            "segment",
+            "classify",
+            "summarize",
+            "cross_rank",
+            "diagnostics",
+            "report",
+        ),
         help="forward to remote analyze: resume from this stage (skip earlier ones)",
     )
     parser.add_argument(
         "--to-stage",
-        choices=("normalize", "segment", "classify", "summarize", "cross_rank", "diagnostics", "report"),
+        choices=(
+            "normalize",
+            "segment",
+            "classify",
+            "summarize",
+            "cross_rank",
+            "diagnostics",
+            "report",
+        ),
         help="forward to remote analyze: stop after this stage",
     )
     parser.add_argument(
         "--only-stage",
-        choices=("normalize", "segment", "classify", "summarize", "cross_rank", "diagnostics", "report"),
+        choices=(
+            "normalize",
+            "segment",
+            "classify",
+            "summarize",
+            "cross_rank",
+            "diagnostics",
+            "report",
+        ),
         help="forward to remote analyze: run exactly one stage (e.g. report)",
     )
     parser.add_argument("--verbose", action="store_true")
@@ -180,7 +210,7 @@ def _validate_remote_artifacts(
         f"cd {quoted} && "
         "for f in "
         + " ".join(common.quote_remote(p) for p in required_artifacts)
-        + "; do test -f \"$f\" && echo OK:\"$f\" || echo MISSING:\"$f\"; done",
+        + '; do test -f "$f" && echo OK:"$f" || echo MISSING:"$f"; done',
         check=True,
         timeout=120,
     )
@@ -208,7 +238,9 @@ def _validate_remote_artifacts(
         ) from e
 
 
-def _validate_segment_health(endpoint: common.SshEndpoint, remote_output_dir: str) -> None:
+def _validate_segment_health(
+    endpoint: common.SshEndpoint, remote_output_dir: str
+) -> None:
     """Surface segmentation hard errors / interior islands as failures.
 
     The framework already emits these in ``segment_manifest.json``; we just
@@ -426,8 +458,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"set -e; cd {common.quote_remote(remote_work_dir)} && "
         f"{py} -m {common.FRAMEWORK_PYTHON_MODULE}.analyze "
         f"{common.quote_remote(remote_profile_root)} "
-        f"--output {common.quote_remote(remote_output_dir)} "
-        + " ".join(extra_flags)
+        f"--output {common.quote_remote(remote_output_dir)} " + " ".join(extra_flags)
     )
     common.progress(
         "analyze",
@@ -538,7 +569,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     html_status = "unknown"
     if report_manifest_path.is_file():
         try:
-            html_status = json.loads(report_manifest_path.read_text(encoding="utf-8")).get("html_status", "unknown")
+            html_status = json.loads(
+                report_manifest_path.read_text(encoding="utf-8")
+            ).get("html_status", "unknown")
         except (json.JSONDecodeError, OSError):
             html_status = "unknown"
 

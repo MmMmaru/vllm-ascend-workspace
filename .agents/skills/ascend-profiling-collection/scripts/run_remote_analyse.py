@@ -72,8 +72,7 @@ def list_ascend_pt_dirs(ep, profile_root: str) -> list[str]:
     result = ssh_exec(ep, cmd, check=False)
     if result.returncode != 0:
         raise RuntimeError(
-            f"failed to list profile dirs under {profile_root}: "
-            f"{result.stderr[:1000]}"
+            f"failed to list profile dirs under {profile_root}: {result.stderr[:1000]}"
         )
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
@@ -163,11 +162,13 @@ def analyse_profile_root(
         run_analyse(ep, path)
         outputs = verify_outputs(ep, path)
         status = classify_status(outputs)
-        analysed.append({
-            "path": path,
-            "outputs": outputs,
-            "analysis_status": status,
-        })
+        analysed.append(
+            {
+                "path": path,
+                "outputs": outputs,
+                "analysis_status": status,
+            }
+        )
 
     # Per-rank classification first: a missing kernel_details.csv on any rank
     # is the most actionable signal and short-circuits the rest.
@@ -247,7 +248,9 @@ def main(argv: list[str] | None = None) -> int:
         bundle["machine"] = alias
         bundle["mode"] = target.mode
         bundle["session_id"] = target.session_id
-        bundle["session_file"] = str(target.session_file) if target.session_file else None
+        bundle["session_file"] = (
+            str(target.session_file) if target.session_file else None
+        )
 
         worst = bundle["analysis_status"]
         if worst == "no_profile_dirs":
@@ -261,14 +264,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if worst == "ok" else 1
 
     except Exception as exc:
-        print_json({
-            "status": "failed",
-            "machine": getattr(args, "machine", None),
-            "session_id": getattr(args, "session_id", None),
-            "session_file": getattr(args, "session_file", None),
-            "profile_root": getattr(args, "profile_root", None),
-            "error": str(exc),
-        })
+        print_json(
+            {
+                "status": "failed",
+                "machine": getattr(args, "machine", None),
+                "session_id": getattr(args, "session_id", None),
+                "session_file": getattr(args, "session_file", None),
+                "profile_root": getattr(args, "profile_root", None),
+                "error": str(exc),
+            }
+        )
         return 2
 
 

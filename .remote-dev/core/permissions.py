@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import re
 
-SECRET_ARG_RE = re.compile(r"(?i)(sshpass|expect\b|--password(?:=|\s+)\S+|password=\S+|token=\S+|api[_-]?key=\S+)")
+SECRET_ARG_RE = re.compile(
+    r"(?i)(sshpass|expect\b|--password(?:=|\s+)\S+|password=\S+|token=\S+|api[_-]?key=\S+)"
+)
 RAW_REMOTE_RE = re.compile(r"(^|\s)(ssh|scp|sftp|rsync)\b")
 
 

@@ -1,5 +1,7 @@
 ## bench settings
+
 ### vllm bench serve command
+bench config
 ```bash
 vllm bench serve \
   --backend openai \
@@ -9,11 +11,24 @@ vllm bench serve \
   --dataset-name random \
   --random-input-len 4096 \
   --random-output-len 2048 \
-  --num-prompts 100 \
-  --num-warmups 10 \
-  --max-concurrency 1 \
+  --num-prompts 50 \
+  --num-warmups 5 \
+  --max-concurrency 32 \
   --metric-percentiles 50,90,99 \
   --seed 0
+```
+serve config
+```bash
+vllm serve \
+    --model /mnt/weight/Qwen3.5-35B-A3B \
+    --served-model-name qwen \
+    --host 0.0.0.0 \
+    --port 8010 \
+    --data-parallel-size 2 \
+    --tensor-parallel-size 2 \
+    --gpu-memory-utilization 0.9 \
+    --max-num-seqs 32 \
+    --enable-expert-parallel \
 ```
 ### lm-eval command setting
 
@@ -24,6 +39,8 @@ DP2, TP2, EP
 对话是否正常：正常
 
 ### benchmark
+
+```
 PR
 ============ Serving Benchmark Result ============
 Successful requests:                     50        
@@ -56,7 +73,9 @@ P50 ITL (ms):                            24.77
 P90 ITL (ms):                            25.80     
 P99 ITL (ms):                            155.81    
 ==================================================
-main flashcomm on
+```
+```text
+历史 main flashcomm on（本轮未复核 commit/runtime）
 ============ Serving Benchmark Result ============
 Successful requests:                     50        
 Failed requests:                         0         
@@ -88,7 +107,9 @@ P50 ITL (ms):                            24.54
 P90 ITL (ms):                            25.97     
 P99 ITL (ms):                            163.87    
 ==================================================
-main flashcomm off
+```
+```text
+历史 main flashcomm off（本轮未复核 commit/runtime）
 ============ Serving Benchmark Result ============
 Successful requests:                     50        
 Failed requests:                         0         
@@ -120,16 +141,50 @@ P50 ITL (ms):                            25.32
 P90 ITL (ms):                            26.32     
 P99 ITL (ms):                            161.92    
 ==================================================
+```
 ### lm-eval
 
 ## model&setup 2
 Qwen3.5-35B-A3B
 DP2, TP2, EP
-对话是否正常：不正常
+对话是否正常：正常（`2 + 2 = 4`、France → Paris，无 `!!!`）
 
 PR
-
-main flashcomm on 
+```text
+============ Serving Benchmark Result ============
+Successful requests:                     50        
+Failed requests:                         0         
+Maximum request concurrency:             32        
+Benchmark duration (s):                  113.50    
+Total input tokens:                      204800    
+Total generated tokens:                  102400    
+Request throughput (req/s):              0.44      
+Output token throughput (tok/s):         902.20    
+Peak output token throughput (tok/s):    1312.00   
+Peak concurrent requests:                36.00     
+Total token throughput (tok/s):          2706.61   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          3962.52   
+Median TTFT (ms):                        2663.51   
+P50 TTFT (ms):                           2663.51   
+P90 TTFT (ms):                           8488.94   
+P99 TTFT (ms):                           9878.56   
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          27.19     
+Median TPOT (ms):                        29.13     
+P50 TPOT (ms):                           29.13     
+P90 TPOT (ms):                           29.35     
+P99 TPOT (ms):                           29.75     
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           27.19     
+Median ITL (ms):                         25.20     
+P50 ITL (ms):                            25.20     
+P90 ITL (ms):                            25.88     
+P99 ITL (ms):                            266.48    
+==================================================
+```
+main flashcomm on
+```text
 ============ Serving Benchmark Result ============
 Successful requests:                     50        
 Failed requests:                         0         
@@ -161,6 +216,8 @@ P50 ITL (ms):                            25.97
 P90 ITL (ms):                            26.66     
 P99 ITL (ms):                            244.28    
 ==================================================
+```
+```text
 main flashcomm off
 ============ Serving Benchmark Result ============
 Successful requests:                     50        
@@ -193,14 +250,87 @@ P50 ITL (ms):                            27.63
 P90 ITL (ms):                            28.36     
 P99 ITL (ms):                            237.00    
 ==================================================
-
+```
 
 ## model&setup 3
 DeepSeek-V4-Flash-w4a8
 DP2, TP2, EP
-对话是否通过：
+对话是否通过：正常
 
 ### bench
 PR
-main flashcomm on
-main flashcomm off
+```text
+============ Serving Benchmark Result ============
+Successful requests:                     50        
+Failed requests:                         0         
+Maximum request concurrency:             32        
+Benchmark duration (s):                  221.76    
+Total input tokens:                      204800    
+Total generated tokens:                  102400    
+Request throughput (req/s):              0.23      
+Output token throughput (tok/s):         461.75    
+Peak output token throughput (tok/s):    704.00    
+Peak concurrent requests:                36.00     
+Total token throughput (tok/s):          1385.26   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          7020.57   
+Median TTFT (ms):                        3905.32   
+P50 TTFT (ms):                           3905.32   
+P90 TTFT (ms):                           18797.73  
+P99 TTFT (ms):                           22717.67  
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          53.37     
+Median TPOT (ms):                        56.14     
+P50 TPOT (ms):                           56.14     
+P90 TPOT (ms):                           58.85     
+P99 TPOT (ms):                           59.16     
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           53.37     
+Median ITL (ms):                         48.60     
+P50 ITL (ms):                            48.60     
+P90 ITL (ms):                            50.33     
+P99 ITL (ms):                            378.39    
+==================================================
+```
+
+## model&setup 4
+kimi k2.5（/mnt/share/weights/kimi-k2.5-w4a8_modelscope，w4a8）
+DP2, TP8, EP（80.5.17.111，16 逻辑卡 0-15）
+对话是否正常：正常（France → Paris，思考链连贯；`12 + 30 = 42`，finish_reason=stop，无乱码）
+
+PR
+```text
+============ Serving Benchmark Result ============
+Successful requests:                     50        
+Failed requests:                         0         
+Maximum request concurrency:             32        
+Benchmark duration (s):                  219.56    
+Total input tokens:                      204800    
+Total generated tokens:                  102400    
+Request throughput (req/s):              0.23      
+Output token throughput (tok/s):         466.39    
+Peak output token throughput (tok/s):    657.00    
+Peak concurrent requests:                50.00     
+Total token throughput (tok/s):          1399.16   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          4155.66   
+Median TTFT (ms):                        4003.13   
+P50 TTFT (ms):                           4003.13   
+P90 TTFT (ms):                           7830.92   
+P99 TTFT (ms):                           7833.59   
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          52.91     
+Median TPOT (ms):                        54.84     
+P50 TPOT (ms):                           54.84     
+P90 TPOT (ms):                           56.55     
+P99 TPOT (ms):                           57.39     
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           52.91     
+Median ITL (ms):                         52.73     
+P50 ITL (ms):                            52.73     
+P90 ITL (ms):                            55.53     
+P99 ITL (ms):                            63.11     
+==================================================
+```
+服务配置：--quantization ascend --trust-remote-code --no-enable-prefix-caching --max-num-seqs 32 --max-model-len 32768 --max-num-batched-tokens 16384 --gpu-memory-utilization 0.9 --compilation-config FULL_DECODE_ONLY --mm-encoder-tp-mode data；VLLM_ASCEND_ENABLE_MLAPO=1、VLLM_ASCEND_BALANCE_SCHEDULING=1、HCCL_BUFFSIZE=800 等。
+结果 JSON：.vaws-local/benchmark/80.5.17.111/runs/2026-08-13T09-07-05Z_80.5.17.111_31992_a0938071.json

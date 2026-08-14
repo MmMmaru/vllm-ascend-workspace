@@ -25,14 +25,15 @@ class RemoteSearchTests(unittest.TestCase):
         self.assertEqual(payload["result"]["outcome"], "blocked")
 
     def test_remote_search_script_does_not_spawn_login_shell_to_find_rg(self) -> None:
-        self.assertNotIn("bash\", \"-lc", search_ops.REMOTE_SEARCH_PY)
-        self.assertIn("shutil.which(\"rg\")", search_ops.REMOTE_SEARCH_PY)
+        self.assertNotIn('bash", "-lc', search_ops.REMOTE_SEARCH_PY)
+        self.assertIn('shutil.which("rg")', search_ops.REMOTE_SEARCH_PY)
 
     def test_remote_grep_clamps_limit_and_text(self) -> None:
         endpoint = Endpoint(host="1.2.3.4", port=46000)
         original_runner = search_ops.run_remote_python
         captured = {}
         try:
+
             def fake_run_remote_python(_endpoint, _script, payload, **_kwargs):
                 captured.update(payload)
                 return {
@@ -45,7 +46,13 @@ class RemoteSearchTests(unittest.TestCase):
                 }
 
             search_ops.run_remote_python = fake_run_remote_python  # type: ignore[assignment]
-            payload = search_ops.remote_grep(endpoint, pattern="x", path="/vllm-workspace", output_mode="content", limit=100000)
+            payload = search_ops.remote_grep(
+                endpoint,
+                pattern="x",
+                path="/vllm-workspace",
+                output_mode="content",
+                limit=100000,
+            )
             self.assertEqual(captured["limit"], MAX_GREP_MATCHES)
             self.assertIn("clamped", payload["result"]["warnings"][0])
             self.assertLessEqual(len(payload["text"]), MAX_TEXT_CHARS)
