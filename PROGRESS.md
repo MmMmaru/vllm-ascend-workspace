@@ -218,3 +218,9 @@
 - 将 `.agents/skills/e2e_test/README.md` 整理为标准 `.agents/skills/e2e_test/SKILL.md`。
 - 补充 TEST_MODEL、remote CLI、远程 pytest、日志查看和提交前清理流程。
 - 通过 skill 元数据校验、markdownlint 和文件级 `git diff --check`。
+
+### 08-17 17:45
+
+- 对齐 remote-plugin 的 Ascend `docker run` 参数：privileged、host 网络、500G shm、driver/npu-smi、数据目录、时区和代理挂载。
+- 更新 remote-plugin 容器创建单测与 fake inspect 数据；206 个单测通过，Python 编译检查和 `git diff --check` 通过。
+- 本地未安装 ruff，未执行 ruff 检查。
