@@ -224,3 +224,9 @@
 - 对齐 remote-plugin 的 Ascend `docker run` 参数：privileged、host 网络、500G shm、driver/npu-smi、数据目录、时区和代理挂载。
 - 更新 remote-plugin 容器创建单测与 fake inspect 数据；206 个单测通过，Python 编译检查和 `git diff --check` 通过。
 - 本地未安装 ruff，未执行 ruff 检查。
+
+### 08-17 17:53
+
+- 增加 `machines.json.machine_type` 分支，显式识别 A2/A3/A5/310P/Ascend 类型并兼容回退 `tags.chip`。
+- Ascend 容器 `--workdir` 改为配置中的 `container.workspace_root`，与后续 workspace 初始化路径一致。
+- 更新 PRD 和分支测试；208 个 remote-plugin 单测通过，机器配置 JSON、Python 编译和差异检查通过。
