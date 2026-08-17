@@ -212,3 +212,9 @@
 
 - 删除 `vllm_ascend/ops/fused_moe/fused_moe.py` 中无效的 `TODO1` 注释；代码差异检查通过。
 - `pre-commit` 尝试运行后因钩子环境初始化超时，提交使用 `-s` 并跳过重复钩子。
+
+### 08-17 17:10
+
+- 将 `.agents/skills/e2e_test/README.md` 整理为标准 `.agents/skills/e2e_test/SKILL.md`。
+- 补充 TEST_MODEL、remote CLI、远程 pytest、日志查看和提交前清理流程。
+- 通过 skill 元数据校验、markdownlint 和文件级 `git diff --check`。
