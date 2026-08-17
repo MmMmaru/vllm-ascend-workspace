@@ -6,3 +6,7 @@
 	path = vllm
 	url = https://github.com/vllm-project/vllm.git
 	branch = main
+[submodule "remote-plugin"]
+	path = .agents/skills/remote-plugin
+	url = https://github.com/MmMmaru/remote-plugin.git
+	branch = main
