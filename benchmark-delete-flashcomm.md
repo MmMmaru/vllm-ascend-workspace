@@ -332,5 +332,3 @@ P90 ITL (ms):                            55.53
 P99 ITL (ms):                            63.11     
 ==================================================
 ```
-服务配置：--quantization ascend --trust-remote-code --no-enable-prefix-caching --max-num-seqs 32 --max-model-len 32768 --max-num-batched-tokens 16384 --gpu-memory-utilization 0.9 --compilation-config FULL_DECODE_ONLY --mm-encoder-tp-mode data；VLLM_ASCEND_ENABLE_MLAPO=1、VLLM_ASCEND_BALANCE_SCHEDULING=1、HCCL_BUFFSIZE=800 等。
-结果 JSON：.vaws-local/benchmark/80.5.17.111/runs/2026-08-13T09-07-05Z_80.5.17.111_31992_a0938071.json
