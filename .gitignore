@@ -29,3 +29,4 @@ vllm-ascend-main/
 !.cursor/skills/
 .temp/
 .log/
+.remote/state
