@@ -1,3 +1,11 @@
+### 08-18 02:00
+
+- 按 `docs/plans/pr-multicard-a3-e2e-risk-tests.md` 在 17.111 完成 PR #13946（`lijiaqi/delete-flashcomm`，本地 HEAD `c6a0a28e2`，与 CI 绿的头 `41461cf4a` 零 diff）E2E 风险测试。P0：阶段一 `test_deepseek_v4.py`+`test_sequence_parallel_linear.py` 5 passed（含 golden token-id 与 SP precision，job j-20260817-205751-01）；阶段二 `context_parallel/test_accuracy.py` 2 passed（DSA-CP/SFA-DCP golden，j-20260817-212305-01）；DSpark 两组因指定模型 `UploadWeight/DeepSeek-V4-Flash-DSpark-w4a8-test`（w4a8+n_predict=1）本地/网络均不可得，按模型缺失例外记录（CI 同代码全绿替代覆盖）。P1 已过 6 项：`test_qwen3_30b_a3b` eplb、`test_qwen3_moe_eplb` w8a8、`test_qwen3_5` mtp3、`test_deepseek_v3_2_w8a8_pruning` 非 PD 用例、`test_shared_expert_dp`（DSV2_LITE_MODEL=/mnt/share/weights/DeepSeek-V2-Lite-Chat）。`test_graph_mode.py` 两个 ACLGRAPH case 缺 `vllm-ascend/DeepSeek-V2-Lite-W8A8` 模型未跑。
+- 8 个测试文件的模型路径改为 env 读取（默认值保持上游 ID，符合 AGENTS.md 约定），未 commit。
+- 关键排障：remote CLI 的 `--cards` 只做占用登记，**不注入 `ASCEND_RT_VISIBLE_DEVICES`**，漏传会导致多个 job 挤到 chip 0-3；`RemotePDServer`（`tests/e2e/conftest.py:549-562`）无视外层 env，永远从 device 0 起分配（PD 测试固定占 chip 0-3）；多 vLLM 实例并存需 `HCCL_HOST_SOCKET_PORT_RANGE`/`HCCL_NPU_SOCKET_PORT_RANGE` 显式端口段，否则 `hcclCommInitRootInfoConfig error code 7`。
+- 环境事故与恢复：17.111 容器 PID 1 是 `tail -f` 不回收僵尸，加上误判为驱动泄漏后执行了 `remote down/up`，workspace 为容器本地存储被清空；已通过 `remote sync` 恢复代码、`COMPILE_CUSTOM_KERNELS=1` 重编译（约 25min）、`COMPILE_CUSTOM_KERNELS=0` 恢复 editable 安装，并补装 pytest-asyncio/modelscope。 workspace 备份在 NFS `/mnt/share/vaws-backup-20260818.tar.gz`（403MB，gzip 校验通过）。
+- 真实根因（订正）：显存"泄漏"实为**另一租户的 DP16 vLLM 任务**（`VLLM::Worker_DP` 每 chip 约 50GB，npu-smi 进程列表可见），从 23:20 左右起占满全部 16 个逻辑卡；该占用导致 PD disagg 与 mrv2_eplb 两个 P1 用例无法获得显存。容器重建与代码环境已就绪，待机器空出后即可重跑这两个用例。
+
 ### 08-13 17:10
 
 - 完成 model&setup 4（Kimi-K2.5 w4a8，DP2/TP8/EP）：17.110 仅 8 物理卡（512GB）放不下，改在 17.111（8 NPU × 2 chip = 16 逻辑卡，每逻辑卡 64GB）执行。对话正常（Paris / `12+30=42`，无乱码）；benchmark 50/50 成功，output 466.39 tok/s、TTFT mean 4155.66ms、TPOT mean 52.91ms，结果已回填 `benchmark-delete-flashcomm.md`，JSON 为 `.vaws-local/benchmark/80.5.17.111/runs/2026-08-13T09-07-05Z_80.5.17.111_31992_a0938071.json`。

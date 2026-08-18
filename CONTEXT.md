@@ -86,6 +86,18 @@ vllm-ascend/worker/model_runner_v1.py
 - [`docs/flashcomm_sp_cuda_graph_report.md`](docs/flashcomm_sp_cuda_graph_report.md)：FlashComm/SP/ACL graph 调研和历史实验报告。
 - [`docs/data_flow.md`](docs/data_flow.md)：简化的 NPU Worker 到 custom op 数据流。
 
+### vLLM 上游与 vllm-ascend 的 CP（context parallel）机制（08-18 静态分析，未实测）
+
+自 08-18 起 `vllm/` 子模块为 v0.27.0rc2-3（上游 main 附近）；旧 `vllm/model_executor/layers/attention/backends/` 目录已删除，attention 实现迁到 `vllm/v1/attention/backends/` + `vllm/v1/attention/ops/`。
+
+**核心结论**：上游没有"all2all 恢复全量序列 → 切 head 维度 → attention → 再 all2all 变回 → 拿部分序列 hidden states 做 o_proj"的 Ulysses 式方案。上游 CP 拆成 DCP + PCP 两条正交轴，Q 序列永不跨 rank 交换，通信只发生在"部分输出 + LSE 合并"阶段：
+
+- **DCP（decode context parallel，`--decode-context-parallel-size/-dcp`）**：KV cache 按序列交错分片存在各 rank（`cp_kv_cache_interleave_size`，interleave=1 时 token i 落 rank `i % dcp`，省 KV 显存）；decode 时每 rank 只处理属于自己的 token，[`get_dcp_local_seq_lens`](vllm/vllm/v1/attention/backends/utils.py:887) 算各 rank 本地 KV 长度，Q 仅做 head 维 all_gather（[`flash_attn.py:1182`](vllm/vllm/v1/attention/backends/flash_attn.py:1182)，入口 `_forward_with_dcp` 在 1134 行）后用本地 query × 本地 KV 分片算"部分 attention 输出 + LSE"。合并默认 [`cp_lse_ag_out_rs`](vllm/vllm/v1/attention/ops/common.py:213)（all_gather LSE → `correct_attn_out` 修正 → head 维 reduce_scatter，每 rank 拿回自己 head 子集）；可选 `--dcp-comm-backend=a2a` 走 [`dcp_a2a_lse_reduce`](vllm/vllm/v1/attention/ops/dcp_alltoall.py:392)——把 output+LSE 打包后单次 all_to_all（**attention 路径唯一的 all_to_all，交换的是输出与 LSE，不是 Q/K/V**），Triton kernel LSE 加权合成（参考 arXiv:2507.07120）。o_proj 吃 head 子集输出，靠 TP 权重切分 + 层末 all_reduce 汇总。
+- **PCP（prefill context parallel，`--prefill-context-parallel-size/-pcp`）**：prefill 序列切分并行、KV cache 复制（不省显存）；[`pcp.py:11`](vllm/vllm/model_executor/layers/attention/pcp.py:11) `_gather_prefill_cache_inputs` 在写 cache 前把 prefill 的 K/V 做 dim-0 all_gather 拼成全量序列（这是上游最接近"恢复全量序列"的一步，但发生在 cache 写入而非 attention 前）；MLA decode 按 head 切分计算，算完 [`finalize_mla_pcp_decode`](vllm/vllm/model_executor/layers/attention/pcp.py:83) 用 head 维 all_gather 拼回全 head 再做 v_up（[`mla_attention.py:902-946`](vllm/vllm/model_executor/layers/attention/mla_attention.py:902)）。
+- **约束**：DCP 要求 attention 后端返回 softmax LSE（[`cp_utils.py:15`](vllm/vllm/v1/worker/cp_utils.py:15) `check_attention_cp_compatibility`）；DCP/PCP/TP 尺寸整除关系校验在 [`parallel.py:524-539`](vllm/vllm/config/parallel.py:524)。
+
+vllm-ascend 侧已有 NPU 版 CP：[`vllm_ascend/attention/context_parallel/`](vllm-ascend/vllm_ascend/attention/context_parallel/)（`attention_cp.py`/`common_cp.py` 镜像上游 DCP 布局，`common_cp.py:15` 的 `get_dcp_local_seq_lens` 与上游同名函数同语义；`dsa_cp.py`/`sfa_cp.py`/`mla_cp.py` 为 DSA/SFA/MLA 各后端的 CP 封装）。08-18 E2E `context_parallel/test_accuracy.py` 的 DSA-CP/SFA-DCP golden 用例已通过（详见 PROGRESS.md）。若要在 vllm-ascend 实现 Ulysses 式 all2all CP，上游无现成代码可复用，需自行实现。
+
 ### 当前诊断结论与验证边界
 
 - DP2/TP2/EP4/SP 的乱码根因已确认：EP reduce-scatter 后结果按 token 分片，Ascend override 旧代码又无条件 TP all-reduce，随后 [`Qwen3Moe.forward()`](vllm/vllm/model_executor/models/qwen3_moe.py) 再 TP all-gather，导致不同 token 段被相加。

@@ -19,5 +19,26 @@
       "os": "linux"
     },
     "note": "A3 16卡"
+  },
+    {
+    "alias": "17.122",
+    "mode": "container",
+    "host": "80.5.17.122",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "vllm-ascend:dev-26.1.0.cann9.1.0.day20260811-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-910c",
+      "cards": 16,
+      "os": "linux"
+    },
+    "note": "A3 16卡"
   }
 ]
