@@ -238,3 +238,7 @@
 - 增加 `machines.json.machine_type` 分支，显式识别 A2/A3/A5/310P/Ascend 类型并兼容回退 `tags.chip`。
 - Ascend 容器 `--workdir` 改为配置中的 `container.workspace_root`，与后续 workspace 初始化路径一致。
 - 更新 PRD 和分支测试；208 个 remote-plugin 单测通过，机器配置 JSON、Python 编译和差异检查通过。
+
+### 09-07 15:45
+补充 `vllm-ascend/docs/source/user_guide/feature_guide/sequence_parallelism.md` 的 SP MoE 原理说明，覆盖 token 切分、EP 通信和不均衡 token 的 padding 处理。
+独立 markdownlint 与 `git diff --check` 通过；当前环境未安装 pre-commit，未运行功能测试（文档变更）。
