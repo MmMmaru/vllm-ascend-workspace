@@ -107,6 +107,11 @@ models = [
 关键字段：`model` 必须与服务的 `--served-model-name` 一致；`abbr` 决定输出子目录名；
 推理模型保留 `extract_non_reasoning_content`，否则答案抽取失败拉低分数。
 
+覆盖后必须 `grep` 核验 `model/host_ip/host_port` 再跑。远端默认模板是
+`model=""` + `localhost:8080`，不覆盖必现 `MODEL-DATA-001`
+（infer 日志：`fail to get service model path from http://localhost:8080/`），
+这是 2026-09-08 在 17.111 实际踩到的坑。
+
 数据集缺失时从权重机拷贝（9740 数据集源
 `/mnt/l00517252/ais_bench/aisbench_auto_tools_prefix-master-master/datasets`）：
 
@@ -115,7 +120,39 @@ cp -r /mnt/l00517252/ais_bench/aisbench_auto_tools_prefix-master-master/datasets
       /usr/local/python3.11.10/lib/python3.11/site-packages/ais_bench/datasets/
 ```
 
+跑前必须核验数据集行数与答案格式，不同机器的拷贝可能已损坏。
+以 gsm8k 为例（ais_bench 3.1.20260630 的 `gsm8k_dataset_postprocess`
+用 `text.split` 取 `####` 后的数字，答案必须含该分隔符，否则 eval 报
+`IndexError`、summary 全 `-`；17.111 曾出现答案全 `none` 的坏拷贝）：
+
+```bash
+wc -l <site-packages>/ais_bench/datasets/gsm8k/test.jsonl   # 全量应为 1319
+grep -c '####' <site-packages>/ais_bench/datasets/gsm8k/test.jsonl
+```
+
+坏数据修复流程（本地转格式，经 `remote run` 覆盖，原文件先备份）：
+
+```bash
+"${REMOTE}" pull <good-alias> \
+  /usr/local/python3.11.10/lib/python3.11/site-packages/ais_bench/datasets/gsm8k/test.jsonl \
+  /usr/local/python3.11.10/lib/python3.11/site-packages/ais_bench/datasets/gsm8k/train.jsonl \
+  --dest .temp/ais_bench/datasets-<good-alias>/gsm8k
+# 本地把纯数字答案改写为 "#### {answer}"，落到 .temp/ais_bench/gsm8k-opencompass/
+"${REMOTE}" sync <alias> --paths \
+  .temp/ais_bench/gsm8k-opencompass/test.jsonl .temp/ais_bench/gsm8k-opencompass/train.jsonl
+"${REMOTE}" run <alias> --cmd "D=<site-packages>/ais_bench/datasets/gsm8k; \
+  cp \$D/test.jsonl \$D/test.jsonl.bak && cp \$D/train.jsonl \$D/train.jsonl.bak && \
+  cp /vllm-ascend-workspace/.temp/ais_bench/gsm8k-opencompass/test.jsonl \$D/test.jsonl && \
+  cp /vllm-ascend-workspace/.temp/ais_bench/gsm8k-opencompass/train.jsonl \$D/train.jsonl"
+```
+
 ### 执行命令
+
+`--num-prompts N` 只取前 N 条，验证链路或快速回归用（已验证 gsm8k 200 条约 3.5 分钟）：
+
+```bash
+ais_bench --models vllm_api_general_chat --datasets gsm8k_gen_0_shot_cot_chat_prompt --dump-eval-details --max-num-workers 8 --num-prompts 200
+```
 
 aime 题量最小，先跑它验证链路，再跑其他数据集：
 
@@ -192,6 +229,15 @@ aime2024   85d0f2     accuracy  gen     13.33
 
 这是当前模型/服务/采样配置的运行记录，不是所有模型的验收阈值。
 
+2026-09-08 在 17.111 上的 gsm8k 运行记录（DeepSeek-V4-Flash-DSpark-w4a8-int4-new，
+DP2+TP4+EP，`max_model_len 25600`，`max-num-seqs 16`，`--num-prompts 200`，
+`--max-num-workers 8`）：推理约 3.5 分钟，产物
+`outputs/default/20260908_204644/`，已拉回 `.log/aisbench-gsm8k200-0908/`：
+
+```text
+gsm8k      50861a     accuracy  gen     97.50
+```
+
 ## 换数据集时的判断
 
 更换数据集通常不只是替换 `--datasets`：
@@ -204,7 +250,10 @@ aime2024   85d0f2     accuracy  gen     13.33
 - 后台任务的 `--timeout` 按题量放大（AIME 30 题都要约 1 小时）；`tee` 日志文件名
   与 `--task` 中的数据集名保持一致，否则多轮次产物互相覆盖。
 - 中途停掉的轮次会在远端留下 `defunct` 的 ais_bench 残留进程，可忽略；但重跑前先
-  `remote stop` 旧 job，避免两个客户端同时打同一个服务端口。
+  `remote stop` 旧 job，再用 `ps -o pid,ppid,stat,cmd` 确认只剩一个客户端活进程
+  （用 PPID 链确认归属），避免两个客户端同时打同一个服务端口。
+- 主进程退出不代表评测完成：以 summary 落盘 + accuracy 数字为准；
+  infer 全过但 eval 崩溃时 summary 全 `-`，必须看 `logs/eval/` 的 Traceback。
 
 后台跑在 curses 下会刷 `Can't set cursor ... running in background mode` 和
 `Failed to read status file ... Attempting to clear and continuing`，均为无害告警。

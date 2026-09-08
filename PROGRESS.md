@@ -1,3 +1,69 @@
+### 08-28 13:42
+
+- 新增 `scripts/prepare_lm_eval_gsm8k.py` 和全量入口
+  `scripts/lm_eval.sh`：只读转换本地 GSM8K Parquet 的 1319 条测试样本为
+  JSONL，自动生成 `generate_until` task，默认不限制样本数。
+- 保持 `/mnt/share/datasets/gsm8k` 不变；结果写入 `.temp/lm_eval/`，日志
+  写入 `.log/`，使用 `tokenizer_backend=none` 访问本地 completions 服务。
+- 已在 17.111 验证完整转换和 `LIMIT=1` 评测通过，strict/flexible
+  `exact_match=1.0`；随后全量评测 job `j-20260828-134235-01` 完成
+  1319/1319 条，耗时约 39 分钟，strict `exact_match=0.8643`、flexible
+  `exact_match=0.5345`，服务已停止。
+
+### 08-27
+
+- 在 17.111（A3/CANN 9.1，4–7 卡）为 `docs/plans/refactor_sp.md` 的 SP 线性层重构完成远端环境准备：重建后的容器重新同步 workspace，`modelscope==1.35.3` 安装成功，`vllm-ascend` 自定义扩展以 `COMPILE_CUSTOM_KERNELS=1` 编译成功；使用当前 vLLM 源码时需显式设置 `VLLM_VERSION=0.27.2`，否则旧 PCP 导入路径不存在。
+- `tests/e2e/pull_request/four_card/test_sequence_parallel_linear.py` 收集通过（4 tests）；Qwen3.5-35B-A3B precision E2E（job `j-20260827-165318-01`）在模型构造阶段失败：vLLM 的 `QwenGatedDeltaNetAttention` 向 `MergedColumnParallelLinear` 传入 `sequence_parallel`，而当前 `vllm-ascend` 的 `AscendMergedColumnParallelLinear` 不接受该参数（`vllm_ascend/ops/linear.py:222`）。
+- 为验证通用 harness 又运行 Qwen3-30B-A3B DP2/TP2/EP precision E2E（job `j-20260827-170022-01`），同样未进入精度断言：`AscendQKVParallelLinear` 未初始化 vLLM 新线性层要求的 `sequence_parallel` 属性，前向时触发 `AttributeError`。因此本轮没有可报告的 max/mean logprob delta，结论是被 `vllm-ascend` 自定义线性层 API 配套缺失阻塞，而非精度失败；两个任务已停止，4–7 卡已释放，源码未改动。
+
+### 08-26
+
+- DSA-CP A3 修复已完成并在 81.162 卡 6–9 验证：根因是 A3
+  错误进入仅适用于 A5 的 full-weight `o_proj` 路径，量化 kernel 在临时
+  gathered weight 布局下失败/产生异常输出；现在 A3 保留原 TP/all-to-all
+  路径，A5 继续使用优化路径。
+- 修正 DSA-CP 的完整 hidden-state/Q token shard/KV cache 布局、HC 多维
+  状态按 token 维分片、metadata shared 参数和 ACL graph hook；A3 legacy
+  DSA-CP 的 graph replay 曾在首个请求后卡住 HCCL，现明确降级 eager，避免
+  默认 graph 配置死锁，A5 graph 支持不变。
+- 新增 4096-token 长 prefill 的 DSA-CP 开关 E2E guard，并补充 HC 分片和
+  A3 graph 支持单测。81.162 远端定向 UT 最终 `48 passed`，实际 E2E guard
+  `2 passed`；同一
+  DSpark-w4a8 权重下 CP-off 长序列输入吞吐约 `6124/6140/6138 tok/s`，
+  CP-on eager 约 `7046/6922/6919 tok/s`，平均提升约 `13.5%`；默认 graph
+  配置经 A3 eager fallback 也完成 3 次约 `7073/7072/7050 tok/s`。
+- 两种开关均完成 4096-token prompt + 1 token decode，prompt token 保留
+  正确且无此前报错。正式 semantic golden 尚未在目标
+  `gdydems/DeepSeek-V4-Flash-w4a8-mtp` 权重上复核：81.162 可用的是本地
+  DSpark 量化权重，输出不能作为该 golden 的等价替代；共享目录另一份
+  39-shard 权重在装载到 15/39 shard 时 worker 退出，官方 raw FP8 权重则
+  在 A3 触发 `customize_dtype is not supported by the current soc version`。
+- DSA-CP 在 ModelRunner V2 的首个真实请求此前分别卡在 metadata 缺少
+  `common_ratio_to_sas_metadata`、ACL graph 缺少 `update_graph_params`，已
+  补齐对应构建参数和空 graph hook。
+- 远端 81.162（卡 6–9）形状探针定位到非规整 token 数下
+  `sequence_parallel_chunk` 对三维 `(tokens, hc_mult, hidden)` 使用二维
+  padding，导致 `(5, 4, 4096)` 变成 `(1, 7, 4096)`、触发 `npu_hc_pre_v2`
+  的 HC 维度错误；模型侧改为先展平 per-token 维度、只沿 token 维分片再
+  恢复形状。
+- 完整状态布局下 CP-on eager 已能完成请求，但与 CP-off token 仍不一致；
+  临时加入可按层选择的数值探针，继续定位 attention 前后状态差异。
+- 完整 `tests/ut` 收集被容器缺少 `examples.disaggregated_prefill_v1` 和
+  `pytest_mock` 阻断；排除这两个环境错误后，回归在既有 A2 attention
+  precision 路径出现失败并长时间无进展，已停止，未将其归因于本次 DSA-CP
+  修改。
+
+### 08-25 13:00
+
+实验记录：MTP=2 + flashcomm1 报错是否为 92616f3（删 FlashComm v1）引入的回归验证。
+81.162 卡0,1，vllm-ascend 切到 92616f3^（92ea871b2），工作区 vllm（含检查），Qwen3.5-35B-A3B TP2/EP、`enable_flashcomm1=true`、qwen3_5_mtp `num_speculative_tokens=2`、FULL_DECODE_ONLY；引擎初始化即抛 `Can't determine cudagraph shapes ... multiple of 3 ... and 2 ...`（job j-20260825-114629-01）。
+结论：父提交同样报错，非 92616f3 回归；根因是 `update_pass_config` 在 flashcomm1 开启时把 `pass_config.enable_sp` 临时置 True，上游检查自 2025-11（64e39d667c/8f4f77a727）起就拦 MTP=2+TP2 组合，此前 CI 只跑过 MTP3（query len=4 可整除）所以从未暴露。现场已恢复（本地/远程均回 657df3efa）。
+
+### 08-21
+
+- 回退 DeepSeek V4 DSA-CP 的外部分片和输出 all-gather：模型传入完整 hidden states，DSA-CP 内部切 Q shard，o_proj 后直接保留 local output。
+- 修改 `vllm_ascend/attention/context_parallel/dsa_cp.py`；按用户要求未运行测试，仅完成 `git diff --check`。
+
 ### 08-18 02:00
 
 - 按 `docs/plans/pr-multicard-a3-e2e-risk-tests.md` 在 17.111 完成 PR #13946（`lijiaqi/delete-flashcomm`，本地 HEAD `c6a0a28e2`，与 CI 绿的头 `41461cf4a` 零 diff）E2E 风险测试。P0：阶段一 `test_deepseek_v4.py`+`test_sequence_parallel_linear.py` 5 passed（含 golden token-id 与 SP precision，job j-20260817-205751-01）；阶段二 `context_parallel/test_accuracy.py` 2 passed（DSA-CP/SFA-DCP golden，j-20260817-212305-01）；DSpark 两组因指定模型 `UploadWeight/DeepSeek-V4-Flash-DSpark-w4a8-test`（w4a8+n_predict=1）本地/网络均不可得，按模型缺失例外记录（CI 同代码全绿替代覆盖）。P1 已过 6 项：`test_qwen3_30b_a3b` eplb、`test_qwen3_moe_eplb` w8a8、`test_qwen3_5` mtp3、`test_deepseek_v3_2_w8a8_pruning` 非 PD 用例、`test_shared_expert_dp`（DSV2_LITE_MODEL=/mnt/share/weights/DeepSeek-V2-Lite-Chat）。`test_graph_mode.py` 两个 ACLGRAPH case 缺 `vllm-ascend/DeepSeek-V2-Lite-W8A8` 模型未跑。
@@ -239,6 +305,118 @@
 - Ascend 容器 `--workdir` 改为配置中的 `container.workspace_root`，与后续 workspace 初始化路径一致。
 - 更新 PRD 和分支测试；208 个 remote-plugin 单测通过，机器配置 JSON、Python 编译和差异检查通过。
 
+### 09-02 13:28
+
+- 统一 DeepSeek V4 SP attention 外层布局：普通 attention reduce-scatter，DSA-CP full output 按 token 切片。
+- 补齐 MTP/DSpark SP shard/gather，并增加 TP 边界与 DSA-CP on/off 精度用例。
+- 按要求未运行功能测试；`ruff-format`、`ruff-check` 和 `git diff --check` 通过，无 Markdown 改动。
+
+### 09-02 12:40
+
+- 排查 9.103 `remote sync` 慢（实测 3m44s）：根因是容器 DNS（nameserver 90.91.64.173）不可达，git 写 reflog（materialize 的 reset/checkout/update-ref -m）解析 ident 主机名每次等满 10s，materialize 阶段独占 201s。
+- 修复：9.103 容器 `/etc/hosts` 追加 `127.0.0.1 worker-97-4` 与 `::1 worker-97-4`（容器重建后会被重置，需注意）。
+- 验证：修复前 update-ref -m/reset/checkout 均 10s；修复后全部 0s，`remote sync 9.103` 总耗时 3m44s → 4s。正常机器基线：17.122 增量 8s、9.143 全量首同步 20.6s。
+
+### 09-02 18:20
+
+- 上游 Qwen3.5 SP 将 positions 的真实 token 数传入 ColumnParallelLinear 做 AG 后 unpad，并由 RowParallelLinear 在 RS 前补齐；MoE 开关仅允许原有 DP/TP/EP 合法拓扑，dense SP 继续使用编译 pass token threshold。
+- 81.182 DP2/TP2/EP 对话 SP on/off 输出一致，prompt logprob 最大/平均差 0.0797/0.0137；64×(1024 in/128 out)、并发 16 benchmark：SP off/on 为 148.48/142.28 output tok/s。
+- 远端定向测试 7 passed；配置/SP 回归 24 passed、1 deselected（完整 conftest 缺 `tblib` 且机器无法访问 PyPI）。
+
+### 09-03 11:32
+
+- 对齐 DeepSeek V4 DSA-CP 的 `need_gather_q_kv` 路径：SP 本地 Q、KV hidden gather、外部 reduce-scatter，移除 attention 末端 AllGather。
+- 按要求未运行测试；3 个改动文件通过 `ruff check`、`ruff format --check` 和 `git diff --check`。
+
+### 09-03 12:53
+
+- 新增下游公共 SP 算子并对齐 DeepSeek V4 model：普通 attention 外部 AG/RS，DSA-CP 保持 local-token 输入输出。
+- DSA-CP prefill 使用 full O 权重且跳过 AllToAll；decode 使用 AllToAll、TP O-Proj partial 和内部 ReduceScatter。
+- 按要求未运行功能测试；6 个改动文件通过 ruff、格式、包发现和差异静态检查。
+
+### 09-03 13:40
+9.103按scripts/vllm_run.sh重起DS-V4-Flash-w8a8-mtp服务（DP2TP4，flashcomm1+dsa_cp，job j-20260903-131147-01，卡0-7）
+对话验证正常（中文一句话自答，finish stop）；bench_serve.sh 50/50成功：output 160.88 tok/s，TTFT均值3096ms，TPOT均值43.75ms。旧lm-eval服务已死（进程被Kill）并清理。
+
+### 09-03 14:45
+pre-#13946(92ea871b2)同配置性能对照：对话正常；bench 50/50成功，output 163.73 tok/s、TTFT均值2982ms、TPOT均值42.93ms，相对现HEAD(160.88/3096/43.75)快约2%。本地已恢复fix-dsacp@9e859f4d9+stash pop。
+远端9.103仍为pre-13946代码：全量sync被新建feat-pass-for-sp/未初始化子模块卡住fail-closed，待处理。
+
+### 09-03 15:50
+FusedMMCollectivePass v1远端验证（goal自主推进中）：141.61.81.14空闲16卡；修正其machines.json workspace_root误配site-packages->/vllm-ascend-workspace后全量sync成功；配置面UT首轮暴露两处问题并已修（TP group mock、其它pass构造需ModelConfig故测试只开目标开关）；torch_npu探针：npu_mm_reduce_scatter_base有、npu_mm_all_gather_base无。当前141.61.81.14的22端口SSH连续超时，UT重跑与FX探针待网络恢复后继续。
+
+### 09-03 16:15
+fix-dsacp干净HEAD重测(全量sync后)：对话正常；bench 50/50，output 155.26 tok/s、TTFT均值3201ms/p50 3060ms、TPOT均值45.11ms。较第一次HEAD测试(160.88/3096/43.75)略慢，机器抖动约3%。服务留存9.103卡0-7供用户自测。
+
+### 09-03 17:30
+FusedMMCollectivePass转17.119继续（141.61.81.14 SSH持续超时）：远端为parity快照树，以cp-r+sync --paths搭验证树，避开0-3卡在线服务，用8-15卡。
+配置面UT 2 passed；探针确认npu_mm_all_gather_base无、npu_mm_reduce_scatter_base有（world_size限2/4/8，需hcom）、上游AsyncTPPass依赖CUDA symm_mem故NPU需自有pass；V2-Lite TP2开/关对照job j-20260903-171107-01运行中。
+
+### 09-03 17:35
+17.119探针环境坑定位：`remote run`命令里`:$PYTHONPATH`自引用不可靠，worker报`No module named 'acl'`；
+改用绝对路径`export PYTHONPATH=<feat树>:/usr/local/Ascend/cann-9.1.0/python/site-packages`后`acl.rt`与feat树导入正常。
+V2-Lite TP2开/关对照重跑job j-20260903-172800-01（卡8-9）。
+另记：v1 pattern-1 `mm(AG)->AG(mm)`仅对复制权重（如MLA `ReplicatedLinear` a_proj）数学成立，
+柱切分MLP遇到AG输入会被改错；待开/关输出对照实证后再定是否加作用域守卫。
+
+### 09-03 19:00
+现HEAD(b1a428e10)在9.103(A3)上起服后首个prefill即崩：dsa_cp.py:1469 RuntimeError，DSA_O_PROJ_TP仅A5 profile支持，A3硬拒绝。200prompts对比阻塞，待用户定对比基线。
+pre-13946 200prompts已测：冷TTFT均值2857/p50 2586/吞吐175.66，热TTFT均值2495/p50 2559/吞吐173.09。
+
+### 09-03 19:05
+FusedMMCollectivePass v1 在 17.119 V2-Lite TP2 完成编译版开/关对照：开 fuse 后 pass 正常触发但 `replaced 0`，FX dump 显示真实图只有 `all_reduce`+`unquantized_gemm`+`fused_moe`、无 `mm(AG)`/`quantize(AG)` 站点；70-token 长 prompt 开/关输出逐字一致；配置面 UT 重跑 `2 passed`，ruff 全 clean。结论：v1 在此拓扑是安全 no-op，不加作用域守卫（pattern-1 行线性代数上恒保 rank 内数值；实弹需含 `mm(AG)` 的拓扑如下一步 Qwen3.5 SP/MLA）。
+排障沉淀：HCCL 多实例每 phase 需独立数字端口段（`auto` 会 hang 在 HCCL init、默认报 error 7）；17.119 验证树曾新旧混用（manager 新/`hardware_profile.py`+`ascend_config.py` 旧致 `AttributeError`），已 sha256 对齐；`cudagraph NONE` 下 torch.compile 不跑、既有 eager 探针全部无效，须 `FULL_DECODE_ONLY`；job 状态滞留 running 系 tracker 假象，以远端进程/done 文件为准；17.119 的 `vllm` 来自第三方快照（`/mnt/share/.../zhaochuang001/vllm`），非 workspace 树。
+
+### 09-03 19:20
+按要求：删fix-dsacp stale worktree(prune)、本地切回fix-dsacp@a76098e65、全量sync、9.103起服。同样的A3门禁崩溃(dsa_cp.py:1469)复现，对话首请求即500。现HEAD在A3上无法跑dsa_cp性能，对比待分支修复。
+
+### 09-03 22:00
+A3加DSA_O_PROJ_TP(c8f6b05f0，已-s提交，2文件)后dsa_cp在A3跑通。200prompts冷热对比：pre-13946冷2857/热2495(TTFT均值)，现HEAD冷2848/热2313；热机吞吐173.09→178.00。删flashcomm无回退，热机TTFT反优7%。model.py用户改动未动。
+
+### 09-07 15:00
+17.119 GLM-5.2-W4A8C8(DP2+TP4,8010)上ais_bench：AIME2024 accuracy 13.33(4/30,推理约55分钟)，结果已pull到`.log/aisbench-aime2024-0907/`；GSM8K全量仅跑13条即按要求stop；ais-bench SKILL.md按实战重写（NO_PROXY、tee日志、pull链路、坑点）。
+
+### 09-07 15:15
+ais-bench SKILL.md按house格式重整（frontmatter+适用范围/核心边界/标准配置/结果核验/换数据集/相关参考，对齐lm-eval-precision-benchmark），已-s提交；markdownlint除MD013行长外clean。
+
+### 09-07 15:25
+用户取消GSM8K-100计划：重启服务j-20260907-150947-01在权重100%读完、起服前kill，卡0-7已释放，评测目标pause；已下发的gsm8k_100配置模板留本地.temp/ais_bench/备用。
+
 ### 09-07 15:45
 补充 `vllm-ascend/docs/source/user_guide/feature_guide/sequence_parallelism.md` 的 SP MoE 原理说明，覆盖 token 切分、EP 通信和不均衡 token 的 padding 处理。
 独立 markdownlint 与 `git diff --check` 通过；当前环境未安装 pre-commit，未运行功能测试（文档变更）。
+
+### 09-08 SP 上游代码实现
+在 sp-refactor-new 实现 SP 统一开关、DP=1 校验、共享专家输出修复及 dense >1000 动态切换。
+补充配置/linear/E2E 用例；保留 RS pad；动态 dense SP 首版关闭 CUDA graph。
+按用户要求未运行测试或 lint；详细状态见 docs/PRs/refactor_sp_upstream.md。
+
+### 09-08 PR 草稿
+在 docs/PRs/refactor_sp_upstream.md 追加上游 PR 标题与正文草稿。
+说明 SP 行为、兼容性、dense CUDA graph 限制、测试与模型评估待办及 AI 参与。
+仅编写本地文档，未运行验证、检索重复 PR 或发布到 GitHub。
+
+### 09-08 8K TTFT 性能对照完成
+179 H20 4–7 卡，Qwen3.5-35B-A3B BF16，DP1/TP4/EP V1 eager；补编缺失 embedding 算子并通过参考对照。
+8192 输入 / 1 输出、并发 1，每组 2×32 请求全成功；SP off/on 平均 TTFT 267.40/254.02 ms（-5.00%，存在轮间波动）。
+日志已拉回 .log/spbench-results；服务已停止；记录见 docs/PRs/refactor_sp_upstream_benchmark.md。
+
+### 09-08 SP-on 对话检查
+179 H20，DP1/TP4/EP V1 eager：10 次 chat 请求均 200；9 次关闭 thinking 的请求正常结束，无乱码。
+算术、长文本提取和 3 路并发正常；多轮活动推荐约束遵循不严，默认模板在 512 token 推理阶段截断。
+请求响应已拉回 .log/spbench-results/chat-sp-on-49ddb9f27e；服务已停止；未做 SP-off 精度对照。
+
+### 09-08 Dense SP CUDA graph 支持
+删除 dense SP 禁图分支；1000 阈值分隔捕获桶，SP/TP 独立编译及 AOT 缓存共享权重，重置时清理。
+H20 3 项回归通过；Qwen3.5-4B FULL(decode-only)/PIECEWISE 捕获与交替阈值输入跑通，生成 token 与基线一致。
+PIECEWISE 所选 token logprob 最大差 0.0148；记录与日志见 docs/PRs/refactor_sp_upstream_benchmark.md。
+
+### 09-08 16:55 9.138 vllm-ascend 源码树补齐编译产物（自产自销）
+9.138 上 4 次 pip 编译均未生效（装到了非服务 python 侧，源码树仍缺 cp311 产物导致 PYTHONPATH 方式 import 失败）。
+把本机 site-packages（09-05 d8c9e3a67 预编译）的 vllm_ascend_C.so/libvllm_ascend_kernels.so/_build_info.py/_version.py 与 68M _cann_ops_custom 补进 /vllm-ascend-workspace/vllm-ascend/vllm_ascend/（cp -a / cp -an 只补缺，git 保持干净）。
+源码树 PYTHONPATH import 验证 OK（platform 激活、device_type A3）。17.119 的 09-07 产物因工作区抖动+正跑服务未采用。
+
+### 09-08 21:15
+- 同步实测 workflow 到 skill：`ais-bench` 新增 MODEL-DATA-001 核验、gsm8k 数据格式核验与修复流程、双客户端互斥、17.111 gsm8k200 accuracy 97.50 记录；重写 `vllm-ascend-benchmark`（bench serve 标准流程 + 实测记录）；新增 `scripts/bench_perf.sh`。
+- 17.111 性能（DSpark-w4a8-int4 DP2+TP4+EP，random 4096-in/1024-out，并发 8）：100/100 成功，输出吞吐 136.46 tok/s，TTFT 均值 1397ms、TPOT 均值 55.55ms；产物 `.log/bench-dspark-0908/`。
+- markdownlint 通过（benchmark 干净；ais-bench 仅剩与原文一致的 MD013 行长）。
