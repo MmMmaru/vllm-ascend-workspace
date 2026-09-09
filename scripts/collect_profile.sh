@@ -19,5 +19,5 @@ curl -X POST http://127.0.0.1:8010/stop_profile
 
 python3 -c "
 from torch_npu.profiler.profiler import analyse
-analyse(\"/vllm-profile\")
+analyse(\"/home/x50063850/vllm-profile-26-17-17/dp0_pp0_tp0_dcp0_ep0_rank0_450730_20260826172308410_ascend_pt\")
 "

@@ -8,7 +8,7 @@
     "workspace_root": "/vllm-ascend-workspace",
     "machine_type": "A3",
     "container": {
-      "image": "vllm-ascend:dev-26.1.0.cann9.1.0.day20260811-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "image": "vllm-ascend:dev-26.2.0.day20260830-800I-A3-py311-Ubuntu24.04-lts-aarch64",
       "name": "xrs_vllm_main",
       "ssh_port": 46000,
       "workspace_root": "/vllm-ascend-workspace"
@@ -16,20 +16,21 @@
     "tags": {
       "chip": "ascend-910c",
       "cards": 16,
-      "os": "linux"
+      "os": "linux",
+      "region": "green"
     },
-    "note": "A3 16卡"
+    "note": "A3 16卡；2026-09-08重建为day20260830镜像"
   },
-    {
-    "alias": "17.122",
+  {
+    "alias": "17.110",
     "mode": "container",
-    "host": "80.5.17.122",
+    "host": "80.5.17.110",
     "port": 22,
     "user": "root",
     "workspace_root": "/vllm-ascend-workspace",
     "machine_type": "A3",
     "container": {
-      "image": "vllm-ascend:dev-26.1.0.cann9.1.0.day20260811-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "image": "vllm-ascend:dev-26.2.0.B027-800I-A3-py311-Ubuntu24.04-lts-aarch64",
       "name": "xrs_vllm_main",
       "ssh_port": 46000,
       "workspace_root": "/vllm-ascend-workspace"
@@ -39,6 +40,437 @@
       "cards": 16,
       "os": "linux"
     },
-    "note": "A3 16卡"
+    "note": "A3 16卡；2026-09-08 down后重建为机内最新B027镜像（day20260904外网拉取失败）"
+  },
+  {
+    "alias": "9.103",
+    "mode": "container",
+    "host": "80.5.9.103",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "quay.io/ascend/vllm-ascend:nightly-main-a3",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "8.26可用；当前仅支持单机；2026-09-08起切nightly-main-a3最新"
+  },
+  {
+    "alias": "9.143",
+    "mode": "container",
+    "host": "80.5.9.143",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "vllm-ascend:dev-26.2.0.day20260901-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "8.26可用；当前仅支持单机；2026-09-08起切dev-26.2.0.day20260901最新"
+  },
+  {
+    "alias": "41.195",
+    "mode": "container",
+    "host": "141.61.41.195",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A5",
+    "container": {
+      "image": "vllm-ascend:dev-26.1.0.day20260817-A5-py311-openEuler24.03-lts-aarch64",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend950dt",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "8.26可用"
+  },
+  {
+    "alias": "17.119",
+    "mode": "container",
+    "host": "80.5.17.119",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "vllm-ascend:dev-26.2.0.day20260902-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "8.26可用；本机最新镜像（2026-08-25）"
+  },
+  {
+    "alias": "141.62",
+    "mode": "ssh",
+    "host": "141.61.141.62",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A5",
+    "tags": {
+      "chip": "ascend950dt",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "8.26可用；预期8卡；SSH认证失败，尚未查询镜像"
+  },
+  {
+    "alias": "141.66",
+    "mode": "ssh",
+    "host": "141.61.141.66",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A5",
+    "tags": {
+      "chip": "ascend950dt",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "8.26可用；预期8卡；SSH认证失败，尚未查询镜像"
+  },
+  {
+    "alias": "90.90.81.179",
+    "mode": "container",
+    "host": "90.90.81.179",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "H20",
+    "container": {
+      "image": "vllm/vllm-openai:nightly-dev-x86_64-cu13.0.1-d62ad46",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "nvidia-h20",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "H20 8卡；与90.90.81.187双机互联；仅测试容器拉起"
+  },
+  {
+    "alias": "90.90.81.187",
+    "mode": "container",
+    "host": "90.90.81.187",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "H20",
+    "container": {
+      "image": "vllm/vllm-openai:nightly-dev-x86_64-cu13.0.1-d62ad46",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "nvidia-h20",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "H20 8卡；与90.90.81.179双机互联；原53；仅测试容器拉起"
+  },
+  {
+    "alias": "90.90.81.182",
+    "mode": "container",
+    "host": "90.90.81.182",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "H20",
+    "container": {
+      "image": "vllm/vllm-openai:nightly-dev-x86_64-cu13.0.1-d62ad46",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "nvidia-h20",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "H20 8卡；原54；仅测试容器拉起"
+  },
+  {
+    "alias": "141.61.81.14",
+    "mode": "container",
+    "host": "141.61.81.14",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "vllm-ascend:dev-26.0.0.B121-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "name": "vllm_auto2",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-910c",
+      "cards": 16,
+      "os": "linux"
+    },
+    "note": "A3 16逻辑卡；复用已有容器 vllm_auto2；workspace=/vllm-ascend-workspace（曾误配为site-packages，已修正，避免sync破坏已安装包）"
+  },
+  {
+    "alias": "9.136",
+    "mode": "container",
+    "host": "80.5.9.136",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "vllm-ascend:dev-26.2.0.day20260904-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "特性（纪涛）；机内最新镜像 pr-15156（08-30前后）；与9.138配对"
+  },
+  {
+    "alias": "9.138",
+    "mode": "container",
+    "host": "80.5.9.138",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "vllm-ascend:dev-26.2.0.B027-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "特性（纪涛）；2026-09-08起用nightly-main-a3（09-02构建，替代pr-15156）；与9.136配对"
+  },
+  {
+    "alias": "9.126",
+    "mode": "container",
+    "host": "80.5.9.126",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "quay.io/ascend/vllm-ascend:nightly-main-a3",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "绿区A3；2026-09-08注册；nightly-main-a3最新；当前仅支持单机"
+  },
+  {
+    "alias": "9.127",
+    "mode": "container",
+    "host": "80.5.9.127",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "quay.io/ascend/vllm-ascend:nightly-main-a3",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "绿区A3；2026-09-08注册；nightly-main-a3最新；当前仅支持单机"
+  },
+  {
+    "alias": "9.133",
+    "mode": "container",
+    "host": "80.5.9.133",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "vllm-ascend:dev-26.2.0.day20260904-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "绿区A3；2026-09-08注册；dev-26.2.0.day20260904最新（quay拉取失败，用本机最新）；当前仅支持单机"
+  },
+  {
+    "alias": "9.135",
+    "mode": "container",
+    "host": "80.5.9.135",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "vllm-ascend:dev-26.2.0.day20260904-800I-A3-py311-Ubuntu24.04-lts-aarch64",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "绿区A3；2026-09-08注册；dev-26.2.0.day20260904最新（quay拉取失败，用本机最新）；当前仅支持单机"
+  },
+  {
+    "alias": "9.110",
+    "mode": "container",
+    "host": "80.5.9.110",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A3",
+    "container": {
+      "image": "quay.io/ascend/vllm-ascend:nightly-main-a3",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend-a3",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "绿区A3；2026-09-08注册；nightly-main-a3最新；当前仅支持单机"
+  },
+  {
+    "alias": "17.111-host",
+    "mode": "ssh",
+    "host": "80.5.17.111",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/root",
+    "machine_type": "A3",
+    "tags": {
+      "chip": "ascend-910c",
+      "cards": 16,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "临时宿主机直连，仅用于17.111磁盘清理；勿作任务机，用完删除"
+  },
+  {
+    "alias": "45.104",
+    "mode": "ssh",
+    "host": "141.61.45.104",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/root",
+    "machine_type": "A5",
+    "tags": {
+      "chip": "ascend950dt",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "A5 DT 8卡；2026-09-09注册，ssh探测中，待切container"
+  },
+  {
+    "alias": "52.116",
+    "mode": "container",
+    "host": "141.61.52.116",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/vllm-ascend-workspace",
+    "machine_type": "A5",
+    "container": {
+      "image": "vllm-ascend:0817-byh",
+      "name": "xrs_vllm_main",
+      "ssh_port": 46000,
+      "workspace_root": "/vllm-ascend-workspace"
+    },
+    "tags": {
+      "chip": "ascend950dt",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "A5 DT 8卡；2026-09-09注册；镜像0817-byh（机内最新）；占用翻转频繁，起服前务必经宿主机npu-smi核实（容器内卡号与宿主机一致）；12:00前实测0-3空闲、4-7被他人VLLMWorker_TP占用，本任务用0-3"
+  },
+  {
+    "alias": "52.116-host",
+    "mode": "ssh",
+    "host": "141.61.52.116",
+    "port": 22,
+    "user": "root",
+    "workspace_root": "/root",
+    "machine_type": "A5",
+    "tags": {
+      "chip": "ascend950dt",
+      "cards": 8,
+      "os": "linux",
+      "region": "green"
+    },
+    "note": "临时宿主机直连，仅用于52.116的NPU显存清理等宿主机操作；勿作任务机，用完删除"
   }
 ]

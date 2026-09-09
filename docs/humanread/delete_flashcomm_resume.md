@@ -1,0 +1,4 @@
+- 背景：flashcomm特性通过下游自定义算子实现，与上游vllm社区model文件实现不符，考虑可维护性进行下游flashcomm重构整改
+- 难点：涉及模块多、修改幅度大、需要对齐各个特性责任人推动PR进度
+- 职责：主导flashcomm特性重构，删除4000+行代码，看护SP与上下文并行、专家并行、共享专家DP等多种特性叠加，确保精度、性能指标
+- 针对qwen3.5、deepseek v4 dsa-cp场景下的精度问题，通过profiling结合agent分析定位算子调用问题点，修复词表并行allreduce、共享专家DPallreduce、dsacp特性hiddenstates切分等多场景、多模型问题。目前已成功合入main分支

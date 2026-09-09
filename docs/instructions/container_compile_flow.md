@@ -24,3 +24,4 @@ pip install --no-cache-dir --no-deps --no-build-isolation -ve .
 遇到aclrmsnorm not found等等的问题，尝试：
 export COMPILE_CUSTOM_KERNELS=1
 如果不成功需要换镜像。
+!Q2w3e4r

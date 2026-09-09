@@ -86,98 +86,101 @@
 - Breaking change：旧 `enable_sequence_parallel_moe` / `use_sequence_parallel_moe` / CLI 名称删除，
   vllm-ascend 需后续适配；本次代码由 AI 辅助编写，尚未通过验证。
 
-## PR 草稿
+# PR 草稿
 
-### Title
+## Title
 
-`[Core] Move sequence parallel collectives into linear layers for Qwen3.5`
+`[Core] Refactor sequence parallel collectives into linear layers`
 
-### Purpose and Changes
+## Purpose
 
-This change moves sequence-parallel (SP) communication for the Qwen3.5 family into the
-linear layers, unifies the SP switch, and adds a token-count-based SP/TP execution path
-for dense models. In SP mode, ColumnParallelLinear, MergedColumnParallelLinear, and
-QKVParallelLinear perform token all-gather on their inputs. RowParallelLinear performs
-reduce-scatter on its outputs to combine TP partial sums and shard the tokens. The model
-still retains the chunk after the embedding layer and the gather at the output.
+This PR proposes a sequence-parallel (SP) refactor.
 
-The migration covers the shared Qwen3.5/Qwen3-Next implementation, Gated DeltaNet,
-and the corresponding MTP paths. Other models only update the configuration property
-name; their communication implementation is not migrated. LoRA linear paths reuse the
-linear-layer input preparation and output reduction logic.
+Today, the all-gather before attention and the reduce-scatter after attention are owned by model-specific decoder code. This couples the SP boundary to individual model implementations, duplicates collective-selection logic, and makes it easy for related paths—such as LoRA, linear attention, and other model runners—to diverge from the main attention path. Meanwhile, SP is automatically enabled under certain conditions, including DP > 1, TP > 1, EP, and supported all-to-all backends. We believe this option should also be user-configurable.
 
-This adds the `enable_sequence_parallel` configuration and the
-`--enable-sequence-parallel` CLI option with the following semantics:
+This PR moves these communication boundaries into the tensor-parallel linear layers that naturally own them, since SP is coupled to the TP group:
 
+- `ColumnParallelLinear` gathers a sequence shard before an attention input projection.
+- `RowParallelLinear` performs a reduce-scatter on the attention output when the caller requests unreduced row-parallel results.
+
+The refactor preserves the existing MoE SP behavior while making the communication contract reusable by attention implementations that use the same parallel linear layers.
+
+This PR also considers SP for dense models. When explicitly enabled, SP is used for dense models when the number of tokens in a step exceeds a threshold.
+
+## Implementation
+This PR primarily targets the Qwen3.5 model family. Other models can be migrated similarly.
+
+- Add sequence-parallel collective wrappers in `communication_op.py`. These wrappers use custom device-communicator collectives when available and otherwise fall back to the TP all-gather and reduce-scatter implementations.
+- Add the `enable_sequence_parallel` configuration and the `--enable-sequence-parallel` CLI option. When unset, the existing automatic MoE heuristic is preserved; `False` disables SP, while `True` requires TP > 1, allows DP = 1, and additionally requires EP and a supported all-to-all backend for MoE models. Pipeline parallelism with PP > 1 disables SP.
+- Enable the linear-layer SP path for Qwen3-Next and Qwen3.5 when `use_sequence_parallel` is enabled. Other models retain their current behavior.
+- Extend the dense Qwen3.5 attention and MLP paths to pass `sequence_parallel` to their parallel linear layers, so manually enabled dense SP uses the same token all-gather and reduce-scatter boundaries as the MoE path.
+- Select dense SP dynamically based on the unpadded number of tokens in each step: steps with more than 1000 tokens use SP, while shorter steps retain the regular TP path. A forward-context flag derived from this unpadded token count keeps model-level chunk/gather operations and linear-layer collectives on the same path.
+- Remove the duplicated attention all-gather and reduce-scatter logic from the Qwen3-Next decoder layer. The decoder remains responsible for sharding the residual when transitioning to the MoE path.
+- Route the Qwen Gated DeltaNet linear-attention input through the same `ColumnParallelLinear` preparation path.
+- Reuse the base linear-layer input-preparation and output-reduction logic in the LoRA wrappers so that LoRA follows the same SP boundary.
+- Make the V1 GPU model runner pad SP-MoE and dense-SP batches to a token count that is divisible by the TP world size and align CUDA-graph capture sizes with this padded token count. Model-level SP helpers can therefore require padding rather than introducing it independently.
+
+## Scope
 | Configuration | MoE | Dense |
 | --- | --- | --- |
-| `None` (default) | Preserve the existing automatic enablement conditions: DP > 1, TP > 1, EP, and a supported backend | Not enabled automatically |
+| `None` (default) | Preserve the existing automatic enablement conditions: DP > 1, TP > 1, EP is enabled, and a supported all-to-all backend is selected | Not enabled automatically |
 | `False` | Disabled | Disabled |
-| `True` | Requires TP > 1, EP, and a supported backend; DP = 1 is allowed | Requires TP > 1; use SP when the number of tokens in a step is > 1000, otherwise use TP |
+| `True` | Requires TP > 1, EP, and a supported all-to-all backend; DP = 1 is allowed | Requires TP > 1; use SP when the number of tokens in a step is > 1000, otherwise disable it |
 
-When PP > 1, SP controlled by this configuration is disabled. This switch is separate
-from the compilation pass's `enable_sp` setting; the two mechanisms are not merged in
-this PR.
+## Discussion points
 
-The dense path generates a forward-context flag from the unpadded number of tokens in
-each step. This flag consistently controls the model's chunk/gather operations and the
-linear-layer AG/RS operations. The runner pads the token count of SP steps to a multiple
-of the TP size. Dense MLPs retain TP-sharded weights and enable communication through
-linear-layer parameters.
+- Are `ColumnParallelLinear` and `RowParallelLinear` the preferred shared boundary for model SP communication, or should this be represented by a more explicit attention-level abstraction?
+- Is limiting the initial rollout to specific model types acceptable, with follow-up migrations for other SP-capable models?
+- Does the runner-owned padding contract provide the right separation between scheduling and model execution?
+- Is it reasonable to add `--enable-sequence-parallel` as a user-facing CLI option?
 
-The output of replicated shared experts is also added back. In replicated mode, the
-shared expert is not passed to `FusedMoEFactory`, so its separately computed result must
-be added to the routed-expert output on the model side.
+## Test Plan
+The final PR will include targeted unit tests and TP > 1 serving-correctness results for Qwen3-Next and Qwen3.5-MoE with `--enable-sequence-parallel`.
 
-### Current Limitations and Compatibility
+Tested on four H20 GPUs using:
+```bash
+vllm serve \
+  --model Qwen/Qwen3.5-35B-A3B \
+  --data-parallel-size 1 \
+  --tensor-parallel-size 4 \
+  --enable-sequence-parallel \
+  --enable-expert-parallel \
+  --enforce-eager \
+  --all2all-backend allgather_reducescatter
+```
+Vllm bench test is conducted under `concurrency=1` and different input sequence length
+## Test Results
 
-- The internal reduce-scatter padding and the `sequence_parallel_unpadded_size`
-  parameter are retained. This version of the PR does not remove the padding or include
-  an A/B experiment for the padding strategy.
-- Dynamic dense SP currently disables CUDA graphs to prevent an incorrect layout from
-  being reused when a graph bucket crosses the token threshold. Restoring CUDA graph
-  support requires separate capture and dispatch paths for SP and TP layouts; no
-  performance benefit is claimed at this stage.
-- `use_sequence_parallel_moe` has been renamed to `use_sequence_parallel`, with no
-  alias for the old name. The earlier branch-specific
-  `enable_sequence_parallel_moe` / `--enable-sequence-parallel-moe` names have also
-  been unified; the Qwen3.5 family no longer uses the
-  `use_attn_reduce_scatter_for_moe` alias.
-- Downstream plugins that reference the old names must be updated. This PR does not
-  include changes on the vllm-ascend side.
+| Stage  | Sequence length | Mean TTFT (ms) |
+| --- | ---: | ---: |
+| SP off | 8k | 267.40 |
+| SP on | 8k | 254.02 |
 
-### Testing and Model Evaluation
+## 09-08 SP-on 对话冒烟补充
 
-This is currently an unvalidated draft. The following test cases have been added to the
-code but have not been run. There are no test, lint, accuracy-evaluation, or benchmark
-results yet, so these changes must not be considered evidence that the DP = 1 accuracy
-issue has been resolved.
+DP1/TP4/EP、V1 eager 下完成 10 次 chat 请求：9 次关闭 thinking 的请求正常 stop，
+覆盖中英文、算术、多轮记忆、5049-token 文本提取及 3 路并发，未观察到乱码或异常重复。
+多轮活动推荐未严格满足避开爬山的约束；默认模板输出推理文本，在 512 token 截断，
+尚未得到最终回答。未做 SP-off 同提示精度对照。详见性能记录的对话冒烟章节。
 
-| Coverage | Test case | Status |
-| --- | --- | --- |
-| Dense switch, 1000/1001 threshold, validation after model-type resolution, and PP disablement | `tests/config/test_sequence_parallel.py` | Not run |
-| Linear AG/RS, padding, LoRA, and restoration of TP for short steps | `tests/model_executor/layers/test_linear_sequence_parallel.py` | Not run |
-| MoE default heuristic, explicit DP = 1, and unsupported topologies | Configuration cases in `tests/models/kimi_k3/test_sequence_parallel.py` | Not run |
-| Qwen3.5 dense/MoE with DP = 1 and TP = 2: SP on/off output and logprob comparison | `tests/compile/correctness_e2e/test_sequence_parallel.py::test_qwen35_explicit_sp_dp1` | Not run |
+## Dense SP CUDA graph 支持（更新）
 
-The new E2E test uses `SP_DENSE_MODEL` / `SP_MOE_MODEL` to specify local Qwen3.5
-weights and covers prefill with 1001, 1000, and 17 tokens, followed by decode. The test
-currently uses eager mode and does not cover compiled execution, CUDA graphs, or MTP
-accuracy.
+已删除 dense SP 强制将 cudagraph_mode 设为 NONE、清空 capture sizes 的代码。
+此前的风险是 1000-token TP 步被补到 1024-token SP 捕获桶，及无 guards 编译缓存
+复用首次追踪的分支。现在捕获尺寸在 1000 处分界，SP 捕获尺寸必须被 TP size 整除；
+模型为 SP / TP 分别建立编译实例及 AOT 缓存，共享原有参数，重置编译时清理两份实例。
 
-Before submitting the PR for review, add the test commands and results from H20, the
-model paths and versions, and an SP on/off accuracy comparison. Also record the
-benchmark configurations and TTFT, TPOT, and throughput before and after the refactor.
-The performance comparison must explicitly show the impact of disabling CUDA graphs for
-dynamic dense SP. Ruff and markdownlint have not been run yet.
+H20 TP4、Qwen3.5-4B BF16 验证：
 
-### Related Work and AI Assistance
+- 3 项阈值 / 编译分支回归通过，覆盖两种首次编译顺序。
+- 交替输入 1000、1001、17、1001、1000 tokens，每次生成 4 tokens。
+- FULL 配置经 Qwen3.5 后端调整为 decode-only FULL，实际捕获 decode 图。
+- PIECEWISE 实际捕获 1、1000、1004、1024 四个桶，SP/TP 分别使用 `.sp_1` / `.sp_0` 缓存。
+- FULL 和 PIECEWISE 的生成 token 均与各自无图基线一致。PIECEWISE 与开启编译的
+  无图基线相比，所选 token 的 logprob 最大差为 0.0148；top-5 集合并非完全一致。
+- 现有根 conftest 缺少 tblib，聚焦单测通过 `--confcutdir=tests/compile` 运行；
+  模型 E2E 使用独立驱动直接调用 LLM，新增仓库 E2E 用例尚未通过原 fixture 执行。
+- 原始输出及捕获日志：`.log/spbench-results/dense-graph/`。
 
-The search for duplicate or related work has not yet been performed. Before publication,
-add related issues/PRs, the search results, and the differences from existing work. This
-draft does not claim that duplicate implementations have been ruled out.
-
-AI assistance was used to implement the code, write regression tests, and draft this
-description. The submitter must still review the changes line by line, complete the
-relevant tests and model evaluations, and be able to explain and maintain the
-implementation.
+此前“动态 dense SP 暂关闭 CUDA graph”的实现状态由本节取代。
+本轮未验证 MTP、LoRA 和其他模型家族的图执行，也未重新测量性能。

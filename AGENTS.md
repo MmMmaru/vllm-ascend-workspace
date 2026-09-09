@@ -8,11 +8,13 @@
 
 在commit前运行pre-commit只需要运行ruff和markdownlint就可以
 在commit的时候需要sing off
-[`vllm/vllm/config/parallel.py`](../vllm/vllm/config/parallel.py#L126) 使用这种格式描述代码。
-测试中的模型路径使用环境变量读取，保证本地和上游都有模型用：
-os.environ.get("SP_TEST_MODEL", "Qwen/Qwen3-30B-A3B")
-上传代码仅使用纯代码上传，不要用仓库自带install编译。
-编译请严格按照docs/instructions的步骤。
+请阅读并按照docs/instructions的步骤操作。
+尽量使用阻塞的方式运行remote run
+后台任务轮询按照2分钟粒度轮询
+PR默认指定vllm-ascend里面的PR
+注释永远使用英文
+非必要不编写注释
+
 
 ## 开发环境
 目前在远程开发

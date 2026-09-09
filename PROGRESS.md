@@ -1,3 +1,8 @@
+### 09-09 09:40
+9.143 上验证 SP-MoE 开关 patch 真正生效：同步 workspace（vllm 全量+vllm-ascend 增量）并以 COMPILE_CUSTOM_KERNELS=0 重装可编辑包
+UT `test_patch_parallel_config.py` 5 passed；Qwen3-30B-A3B（DP1/TP4/EP/flashcomm）serve 日志打出 `Sequence-parallel MoE is enabled` 且试请求输出正常。验证完服务已停，卡已释放。
+注意：远端 PYTHONPATH 必须用 `:$PYTHONPATH` 追加（直接赋值会丢 CANN 路径报 `No module named 'acl'`）；remote 下发含 `$` 的命令要在本地转义。
+
 ### 08-28 13:42
 
 - 新增 `scripts/prepare_lm_eval_gsm8k.py` 和全量入口
