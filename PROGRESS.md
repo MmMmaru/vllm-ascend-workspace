@@ -1,3 +1,22 @@
+### 09-11 11:30
+开两个draft PR：#16323（`agent/dsacp-prefill-no-gather-fallback`→main，删dsa_cp.py prefill guard共2行，ruff过）；
+#16324（`agent/backport-sp-moe-guide-v0271`→releases/v0.27.1rc，回迁#15737 SP MoE guide，additional_config.md一处冲突取main新文案，markdownlint+ruff过）。
+注意：本地fix-dsacp-v0.27.1rc含用户自提交10be87351（删raise）但丢了f1c2fcf8a（A3能力，仅远端有），未push，保持不动待确认。
+
+### 09-11 09:00
+A3补`DSA_O_PROJ_TP`能力已合入PR16021：`hardware_profile.py`的`_A3_CAPABILITIES`加该项，`test_hardware_profile.py`期望矩阵同步；ruff干净，commit`f1c2fcf8a`（signed-off）并push到`xrs/fix-dsacp-v0.27.1rc`。此前已cherry-pick单测mock修复`dad80dd40`。结论：只删dsa_cp.py:1530的raise不可行，会进切分权重+sp_reduce_scatter的decode补偿路径导致静默算错，raise是fail-fast守卫。
+
+### 09-11 08:30
+PR16021两处CI失败定位+修一处：cpu单测`test_hash_router_uses_explicit_input_ids`mock旧名与`fused_topk_router.py:111`新`all_gather_input_ids`不一致，已cherry-pick `76f9d72ed`到`fix-dsacp-v0.27.1rc`并push（ruff干净）。
+a3-800i-4的dsa-cp-dspark失败是真问题：A3无`DSA_O_PROJ_TP`能力导致确定性`RuntimeError`，缺上游`b1098db5c`回迁（fix-dsacp主线已有），未自动合，需评审后backport。
+Dspark精度98.5→98.0判定为波动：双向翻转（修1坏2，其中187为106/106.12格式分）、0.5%<1SE、100+措辞变答案对、MTP无损、耗时持平。
+
+### 09-10 16:20
+17.119 卡 0-3 做 SP+SEDP vs SP-only（只切 `enable_shared_expert_dp`）单卡显存对照：Qwen3.5-35B-A3B bf16，DP1/TP4/EP，`enable_flashcomm1` 开 SP，每臂各跑「util 0.9」与「固定 KV=8GiB」两种口径，共 4 次起服。
+权重 16.6970→16.5212 GiB（−0.176 GiB/卡，理论 184.6 MiB 吻合）；activation/non-torch 不变；SP-only 的 NPU graph 反而 +0.11 GiB/卡。
+结论：util 0.9 下关 SEDP 换来 KV +0.19 GiB/卡（+16,852 tokens）但单卡总占用 +117 MB/卡；固定 KV 时单卡净降仅 ~63 MB。详见 `.log/sp-sedp-mem/RESULTS.md`；服务已停、卡已释放。
+坑：容器 proxy 会让脚本内 curl/urllib 打 127.0.0.1 返回 000（健康检查永不通过），需 unset proxy + `--noproxy '*'`；容器无 `ss`，用 `/proc/net/tcp`；`remote sync 17.119` 因远端两个 worktree gitlink 脏而 fail-closed，脚本改走 base64 下发。
+
 ### 09-09 09:40
 9.143 上验证 SP-MoE 开关 patch 真正生效：同步 workspace（vllm 全量+vllm-ascend 增量）并以 COMPILE_CUSTOM_KERNELS=0 重装可编辑包
 UT `test_patch_parallel_config.py` 5 passed；Qwen3-30B-A3B（DP1/TP4/EP/flashcomm）serve 日志打出 `Sequence-parallel MoE is enabled` 且试请求输出正常。验证完服务已停，卡已释放。
@@ -425,3 +444,7 @@ PIECEWISE 所选 token logprob 最大差 0.0148；记录与日志见 docs/PRs/re
 - 同步实测 workflow 到 skill：`ais-bench` 新增 MODEL-DATA-001 核验、gsm8k 数据格式核验与修复流程、双客户端互斥、17.111 gsm8k200 accuracy 97.50 记录；重写 `vllm-ascend-benchmark`（bench serve 标准流程 + 实测记录）；新增 `scripts/bench_perf.sh`。
 - 17.111 性能（DSpark-w4a8-int4 DP2+TP4+EP，random 4096-in/1024-out，并发 8）：100/100 成功，输出吞吐 136.46 tok/s，TTFT 均值 1397ms、TPOT 均值 55.55ms；产物 `.log/bench-dspark-0908/`。
 - markdownlint 通过（benchmark 干净；ais-bench 仅剩与原文一致的 MD013 行长）。
+
+### 09-10 PR #15737 冲突解决（doc 分支 rebase 到 upstream/main）
+PR agent/sequence-parallelism-doc → main 报 CONFLICTING；按要求用 rebase（不用 merge）：reset 回 ca4e4c524 后 rebase 到 upstream/main(59a70c106)，9 个提交中 8 个干净 replay，仅 flashcomm 那笔在 additional_config.md 冲突。解法：dsa_cp 取主线新描述（含自动启用 FlashComm），保留本分支 enable_flashcomm1 行与主线 enable_pcp_o_proj_weight_sharding 行。
+markdownlint 通过；--force-with-lease push，PR 状态回到 MERGEABLE，历史保持线性无 merge commit。

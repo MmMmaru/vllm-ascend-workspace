@@ -28,7 +28,7 @@ export VLLM_LOGGING_LEVEL=INFO
 # flashcomm
 # --additional-config "{\"enable_flashcomm1\":true}" \
 
-# --speculative-config '{"method": "dspark", "model": "/mnt/weight/DeepSeek-V4-Flash-DSpark", "num_speculative_tokens": 7}' \
+# --speculative-config '{"method": "dspark", "num_speculative_tokens": 7}' \
 # --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
 # "enforce_eager": true
 
@@ -56,7 +56,7 @@ if [[ "${ENABLE_PROFILER:-1}" == "1" ]]; then
 fi
 
 vllm serve \
-    --model /mnt/weight/DeepSeek-V4-Flash-DSpark-w4a8 \
+    --model /mnt/share/weight/DeepSeek-V4-Flash-0731 \
     --served-model-name qwen \
     --host 127.0.0.1 \
     --port 8010 \
@@ -71,11 +71,11 @@ vllm serve \
         "enable_shared_expert_dp":true,
         "enable_dsa_cp":true,
         "enable_cpu_binding":true,
-        "multistream_overlap_shared_expert":true
+        "multistream_overlap_shared_expert":false
     }' \
     --speculative-config '{"method": "dspark", "num_speculative_tokens": 7}' \
     "${EXTRA_ARGS[@]}" \
- 2>&1 | tee /home/x50063850/vllm-logs/vllm-$(date +%d-%H-%M).log
+#  2>&1 | tee /home/x50063850/vllm-logs/vllm-$(date +%d-%H-%M).log
 
 # vllm serve \
 #     --model /mnt/weight/DeepSeek-V4-Flash-DSpark-w4a8-int4-new \

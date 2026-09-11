@@ -3,6 +3,8 @@
 **中文** | **[English](README.en.md)**
 
 一个可组合的本地开发脚手架，让你在同一个工作区里同时开发 [vLLM](https://github.com/vllm-project/vllm) 和 [vLLM Ascend 插件](https://github.com/vllm-project/vllm-ascend)，并通过内置的 AI Agent 技能和 `remote` CLI 完成环境初始化、远程 NPU 机器操作、代码同步和编译验证。
+## 注意
+仓库是xrs定制仓库，更换AGENTS.md和.agents/AGENTS.md为你的定制工作流
 
 ## 这个项目解决什么问题
 
@@ -14,7 +16,7 @@ vLLM Ascend 的开发通常需要在本地编辑代码、在远程昇腾 NPU 服
 
 ```bash
 # 克隆仓库
-git clone https://github.com/maoxx241/vllm-ascend-workspace.git
+git clone https://github.com/MmMmaru/vllm-ascend-workspace.git
 cd vllm-ascend-workspace
 
 # 初始化子模块

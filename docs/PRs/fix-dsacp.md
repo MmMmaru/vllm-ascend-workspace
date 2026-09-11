@@ -234,18 +234,14 @@ Dspark weight: `/mnt/weight/DeepSeek-V4-Flash-DSpark-w4a8-int4-new` (method dspa
 Dataset: `gsm8k_gen_0_shot_cot_chat_prompt`前200条(`--num-prompts 200`,
 `--max-num-workers 8`); 性能取aisbench真实数据集推理耗时。
 
-| # | PR | spec | dsacp | accuracy | 推理耗时 |
-|---|----|------|-------|----------|----------|
-| 1 | 前 | MTP=2 | 关 | 起服失败(同#4形状无解) | — |
-| 2 | 前 | MTP=3 | 关 | 98.50 | 推理116s (22:34:35→22:36:31) |
-| 3 | 前 | Dspark=7 | 关 | 98.50 | 推理200s (22:46:20→22:49:40) |
-| 4 | 后 | MTP=2 | 关 | 起服失败(形状无解,见注1) | — |
-| 5 | 后 | MTP=3 | 关 | 98.50 | 推理123s (21:44:33→21:46:36) |
-| 6 | 后 | Dspark=7 | 关 | 98.00 | 推理200s (21:57:13→22:00:33) |
-| 7 | 前 | Dspark=7 | 开 | 98.50 | 推理188s (22:59:03→23:02:11) |
-| 8 | 前 | MTP=2 | 开 | 起服失败(同#4形状无解) | — |
-| 9 | 后 | Dspark=7 | 开 | 98.00 | 推理188s (22:08:53→22:12:01) |
-| 10 | 后 | MTP=2 | 开 | 起服失败(同#4形状无解) | — |
+| # | PR | spec | dsacp | accuracy | inference time |
+|---|----|------|-------|----------|----------------|
+| 1 | before | MTP=3 | off | 98.50 | 116s |
+| 2 | after | MTP=3 | off | 98.50 | 123s |
+| 3 | before | Dspark=7 | off | 98.50 | 200s |
+| 4 | before | Dspark=7 | on | 98.50 | 188s |
+| 5 | after | Dspark=7 | off | 98.00 | 200s |
+| 6 | after | Dspark=7 | on | 98.00 | 188s |
 
 注1: MTP=2在SP开+TP4下结构性不可跑。Worker报错: `Can't determine cudagraph
 shapes that are both a multiple of 3 (num_speculative_tokens + 1) required by
